@@ -745,6 +745,33 @@ impl Engine {
         self.push_unit_actions(unit_id, unit, out);
     }
 
+    /// Whether this tile is an owned production property that can afford at
+    /// least one unit, i.e. a tile that can act without holding a unit.
+    pub fn can_build_anything(&self, at: Pos) -> bool {
+        UnitType::ALL
+            .into_iter()
+            .any(|typ| self.check_build(at, typ).is_ok())
+    }
+
+    /// Every order available from one tile, whether that means the unit
+    /// standing on it or the property under it.
+    ///
+    /// This is the staged counterpart to `legal_actions_into`: a policy that
+    /// picks a tile first only ever needs this much of the action set, which is
+    /// one reachability search rather than one per unit.
+    pub fn legal_actions_at(&mut self, at: Pos, out: &mut Vec<Action>) {
+        out.clear();
+        if let Some(unit) = self.state.unit_id_at(at) {
+            self.legal_actions_for(unit, out);
+            return;
+        }
+        for typ in UnitType::ALL {
+            if self.check_build(at, typ).is_ok() {
+                out.push(Action::Build { at, typ });
+            }
+        }
+    }
+
     /// Units belonging to the player to move that still have an order left.
     pub fn movable_units(&self) -> impl Iterator<Item = UnitId> + '_ {
         let player = self.state.current;

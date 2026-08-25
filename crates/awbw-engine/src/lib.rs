@@ -10,6 +10,7 @@ pub mod actions;
 pub mod co_data;
 pub mod combat;
 pub mod data;
+pub mod encoding;
 pub mod map;
 pub mod movement;
 pub mod rng;
@@ -19,6 +20,7 @@ pub mod vision;
 
 pub use actions::{Action, ActionError, ActionReport, Engine};
 pub use co_data::{co_by_awbw_id, co_by_name, CoData};
+pub use encoding::{encode_observation, ActionCode, ActionMasks, OrderKind};
 pub use map::{Map, Pos};
 pub use movement::Reach;
 pub use rng::Rng;

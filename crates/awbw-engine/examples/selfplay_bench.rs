@@ -174,6 +174,61 @@ fn run_factorized(games: u32, max_day: u16) -> Stats {
     }
 }
 
+/// The factorized loop again, but paying for an observation tensor and a mask
+/// set at every step -- what an actual policy would cost.
+fn run_encoded(games: u32, max_day: u16) -> Stats {
+    use awbw_engine::encoding::{encode_observation, observation_len, ActionMasks};
+
+    let mut steps = 0u64;
+    let mut actions_seen = 0u64;
+    let mut days = 0u64;
+    let mut masks = ActionMasks::new();
+    let mut sources: Vec<bool> = Vec::new();
+    let mut obs: Vec<f32> = Vec::new();
+
+    let start = Instant::now();
+    for game in 0..games {
+        let mut engine = new_engine(game as u64);
+        let mut rng = Rng::new(0xBEEF + game as u64);
+        obs.resize(observation_len(&engine.state), 0.0);
+
+        while engine.state.outcome() == Outcome::InProgress && engine.state.day <= max_day {
+            encode_observation(&engine.state, engine.vision(), &mut obs);
+
+            // Head 1: pick a tile to act with.
+            masks.source_mask(&mut engine, &mut sources);
+            let legal: Vec<u32> = sources
+                .iter()
+                .enumerate()
+                .filter(|(_, &ok)| ok)
+                .map(|(i, _)| i as u32)
+                .collect();
+            let source = legal[rng.roll_inclusive(legal.len() as u32 - 1) as usize];
+
+            // Heads 2-4: pick among that tile's orders.
+            let codes = masks.select_source(&mut engine, source);
+            actions_seen += codes.len() as u64;
+            if codes.is_empty() {
+                engine.apply(awbw_engine::actions::Action::EndTurn).unwrap();
+            } else {
+                let pick = codes[rng.roll_inclusive(codes.len() as u32 - 1) as usize];
+                let action = awbw_engine::encoding::decode(&engine.state, pick)
+                    .expect("mask implies decodable");
+                engine.apply(action).expect("mask implies legal");
+            }
+            steps += 1;
+        }
+        days += engine.state.day as u64;
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    Stats {
+        steps,
+        branching: actions_seen as f64 / steps as f64,
+        days: days as f64 / games as f64,
+        elapsed,
+    }
+}
+
 fn report(label: &str, s: &Stats) {
     println!("{label}");
     println!("  micro-steps:    {}", s.steps);
@@ -196,4 +251,6 @@ fn main() {
     report("flat enumeration (all units, every step)", &run_flat(GAMES, MAX_DAY));
     println!();
     report("factorized (unit first, then order)", &run_factorized(GAMES, MAX_DAY));
+    println!();
+    report("with observation + masks each step", &run_encoded(GAMES, MAX_DAY));
 }

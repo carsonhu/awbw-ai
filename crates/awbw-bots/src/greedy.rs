@@ -154,17 +154,19 @@ impl GreedyBot {
                     // A guaranteed kill is worth the whole unit, not a fraction.
                     score += unit_value(defender) * 0.5;
                 }
-                // Subtract what the counterattack is expected to cost. Indirect
-                // fire takes none, which is most of why it is good.
-                if !attacker.typ.is_indirect() && !defender.typ.is_indirect() {
-                    if let Some(counter) = engine.preview_damage_at(
-                        state.unit_id_at(target).unwrap_or(unit),
-                        dest,
-                        attacker.hp100 as i32,
-                    ) {
-                        let taken = (counter.expected as f32).min(attacker.hp100 as f32);
-                        score -= taken / 100.0 * attacker.typ.stats().cost as f32;
-                    }
+                // Subtract what the counterattack is expected to cost, from the
+                // tile we will be standing on and against the health the
+                // defender has left after our strike. Indirect fire draws none,
+                // which is most of why it is good.
+                let Some(defender_id) = state.unit_id_at(target) else {
+                    return f32::MIN;
+                };
+                let surviving = (defender.hp100 as f32 - dealt).max(0.0) as i32;
+                if let Some(counter) =
+                    engine.preview_counter(defender_id, surviving, unit, dest)
+                {
+                    let taken = (counter.expected as f32).min(attacker.hp100 as f32);
+                    score -= taken / 100.0 * attacker.typ.stats().cost as f32;
                 }
                 score
             }
@@ -302,6 +304,41 @@ mod tests {
         assert!(
             matches!(action, Action::Capture { dest, .. } if dest == target),
             "expected a capture, got {action:?}"
+        );
+    }
+
+    #[test]
+    fn the_counterattack_penalty_actually_applies() {
+        // Regression: the penalty used to look the defender up on the tile the
+        // attacker was moving to, which is empty at scoring time, so it was
+        // silently skipped for every move-then-attack -- which is nearly all of
+        // them. A move-in trade must score below the same trade taken for free.
+        let mut e = engine();
+        let mine = e.state.spawn(UnitType::Tank, 0, Pos::new(6, 6));
+        e.state.spawn(UnitType::Tank, 1, Pos::new(8, 6));
+        e.refresh_vision();
+        let bot = GreedyBot::new();
+
+        let closing = Action::Attack {
+            unit: mine,
+            dest: Pos::new(7, 6),
+            target: Pos::new(8, 6),
+        };
+        assert!(e.check(closing).is_ok());
+        let with_counter = bot.score(&e, closing);
+
+        // Score the same exchange with the counter suppressed, by asking the
+        // engine directly, and confirm the bot really subtracted something.
+        let defender_id = e.state.unit_id_at(Pos::new(8, 6)).unwrap();
+        let counter = e
+            .preview_counter(defender_id, 100, mine, Pos::new(7, 6))
+            .expect("two adjacent tanks counter each other");
+        assert!(counter.expected > 0.0, "counter should do real damage");
+        let gross = e.preview_damage(mine, Pos::new(8, 6)).unwrap();
+        let gross_value = gross.expected as f32 / 100.0 * UnitType::Tank.stats().cost as f32;
+        assert!(
+            with_counter < gross_value,
+            "score {with_counter} should be below the gross {gross_value}"
         );
     }
 

@@ -872,6 +872,42 @@ impl Engine {
         self.preview_damage_at(attacker_id, target, defender_hp)
     }
 
+    /// Damage a defender would deal back, given where the attacker will be
+    /// standing and how much health the defender will have left.
+    ///
+    /// The plain previews look the defender up by tile, which cannot answer
+    /// "what happens to me if I move *there* and shoot": nothing stands on the
+    /// destination yet. Both units are named explicitly here instead.
+    pub fn preview_counter(
+        &self,
+        defender_id: UnitId,
+        defender_hp100: i32,
+        attacker_id: UnitId,
+        attacker_pos: Pos,
+    ) -> Option<DamageSpread> {
+        let defender = self.state.unit(defender_id)?;
+        let attacker = self.state.unit(attacker_id)?;
+        // Indirect units never counter, and nothing counters indirect fire.
+        if defender.typ.is_indirect() || attacker.typ.is_indirect() {
+            return None;
+        }
+        let (pct, _) = combat::base_percentage(defender.typ, attacker.typ, defender.ammo)?;
+        let terrain = self.state.map.terrain_at(attacker_pos);
+        let defender_co = self.state.co_of(defender.owner);
+        let attacker_co = self.state.co_of(attacker.owner);
+        Some(combat::damage_spread(
+            pct,
+            defender_hp100,
+            attacker.hp100 as i32,
+            combat::effective_terrain_defense(attacker.move_type(), terrain),
+            combat::co_modifiers(defender_co, defender.typ, self.state.map.terrain_at(defender.pos)),
+            combat::co_modifiers(attacker_co, attacker.typ, terrain),
+            self.state.com_tower_bonus(defender.owner),
+            defender_co.luck_good_max,
+            defender_co.luck_bad_max,
+        ))
+    }
+
     /// As [`Engine::preview_damage`], but for a hypothetical defender HP.
     ///
     /// Terrain cover scales with the defender's displayed HP, so a wounded

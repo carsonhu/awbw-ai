@@ -1,0 +1,65 @@
+# Verification
+
+The engine is checked by replaying real AWBW games through it and diffing
+against what actually happened.
+
+## How it works
+
+A replay zip holds two gzip members: a PHP-serialized game state per *turn*,
+and that turn's orders. `state[i]` is the board before its own orders, so
+`state[i+1]` is ground truth for replaying them.
+
+`tools/prepare_replay.py` normalizes a replay — plus its map, fetched from
+AWBW's `api/map/map_info.php` and cached — into flat JSON. `verify-replays`
+then treats **each turn as an independent test case**: load the snapshot, apply
+the recorded orders, diff against the next snapshot. Chaining a whole game
+instead would let one wrong rule poison every turn after it.
+
+Luck cannot be reproduced, so damage is checked as a *range* the record must
+fall inside, and HP is resynced from the record afterwards.
+
+## Running it
+
+```
+python tools/prepare_replay.py --glob '<replays>\*\*STD*.zip' --limit 400
+cargo run --release -p awbw-replay -- data/prepared --no-fog
+cargo run --release -p awbw-replay --bin check-fog -- data/prepared
+```
+
+Flags: `--no-fog`, `--no-powers`, `--vanilla`, `--verbose`, `--limit N`.
+
+Always read the **split** the summary prints. Powers and fog are unmodelled by
+design, so a headline number that mixes them in measures features that were
+deliberately left out rather than correctness.
+
+## Where it stands
+
+| subset | games | exact | assertions | agreement |
+|---|---|---|---|---|
+| no powers, no fog | 127 | 108 (85%) | 147k | 99.979% |
+| powers used | 239 | 2 | 721k | 98.81% |
+
+Fog visibility, judged per path step: **99.39%** of 6,035 steps. Of the
+mismatches, 31 are the engine seeing too much — almost all on the single turn
+Drake fires Typhoon — and 6 are unexplained.
+
+Residual in the clean subset is 31 divergences over 1,916 turns: 13 funds, 13
+unit HP, 5 stragglers. No common cause found; diminishing returns.
+
+## Bugs it has caught
+
+Worth knowing, because more than half were in the *harness* and would otherwise
+have read as engine faults:
+
+- Fuel charged along the engine's cheapest path instead of the route the player
+  actually took.
+- Orders paired to snapshots by line index, silently attributing one player's
+  turn to their opponent on truncated replays.
+- Recycled unit slots: a build inheriting a casualty's id made the casualty look
+  alive — 8,311 phantom divergences from one stale mapping.
+- Fog vision wrappers: AWBW gives the seat that could not see an action an
+  *empty string*, not null, so "first non-null" picked the blind seat's blank.
+- Mid-turn HP resynced from displayed HP, re-simulating later attacks from a
+  baseline up to a point too high.
+- Engine: repair rounding up to the display step; Sami's capture rate and
+  transport movement; Rachel's repair bonus.

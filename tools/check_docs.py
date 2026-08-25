@@ -19,13 +19,17 @@ ROOT = Path(__file__).resolve().parent.parent
 # never to avoid trimming something stale. architecture.md went from 90 to 110
 # when the workspace went from two crates to five; that is real content, and
 # squeezing prose to save single lines was costing more than the limit saved.
+#
+# decisions.md is append-only by design, so it grows with the project by
+# construction. Its discipline is per-entry -- a few lines each, and delete an
+# entry when it stops being true -- rather than a fixed total.
 BUDGETS = {
     "CLAUDE.md": 45,
     "README.md": 60,
     "docs/architecture.md": 110,
     "docs/rules.md": 90,
     "docs/verification.md": 90,
-    "docs/decisions.md": 110,
+    "docs/decisions.md": 150,
     "docs/workflow.md": 70,
 }
 

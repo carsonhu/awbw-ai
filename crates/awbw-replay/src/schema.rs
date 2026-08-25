@@ -49,6 +49,11 @@ pub struct Turn {
     pub eliminated: HashMap<String, bool>,
     #[serde(default)]
     pub co_power_on: HashMap<String, String>,
+    /// Power meter, and the charge a power needs, per player.
+    #[serde(default)]
+    pub co_power: HashMap<String, i64>,
+    #[serde(default)]
+    pub co_max_power: HashMap<String, i64>,
     pub units: Vec<UnitRec>,
     pub buildings: Vec<BuildingRec>,
     /// Raw AWBW action payloads, in the order they were played.

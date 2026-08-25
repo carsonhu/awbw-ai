@@ -72,6 +72,20 @@ Orange Star has no counterpart for, on top of the mirrored Black Boats. That is
 a property of the map, not a loading bug, and it means the seats are *not*
 interchangeable — evaluation has to swap them, which the arena does.
 
+**The observation carries CO information, because imitation needs it.** A policy
+is only learnable if the input contains what the demonstrator was conditioning
+on. Kanbei attacks at +30% and Colin at -10%, a forty-point swing that flips
+which trades are correct, and Colin's 8,000 funds buys what Andy's 10,000 does —
+so identical-looking boards carried contradictory labels. The CO's attack and
+defence modifiers ride as *planes*, applying exactly where they act, and its
+cost, capture, income and power-meter values as globals. Encoding the modifiers
+rather than a one-hot CO identity shares statistical strength: Max's +20% and
+Grimm's +30% sit next to each other, and no single CO needs its own data.
+
+**Powers cost far less data than they look like they will.** 69% of games on the
+training map use one, but only 7.4% of *turns* and 10.9% of *orders* happen while
+one is active, so those orders can simply be dropped from an imitation loss.
+
 ## Verification
 
 **Each recorded turn is an independent test case.** Load the snapshot, replay

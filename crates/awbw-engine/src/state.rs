@@ -182,11 +182,23 @@ pub struct Player {
     /// Day-to-day ability. Defaults to the ability-free CO, which is what
     /// self-play uses; the replay harness sets the real one.
     pub co: &'static CoData,
+    /// How close this CO is to firing a power, 0..=1.
+    ///
+    /// The engine does not model powers, so nothing reads this — but human play
+    /// revolves around power timing, and a policy cloned from human games needs
+    /// to see what those players were reacting to. Self-play leaves it at zero.
+    pub power_charge: f32,
 }
 
 impl Player {
     pub fn new(funds: u32, team: u8) -> Self {
-        Player { funds, team, eliminated: false, co: &CoData::VANILLA }
+        Player {
+            funds,
+            team,
+            eliminated: false,
+            co: &CoData::VANILLA,
+            power_charge: 0.0,
+        }
     }
 
     pub fn with_co(mut self, co: &'static CoData) -> Self {

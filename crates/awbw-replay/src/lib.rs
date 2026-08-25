@@ -261,6 +261,14 @@ impl<'a> Verifier<'a> {
                 if let Some(co) = awbw_engine::co_data::co_by_name(&p.co_name) {
                     player.co = co;
                 }
+                let key = p.id.to_string();
+                let charge = turn.co_power.get(&key).copied().unwrap_or(0);
+                let full = turn.co_max_power.get(&key).copied().unwrap_or(0);
+                player.power_charge = if full > 0 {
+                    (charge as f32 / full as f32).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
                 player
             })
             .collect();

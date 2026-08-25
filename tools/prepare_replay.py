@@ -144,6 +144,16 @@ def normalize(path):
                 str(p["id"]): p.get("co_power_on", "N")
                 for p in g.get("players", {}).values()
             },
+            # Human play revolves around power timing, so the meter is part of
+            # what a player was reacting to even though the engine ignores it.
+            "co_power": {
+                str(p["id"]): p.get("co_power", 0) or 0
+                for p in g.get("players", {}).values()
+            },
+            "co_max_power": {
+                str(p["id"]): p.get("co_max_power", 0) or 0
+                for p in g.get("players", {}).values()
+            },
             "units": [unit_record(u) for u in g.get("units", {}).values()],
             "buildings": [
                 {"x": b["x"], "y": b["y"], "terrain_id": b["terrain_id"],

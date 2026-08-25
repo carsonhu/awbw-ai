@@ -54,13 +54,20 @@ pub mod plane {
     pub const UNIT_MOVED: usize = UNIT_AMMO + 1;
     pub const UNIT_HIDDEN: usize = UNIT_MOVED + 1;
     pub const UNIT_CARGO: usize = UNIT_HIDDEN + 1;
+    /// The CO attack and defence modifiers of the unit standing here, as
+    /// fractions of vanilla. A convolutional policy can use these exactly where
+    /// they apply, which is why they are planes rather than globals: whether a
+    /// trade is good depends on *this* unit's CO, not an average.
+    pub const CO_ATTACK: usize = UNIT_CARGO + 1;
+    pub const CO_DEFENSE: usize = CO_ATTACK + 1;
     /// Whether this tile is visible at all. Always 1 without fog.
-    pub const LIT: usize = UNIT_CARGO + 1;
+    pub const LIT: usize = CO_DEFENSE + 1;
     pub const COUNT: usize = LIT + 1;
 }
 
-/// Non-spatial features: funds, day, weather, and army sizes.
-pub const GLOBAL_FEATURES: usize = 11;
+/// Non-spatial features: funds, day, weather, army sizes, and the CO effects
+/// that are not per-unit — build cost, capture rate, income, power charge.
+pub const GLOBAL_FEATURES: usize = 19;
 
 /// Floats one observation needs for a given board.
 pub fn observation_len(state: &GameState) -> usize {
@@ -142,6 +149,13 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
             index,
             unit.cargo_len() as f32 / MAX_CARGO as f32,
         );
+        // What this unit's CO does to its combat maths. Without this, two
+        // identical-looking boards can call for opposite trades and a cloned
+        // policy learns the average of both.
+        let co = state.co_of(unit.owner);
+        let mods = crate::combat::co_modifiers(co, unit.typ, terrain);
+        at(plane::CO_ATTACK, index, (mods.attack - 100) as f32 / 100.0);
+        at(plane::CO_DEFENSE, index, (mods.defense - 100) as f32 / 100.0);
     }
 
     let them: PlayerId = (0..state.players.len() as PlayerId)
@@ -157,6 +171,17 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
     globals[8] = state.unit_count(me) as f32 / 50.0;
     globals[9] = state.unit_count(them) as f32 / 50.0;
     globals[10] = if state.settings.fog { 1.0 } else { 0.0 };
+
+    // CO effects that are not tied to a particular unit. Funds already appear
+    // above, but "8000 in hand" means something different to a CO who builds at
+    // 80% of list price, so the multiplier has to come with it.
+    for (slot, player) in [(11, me), (15, them)] {
+        let co = state.co_of(player);
+        globals[slot] = co.price_multiplier_pct as f32 / 100.0;
+        globals[slot + 1] = co.capture_multiplier_pct as f32 / 100.0;
+        globals[slot + 2] = co.property_fund_bonus as f32 / 1_000.0;
+        globals[slot + 3] = state.players[player as usize].power_charge.clamp(0.0, 1.0);
+    }
 }
 
 // --- actions --------------------------------------------------------------
@@ -680,11 +705,39 @@ mod tests {
     }
 
     #[test]
+    fn the_observation_tells_two_cos_apart() {
+        // The whole point of the CO channels: two boards that are identical
+        // except for who is commanding must not encode identically, or a policy
+        // cloned from human games learns the average of contradictory labels.
+        let mut e = board(false);
+        let tiles = e.state.map.tile_count();
+        let mut vanilla = vec![0.0; observation_len(&e.state)];
+        encode_observation(&e.state, e.vision(), &mut vanilla);
+
+        // Kanbei: +30% attack and defence.
+        e.state.players[0].co = crate::co_data::co_by_name("Kanbei").expect("Kanbei exists");
+        e.state.players[0].power_charge = 0.75;
+        let mut kanbei = vec![0.0; observation_len(&e.state)];
+        encode_observation(&e.state, e.vision(), &mut kanbei);
+
+        let mine = e.state.map.index(Pos::new(2, 2));
+        assert_eq!(vanilla[plane::CO_ATTACK * tiles + mine], 0.0);
+        assert!((kanbei[plane::CO_ATTACK * tiles + mine] - 0.30).abs() < 1e-6);
+        assert!((kanbei[plane::CO_DEFENSE * tiles + mine] - 0.30).abs() < 1e-6);
+
+        // Build cost and power charge ride in the globals.
+        let globals = plane::COUNT * tiles;
+        assert!((kanbei[globals + 11] - 1.20).abs() < 1e-6, "Kanbei builds at 120%");
+        assert!((kanbei[globals + 14] - 0.75).abs() < 1e-6, "power charge");
+        assert_ne!(vanilla, kanbei);
+    }
+
+    #[test]
     fn observation_length_matches_the_spec() {
         let e = board(false);
         let tiles = e.state.map.tile_count();
         assert_eq!(observation_len(&e.state), plane::COUNT * tiles + GLOBAL_FEATURES);
-        assert_eq!(plane::COUNT, 62);
+        assert_eq!(plane::COUNT, 64);
         assert_eq!(head_sizes(&e.state), [tiles + 1, tiles, ORDER_KINDS, tiles]);
     }
 }

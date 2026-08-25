@@ -30,6 +30,22 @@ on the site.
 Adding a CO ability the source data omits: put it in the `MANUAL` table in
 `gen_cos.py` with the wording from `co.php` in a comment, then regenerate.
 
+## The Python environment
+
+Not in the default workspace build: it needs a Python 3.8+ toolchain and
+`cargo test` should not. Build against a modern interpreter — the `python` on
+PATH here is an Anaconda 3.7 that PyTorch no longer supports:
+
+```
+PYO3_PYTHON=".../Python312/python.exe" cargo build --release -p awbw-py
+cp target/release/awbw.dll python/awbw.pyd     # awbw.so on Linux
+py -3.12 python/smoke_test.py
+```
+
+The smoke test is the contract check: masks non-empty, every sampled order
+legal, episodes restarting. Keep observations in one reused buffer refilled by
+`observe_into`; allocating one per step costs four fifths of the throughput.
+
 ## Preparing replays
 
 `data/prepared/` and `data/maps/` are gitignored and rebuilt on demand:
@@ -38,12 +54,11 @@ Adding a CO ability the source data omits: put it in the `MANUAL` table in
 python tools/prepare_replay.py --glob '<replays>\*\*STD*.zip' --limit 400
 ```
 
-Maps are fetched once per map id and cached. Note that filenames are not
-reliable — some games named `STD` are fog games, so filter on the `fog` field
-rather than the name.
+Maps are fetched once per id and cached. Filenames are not reliable — some
+games named `STD` are fog games — so filter on the `fog` field, not the name.
 
-The `probe_*.py` scripts are one-off diagnostics for replay structure, kept
-because the format is undocumented and easy to re-misread.
+The `probe_*.py` scripts are one-off diagnostics for the replay format, kept
+because it is undocumented and easy to re-misread.
 
 ## Docs
 

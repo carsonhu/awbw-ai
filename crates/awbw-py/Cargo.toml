@@ -1,0 +1,16 @@
+[package]
+name = "awbw-py"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Python bindings: a batched AWBW environment for RL training"
+
+[lib]
+name = "awbw"
+crate-type = ["cdylib"]
+
+[dependencies]
+awbw-engine = { path = "../awbw-engine" }
+awbw-bots = { path = "../awbw-bots" }
+pyo3 = { version = "0.23", features = ["extension-module"] }
+numpy = "0.23"

@@ -18,14 +18,18 @@
 | `encoding.rs` | Observations and the action codec for RL. |
 | `rng.rs` | Seeded xorshift, so games are reproducible. |
 
-`crates/awbw-replay` — verification. `verify-replays` diffs recorded games
-against the engine; `check-fog` checks visibility. See `verification.md`.
+`crates/awbw-replay` — verification: `verify-replays` diffs recorded games,
+`check-fog` checks visibility. See `verification.md`.
 
-`crates/awbw-bots` — baselines and the arena, so a learned policy can be rated
-in absolute terms; self-play Elo is self-referential. `greedy` scores every
-legal order one ply deep, `capturer` is the same with combat off, `random` is
-the floor. `arena` runs a round robin, swapping seats, on a rotationally
-symmetric land-only board (`arena --show-map`).
+`crates/awbw-bots` — baselines and the arena, to rate a policy in absolute
+terms; self-play Elo is self-referential. `greedy` scores every legal order one
+ply deep, `capturer` is the same with combat off, `random` is the floor. `arena`
+runs a round robin on a symmetric land-only board (`arena --show-map`).
+
+`crates/awbw-py` — a batched environment for Python. Games step in lockstep, a
+batch per call, sampling the four heads autoregressively: `source_mask`,
+`dest_mask(sources)`, `kind_mask`, `param_mask`, `step`. Not in the default
+build; see `workflow.md`.
 
 ## State
 
@@ -38,9 +42,7 @@ slot it currently owns, or a build silently inherits a casualty's identity.
 
 A turn is a variable-length sequence of single orders ending in `EndTurn`, so
 one environment step is one order. `Action` covers move, move-and-attack,
-capture, build, load, unload, join and supply.
-
-Two enumeration paths:
+capture, build, load, unload, join and supply. Two enumeration paths:
 
 - `legal_actions_into` — every legal order for every unit. What a flat policy or
   a search needs; costs one reachability search *per unit per step*.
@@ -52,10 +54,9 @@ Two enumeration paths:
 `encoding.rs` turns positions into tensors and tensors back into orders.
 
 **Observations** are written from the moving player's side — ownership channels
-are *mine* and *theirs*, not seat 0 and seat 1 — so one policy plays either
-seat. Under fog only what that player sees is written, so the observation is
-exactly what the agent may act on. 62 planes plus 11 globals; layout in
-`plane::`.
+are *mine* and *theirs*, not seat 0 and seat 1 — so one policy plays either seat.
+Under fog only what that player sees is written, so it is exactly what the agent
+may act on. 62 planes plus 11 globals; layout in `plane::`.
 
 **Actions** are four masked choices — `source -> dest -> kind -> param` —
 rather than one flat index, whose product is enormous and almost all illegal.
@@ -65,11 +66,10 @@ passenger to drop where. Three of the four are board-shaped, which is what a
 convolutional policy emits anyway.
 
 `ActionMasks` is **staged**: the source mask scans units and properties, and
-only the chosen tile's orders get enumerated. Building masks from the full
-action set instead costs a third of throughput. Masks come from encoding real
-orders, so they cannot drift from the rules; tests pin the staged path to
-exactly the orders flat enumeration finds, and every masked path to something
-`check` accepts.
+only the chosen tile's orders get enumerated — building them from the full
+action set costs a third of throughput. Masks come from encoding real orders, so
+they cannot drift from the rules; tests pin the staged path to exactly what flat
+enumeration finds, and every masked path to something `check` accepts.
 
 Random self-play, 15x15, 30-day games, one core (`--example selfplay_bench`):
 
@@ -78,6 +78,7 @@ Random self-play, 15x15, 30-day games, one core (`--example selfplay_bench`):
 | flat | ~204 | ~54k |
 | factorized | ~26 | ~172k |
 | factorized + observation + masks | ~28 | ~130k |
+| the same, batched through Python | ~28 | ~144k |
 
 ## Fog
 

@@ -1,6 +1,18 @@
 [workspace]
 resolver = "2"
-members = ["crates/awbw-engine", "crates/awbw-replay", "crates/awbw-bots"]
+members = [
+    "crates/awbw-engine",
+    "crates/awbw-replay",
+    "crates/awbw-bots",
+    "crates/awbw-py",
+]
+# The Python extension is left out of the default build: it needs a Python 3.8+
+# toolchain, and `cargo test` should work without one.
+default-members = [
+    "crates/awbw-engine",
+    "crates/awbw-replay",
+    "crates/awbw-bots",
+]
 
 [workspace.package]
 edition = "2021"

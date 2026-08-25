@@ -1,0 +1,1962 @@
+{
+ "1": {
+  "name": "Plain",
+  "kind": "PLAIN",
+  "defense": 1,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "2": {
+  "name": "Mountain",
+  "kind": "MOUNTAIN",
+  "defense": 4,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "3": {
+  "name": "Wood",
+  "kind": "WOOD",
+  "defense": 2,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "4": {
+  "name": "HRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "5": {
+  "name": "VRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "6": {
+  "name": "CRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "7": {
+  "name": "ESRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "8": {
+  "name": "SWRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "9": {
+  "name": "WNRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "10": {
+  "name": "NERiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "11": {
+  "name": "ESWRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "12": {
+  "name": "SWNRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "13": {
+  "name": "WNERiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "14": {
+  "name": "NESRiver",
+  "kind": "RIVER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "15": {
+  "name": "HRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "16": {
+  "name": "VRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "17": {
+  "name": "CRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "18": {
+  "name": "ESRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "19": {
+  "name": "SWRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "20": {
+  "name": "WNRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "21": {
+  "name": "NERoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "22": {
+  "name": "ESWRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "23": {
+  "name": "SWNRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "24": {
+  "name": "WNERoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "25": {
+  "name": "NESRoad",
+  "kind": "ROAD",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "26": {
+  "name": "HBridge",
+  "kind": "BRIDGE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "27": {
+  "name": "VBridge",
+  "kind": "BRIDGE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "28": {
+  "name": "Sea",
+  "kind": "SEA",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "29": {
+  "name": "HShoal",
+  "kind": "SHOAL",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "30": {
+  "name": "HShoalN",
+  "kind": "SHOAL",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "31": {
+  "name": "VShoal",
+  "kind": "SHOAL",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "32": {
+  "name": "VShoalE",
+  "kind": "SHOAL",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "33": {
+  "name": "Reef",
+  "kind": "REEF",
+  "defense": 1,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "34": {
+  "name": "Neutral City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "35": {
+  "name": "Neutral Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "36": {
+  "name": "Neutral Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "37": {
+  "name": "Neutral Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "38": {
+  "name": "Orange Star City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "39": {
+  "name": "Orange Star Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "40": {
+  "name": "Orange Star Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "41": {
+  "name": "Orange Star Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "42": {
+  "name": "Orange Star HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "43": {
+  "name": "Blue Moon City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "44": {
+  "name": "Blue Moon Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "45": {
+  "name": "Blue Moon Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "46": {
+  "name": "Blue Moon Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "47": {
+  "name": "Blue Moon HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "48": {
+  "name": "Green Earth City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "49": {
+  "name": "Green Earth Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "50": {
+  "name": "Green Earth Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "51": {
+  "name": "Green Earth Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "52": {
+  "name": "Green Earth HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "53": {
+  "name": "Yellow Comet City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "54": {
+  "name": "Yellow Comet Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "55": {
+  "name": "Yellow Comet Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "56": {
+  "name": "Yellow Comet Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "57": {
+  "name": "Yellow Comet HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "81": {
+  "name": "Red Fire City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "82": {
+  "name": "Red Fire Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "83": {
+  "name": "Red Fire Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "84": {
+  "name": "Red Fire Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "85": {
+  "name": "Red Fire HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "86": {
+  "name": "Grey Sky City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "87": {
+  "name": "Grey Sky Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "88": {
+  "name": "Grey Sky Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "89": {
+  "name": "Grey Sky Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "90": {
+  "name": "Grey Sky HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "91": {
+  "name": "Black Hole City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "92": {
+  "name": "Black Hole Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "93": {
+  "name": "Black Hole Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "94": {
+  "name": "Black Hole Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "95": {
+  "name": "Black Hole HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "96": {
+  "name": "Brown Desert City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "97": {
+  "name": "Brown Desert Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "98": {
+  "name": "Brown Desert Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "99": {
+  "name": "Brown Desert Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "100": {
+  "name": "Brown Desert HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "101": {
+  "name": "VPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "102": {
+  "name": "HPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "103": {
+  "name": "NEPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "104": {
+  "name": "ESPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "105": {
+  "name": "SWPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "106": {
+  "name": "WNPipe",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "107": {
+  "name": "NPipe End",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "108": {
+  "name": "EPipe End",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "109": {
+  "name": "SPipe End",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "110": {
+  "name": "WPipe End",
+  "kind": "PIPE",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "111": {
+  "name": "Missile Silo",
+  "kind": "SILO",
+  "defense": 3,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "112": {
+  "name": "Missile Silo Empty",
+  "kind": "SILO_EMPTY",
+  "defense": 3,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "113": {
+  "name": "HPipe Seam",
+  "kind": "PIPE_SEAM",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "114": {
+  "name": "VPipe Seam",
+  "kind": "PIPE_SEAM",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "115": {
+  "name": "HPipe Rubble",
+  "kind": "PIPE_RUBBLE",
+  "defense": 1,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "116": {
+  "name": "VPipe Rubble",
+  "kind": "PIPE_RUBBLE",
+  "defense": 1,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "117": {
+  "name": "Amber Blossom Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "118": {
+  "name": "Amber Blossom Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "119": {
+  "name": "Amber Blossom City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "120": {
+  "name": "Amber Blossom HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "121": {
+  "name": "Amber Blossom Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "122": {
+  "name": "Jade Sun Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "123": {
+  "name": "Jade Sun Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "124": {
+  "name": "Jade Sun City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "125": {
+  "name": "Jade Sun HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "126": {
+  "name": "Jade Sun Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "127": {
+  "name": "Amber Blossom Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "128": {
+  "name": "Black Hole Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "129": {
+  "name": "Blue Moon Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "130": {
+  "name": "Brown Desert Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "131": {
+  "name": "Green Earth Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "132": {
+  "name": "Jade Sun Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "133": {
+  "name": "Neutral Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "134": {
+  "name": "Orange Star Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "135": {
+  "name": "Red Fire Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "136": {
+  "name": "Yellow Comet Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "137": {
+  "name": "Grey Sky Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "138": {
+  "name": "Amber Blossom Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "ab",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "139": {
+  "name": "Black Hole Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "bh",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "140": {
+  "name": "Blue Moon Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "bm",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "141": {
+  "name": "Brown Desert Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "bd",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "142": {
+  "name": "Green Earth Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "ge",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "143": {
+  "name": "Grey Sky Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "gs",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "144": {
+  "name": "Jade Sun Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "js",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "145": {
+  "name": "Neutral Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": null,
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "146": {
+  "name": "Orange Star Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "os",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "147": {
+  "name": "Red Fire Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "rf",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "148": {
+  "name": "Yellow Comet Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "yc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "149": {
+  "name": "Cobalt Ice Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "150": {
+  "name": "Cobalt Ice Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "151": {
+  "name": "Cobalt Ice City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "152": {
+  "name": "Cobalt Ice Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "153": {
+  "name": "Cobalt Ice HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "154": {
+  "name": "Cobalt Ice Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "155": {
+  "name": "Cobalt Ice Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "ci",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "156": {
+  "name": "Pink Cosmos Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "157": {
+  "name": "Pink Cosmos Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "158": {
+  "name": "Pink Cosmos City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "159": {
+  "name": "Pink Cosmos Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "160": {
+  "name": "Pink Cosmos HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "161": {
+  "name": "Pink Cosmos Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "162": {
+  "name": "Pink Cosmos Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "pc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "163": {
+  "name": "Teal Galaxy Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "164": {
+  "name": "Teal Galaxy Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "165": {
+  "name": "Teal Galaxy City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "166": {
+  "name": "Teal Galaxy Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "167": {
+  "name": "Teal Galaxy HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "168": {
+  "name": "Teal Galaxy Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "169": {
+  "name": "Teal Galaxy Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "tg",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "170": {
+  "name": "Purple Lightning Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "171": {
+  "name": "Purple Lightning Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "172": {
+  "name": "Purple Lightning City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "173": {
+  "name": "Purple Lightning Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "174": {
+  "name": "Purple Lightning HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "175": {
+  "name": "Purple Lightning Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "176": {
+  "name": "Purple Lightning Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "pl",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "181": {
+  "name": "Acid Rain Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "182": {
+  "name": "Acid Rain Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "183": {
+  "name": "Acid Rain City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "184": {
+  "name": "Acid Rain Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "185": {
+  "name": "Acid Rain HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "186": {
+  "name": "Acid Rain Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "187": {
+  "name": "Acid Rain Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "ar",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "188": {
+  "name": "White Nova Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "189": {
+  "name": "White Nova Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "190": {
+  "name": "White Nova City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "191": {
+  "name": "White Nova Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "192": {
+  "name": "White Nova HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "193": {
+  "name": "White Nova Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": true
+ },
+ "194": {
+  "name": "White Nova Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "wn",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": true
+ },
+ "195": {
+  "name": "Teleporter",
+  "kind": "TELEPORTER",
+  "defense": 0,
+  "country": null,
+  "is_property": false,
+  "capturable": false,
+  "produces_income": false,
+  "active": true
+ },
+ "196": {
+  "name": "Azure Asteroid Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "197": {
+  "name": "Azure Asteroid Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "198": {
+  "name": "Azure Asteroid City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "199": {
+  "name": "Azure Asteroid Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "200": {
+  "name": "Azure Asteroid HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "201": {
+  "name": "Azure Asteroid Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "202": {
+  "name": "Azure Asteroid Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "aa",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "203": {
+  "name": "Noir Eclipse Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "204": {
+  "name": "Noir Eclipse Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "205": {
+  "name": "Noir Eclipse City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "206": {
+  "name": "Noir Eclipse Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "207": {
+  "name": "Noir Eclipse HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "208": {
+  "name": "Noir Eclipse Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "209": {
+  "name": "Noir Eclipse Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "ne",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "210": {
+  "name": "Silver Claw Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "211": {
+  "name": "Silver Claw Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "212": {
+  "name": "Silver Claw City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "213": {
+  "name": "Silver Claw Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "214": {
+  "name": "Silver Claw HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "215": {
+  "name": "Silver Claw Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "216": {
+  "name": "Silver Claw Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "sc",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "217": {
+  "name": "Umber Wilds Airport",
+  "kind": "AIRPORT",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "218": {
+  "name": "Umber Wilds Base",
+  "kind": "BASE",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "219": {
+  "name": "Umber Wilds City",
+  "kind": "CITY",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "220": {
+  "name": "Umber Wilds Com Tower",
+  "kind": "COM_TOWER",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "221": {
+  "name": "Umber Wilds HQ",
+  "kind": "HQ",
+  "defense": 4,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ },
+ "222": {
+  "name": "Umber Wilds Lab",
+  "kind": "LAB",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": false,
+  "active": false
+ },
+ "223": {
+  "name": "Umber Wilds Port",
+  "kind": "PORT",
+  "defense": 3,
+  "country": "uw",
+  "is_property": true,
+  "capturable": true,
+  "produces_income": true,
+  "active": false
+ }
+}

@@ -1,0 +1,1075 @@
+<html>
+<head>
+<title>Damage Chart - AWBW  
+</title>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=0.75">
+<link rel="stylesheet" href="css/awbw_minify.css?1787600923" type="text/css">
+<link rel="stylesheet" type="text/css" href="css/header.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/main.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/slideshow.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/game.css?1787600923">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css">
+      <link rel="stylesheet" href="css/calculator_new.css?1787600923">
+      <link rel="stylesheet" href="css/messages.css?1787600923">
+      <link rel="stylesheet" href="css/layout.css?1787600923">
+<link rel="shortcut icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<link rel="icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<script src="js/vue.min.js"></script>
+<script src="js/axios.js"></script>
+<script type="text/javascript">
+let mtDiffStart = "45784";let mtDiffEnd = "-45424";   function move_check(query, url) {
+      var reply = confirm(query);
+      if (reply) {
+         this.location.href = url;
+      }
+   }
+
+</script>
+<script src="js/lib/maintenance.js?1787600923"></script>
+</head>
+<body>
+<!-- Begin Page (1787687224) (15:47:4) -->
+<div id="overDiv" style="position:absolute; visibility:hidden; z-index:900;"></div>
+<script type="text/javascript" language="JavaScript" src="js/overlib_mini_minify.js?v=1.0"></script>
+
+<div id="fixed-header-wrapper">
+    <nav id="top-header-nav">
+        <div id="above-nav"></div>
+        <div id="logo-background2">
+            <a href="/" style="display: block;">
+                <img id="logo" height=78 width=170 src="terrain/awbwlogo11-highres_withnewarmies_andnewAB.png"></img>
+            </a>
+        </div>
+        
+        <ul id="nav-options" style="margin: auto;">
+
+                    <!-- <span style="position: absolute; top: -30px; left: 5px;">Signups for <a style="color: #009966; text-decoration: underline;" target="_blank" href="viewtournament.php?tournaments_id=768">Amarriner Cup 5</a> are open until Feb 2th, 5 PM ET</span> -->
+            <!-- <span style="position: absolute; top: -36px; left: 5px; color: red">Announcement text here.</span> -->
+
+        
+         
+            <li id="login-button" style="padding-left: 15px; padding-right: 15px;">
+                <label id="login-box-button" for="login-box-toggle">Login</label>
+                <input id="login-box-toggle" type="checkbox">
+
+                <!-- JS Code for login stuff is in footer.php -->
+                <div id="login-box">
+                    <div id="login-tab">
+                        <span id="login-err"></span>
+                                                <form class="login-form">
+                            Username <input class="login-input" type="text"><br>
+                            Password <input class="login-input" type="password" maxlength='100'>
+                            
+                            <span 
+                                class="small_text underline pointer login-forgot-password">
+                                Forgot Password?
+                            </span>
+    
+                            <input id="login" type="submit" value="LOG IN">
+                            <hr/>
+                        </form>
+    
+                        <p>Don't have an account?</p>
+                        <div id="register"><a href="register.php" style="display: block; width: 100%; height: 100%;"><span style="display:block; text-align: center; padding-top: 4px;">REGISTER</span></a></div>
+    
+                        <div class="login-box-arrow up-arrow"></div>
+
+                    </div>
+
+                    <!-- Forgot password tab -->
+                    <div id="forgot-password-tab" style="display: none">
+                        <i class="forgot-password-back fas fa-long-arrow-alt-left"></i>
+                        <div class="forgot-password-form login-form">
+                            <span class="forgot-password-desc small_text">Please enter your account name and email address. Instructions on how to reset your password will be sent.</span>
+
+                            Username
+                            <!-- Username field -->
+                            <input type="text" class="forgot-password-username login-input">
+
+                            Email
+                            <!-- Email field -->
+                            <input type="text" class="forgot-password-email login-input">
+                            <button class="forgot-password-submit">SEND</button>
+                        </div>
+                        <div class="forgot-password-res small_text" style="display: none"></div>
+                    </div>
+                </div>
+            </li>
+        
+            <li id="games-menu" onclick="void(0)">
+                Games
+                <ul id="games-dropdown" class="dropdown-menu">
+                    
+                    <li><a class="dropdown-menu-link" href="live_queue.php?rated=false&bnew=true">Live Queue</a></li>
+
+                    <div class="arrow up-arrow"></div>
+                    
+                    <li><a class="dropdown-menu-link" href="gamescurrent_all.php">View Active</a></li>
+                    <li><a class="dropdown-menu-link" href="gamescompleted.php">View Completed</a></li>
+                </ul>
+            </li>
+
+            <li id="competitions-menu" onclick="void(0)">
+                
+                Competitions
+                <ul id="competitions-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="newleague.php">Global League</a></li>
+                    <li><a class="dropdown-menu-link" href="live_queue.php">Live League</a> <span id="dropdown-alert"><img src="terrain/newicon.png"></span></li>
+                    <li>
+                        <a class="dropdown-menu-link" href="viewtournament.php">Tournaments</a>
+                                            
+                        <div class="arrow up-arrow"></div>
+                    </li>
+
+                    
+                                    </ul>
+            </li>
+
+            <li id="design-maps-menu" onclick="void(0)">
+                Design Maps
+                <ul id="design-maps-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="searchmaps.php">Search Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="recentmaps.php">Recent Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="categories.php">Categories</a></li>
+                                        <div class="arrow up-arrow"></div>
+                </ul>
+            </li>
+
+            <li id="right-side-menu">
+                <li id="community-menu" onclick="void(0)">
+                    Community
+                    <ul id="community-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="users.php"><img src="terrain/magnifying_glass.png" class="community-menu-img">Search Users</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.twitch.tv/directory/category/advance-wars-by-web" target="_blank"><img src="terrain/twitch-icon.png" class="community-menu-img">Twitch Livestreams</img></a></li>
+                        <li><a class="dropdown-menu-link" href="discord.php"><img src="terrain/discord-icon-upscale.png" class="community-menu-img">Discord Chat</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.reddit.com/r/AWBW/" target="_blank"><img src="terrain/reddit-icon-upscale.png" class="community-menu-img">Reddit (r/AWBW)</img></a></li>
+                        <li><a class="dropdown-menu-link" href="donate.php"><img src="terrain/patreon-icon-upscale.png" class="community-menu-img">Patreon</img></a></li>
+                        <li>
+                                <span class="main-text"><a class="dropdown-menu-link" style="padding-right: 0px;" href="https://isndev.forumotion.co.uk/c2-advance-wars-by-web/" target="_blank"><img src="terrain/forum.png" class="community-menu-img">Forum</img></a></span>
+                                <span class="bracket-text">&nbsp;<a class="dropdown-menu-link" style="padding-left: 0px;" href="http://www.amarriner.com/awbw_forum/">[Archive]</a></span>
+                        </li>
+                        <hr>
+                        <span class="dropdown-header">Contests</span>
+                        <li>
+                            <a class="dropdown-menu-link" href="custom_army_contest.php">
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/aainfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/uwinfantry.gif"></img></div>
+                                Custom Armies
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/scinfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/neinfantry.gif"></img></div>
+
+                            </a>
+                                                    </li>
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="tools-menu" onclick="void(0)">
+                    Tools
+                    <ul id="tools-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="moveplanner.php">Move Planner</a></li>
+                        <li><a class="dropdown-menu-link" href="calculator.php">Damage Calculator</a></li>
+                        
+                        
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="infos-menu" onclick="void(0)">
+                    
+                    Info
+                    <ul id="infos-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="guide.php">FAQ</a></li>
+                        <li><a class="dropdown-menu-link" href="tutorials.php">Tutorials</a></li>
+                        <li id="changelog">
+
+                            <a class="dropdown-menu-link" href="changelog.php">Changelog</a>
+                            
+                        </li>
+                        <li><a class="dropdown-menu-link" href="chart.php">Charts</a></li>
+                        <li><a class="dropdown-menu-link" href="http://awbw.wikia.com/wiki/Advance_Wars_By_Web_Wiki">AWBW Wiki</a></li>
+                        <li><a class="dropdown-menu-link" href="https://warswiki.org/">Wars Wiki</a></li>
+                    </ul>
+                </li>
+
+                <li id="contact-menu">
+                    <a href="contact.php">Contact</a>
+                </li>
+
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<div id="outer">
+
+        <!-- <section id="main" style="overflow-x: scroll;"> -->
+    <section id="main">
+
+<!-- incoming server maintenance alert -->
+<div id="game-server-alert-div" class="flex container hv-center" style="border: solid 2px red; height: 30px; width: 380px; margin-bottom: 5px; display: none;">
+<span id="game-server-alert-text" class="error"><b>Warning! Daily server maintenance starts in 59s ...</b></span>
+</div>
+<table cellspacing=1 cellpadding=2>
+<tr><td class="bordertitle"><b>Damage Chart</b></td></tr>
+<tr><td class="borderwhite">
+<table id="tablehighlight" cellspacing=0 cellpadding=2>
+<tr><td class="smallheader">&nbsp;</td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycanti-air.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycapc.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycartillery.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycb-copter.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycbattleship.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycblackboat.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycblackbomb.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycbomber.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/yccarrier.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/yccruiser.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycfighter.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycinfantry.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/yclander.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycmd.tank.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycmech.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycmegatank.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycmissile.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycneotank.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycpiperunner.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycrecon.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycrocket.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycstealth.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/ycsub.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/yct-copter.gif border=0></td>
+<td class="smallheader" align=center valign=center><img src=terrain/aw1/yctank.gif border=0></td>
+</tr>
+<tr id="highlights1">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geanti-air.gif border=0></td>
+<td id=ycanti-air_1 class=small align=center valign=center>45</td>
+<td id=ycapc_1 class=small align=center valign=center>50</td>
+<td id=ycartillery_1 class=small align=center valign=center>50</td>
+<td id=ycb-copter_1 class=small align=center valign=center>120</td>
+<td id=ycbattleship_1 class=small align=center valign=center> - </td>
+<td id=ycblackboat_1 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_1 class=small align=center valign=center>120</td>
+<td id=ycbomber_1 class=small align=center valign=center>75</td>
+<td id=yccarrier_1 class=small align=center valign=center> - </td>
+<td id=yccruiser_1 class=small align=center valign=center> - </td>
+<td id=ycfighter_1 class=small align=center valign=center>65</td>
+<td id=ycinfantry_1 class=small align=center valign=center>105</td>
+<td id=yclander_1 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_1 class=small align=center valign=center>10</td>
+<td id=ycmech_1 class=small align=center valign=center>105</td>
+<td id=ycmegatank_1 class=small align=center valign=center>1</td>
+<td id=ycmissile_1 class=small align=center valign=center>55</td>
+<td id=ycneotank_1 class=small align=center valign=center>5</td>
+<td id=ycpiperunner_1 class=small align=center valign=center>25</td>
+<td id=ycrecon_1 class=small align=center valign=center>60</td>
+<td id=ycrocket_1 class=small align=center valign=center>55</td>
+<td id=ycstealth_1 class=small align=center valign=center>75</td>
+<td id=ycsub_1 class=small align=center valign=center> - </td>
+<td id=yct-copter_1 class=small align=center valign=center>120</td>
+<td id=yctank_1 class=small align=center valign=center>25</td>
+</tr>
+<tr id="highlights2">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geapc.gif border=0></td>
+<td id=ycanti-air_2 class=small align=center valign=center> - </td>
+<td id=ycapc_2 class=small align=center valign=center> - </td>
+<td id=ycartillery_2 class=small align=center valign=center> - </td>
+<td id=ycb-copter_2 class=small align=center valign=center> - </td>
+<td id=ycbattleship_2 class=small align=center valign=center> - </td>
+<td id=ycblackboat_2 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_2 class=small align=center valign=center> - </td>
+<td id=ycbomber_2 class=small align=center valign=center> - </td>
+<td id=yccarrier_2 class=small align=center valign=center> - </td>
+<td id=yccruiser_2 class=small align=center valign=center> - </td>
+<td id=ycfighter_2 class=small align=center valign=center> - </td>
+<td id=ycinfantry_2 class=small align=center valign=center> - </td>
+<td id=yclander_2 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_2 class=small align=center valign=center> - </td>
+<td id=ycmech_2 class=small align=center valign=center> - </td>
+<td id=ycmegatank_2 class=small align=center valign=center> - </td>
+<td id=ycmissile_2 class=small align=center valign=center> - </td>
+<td id=ycneotank_2 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_2 class=small align=center valign=center> - </td>
+<td id=ycrecon_2 class=small align=center valign=center> - </td>
+<td id=ycrocket_2 class=small align=center valign=center> - </td>
+<td id=ycstealth_2 class=small align=center valign=center> - </td>
+<td id=ycsub_2 class=small align=center valign=center> - </td>
+<td id=yct-copter_2 class=small align=center valign=center> - </td>
+<td id=yctank_2 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights3">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geartillery.gif border=0></td>
+<td id=ycanti-air_3 class=small align=center valign=center>75</td>
+<td id=ycapc_3 class=small align=center valign=center>70</td>
+<td id=ycartillery_3 class=small align=center valign=center>75</td>
+<td id=ycb-copter_3 class=small align=center valign=center> - </td>
+<td id=ycbattleship_3 class=small align=center valign=center>40</td>
+<td id=ycblackboat_3 class=small align=center valign=center>55</td>
+<td id=ycblackbomb_3 class=small align=center valign=center> - </td>
+<td id=ycbomber_3 class=small align=center valign=center> - </td>
+<td id=yccarrier_3 class=small align=center valign=center>45</td>
+<td id=yccruiser_3 class=small align=center valign=center>65</td>
+<td id=ycfighter_3 class=small align=center valign=center> - </td>
+<td id=ycinfantry_3 class=small align=center valign=center>90</td>
+<td id=yclander_3 class=small align=center valign=center>55</td>
+<td id=ycmd.tank_3 class=small align=center valign=center>45</td>
+<td id=ycmech_3 class=small align=center valign=center>85</td>
+<td id=ycmegatank_3 class=small align=center valign=center>15</td>
+<td id=ycmissile_3 class=small align=center valign=center>80</td>
+<td id=ycneotank_3 class=small align=center valign=center>40</td>
+<td id=ycpiperunner_3 class=small align=center valign=center>70</td>
+<td id=ycrecon_3 class=small align=center valign=center>80</td>
+<td id=ycrocket_3 class=small align=center valign=center>80</td>
+<td id=ycstealth_3 class=small align=center valign=center> - </td>
+<td id=ycsub_3 class=small align=center valign=center>60</td>
+<td id=yct-copter_3 class=small align=center valign=center> - </td>
+<td id=yctank_3 class=small align=center valign=center>70</td>
+</tr>
+<tr id="highlights4">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geb-copter.gif border=0></td>
+<td id=ycanti-air_4 class=small align=center valign=center>25</td>
+<td id=ycapc_4 class=small align=center valign=center>60</td>
+<td id=ycartillery_4 class=small align=center valign=center>65</td>
+<td id=ycb-copter_4 class=small align=center valign=center>65</td>
+<td id=ycbattleship_4 class=small align=center valign=center>25</td>
+<td id=ycblackboat_4 class=small align=center valign=center>25</td>
+<td id=ycblackbomb_4 class=small align=center valign=center> - </td>
+<td id=ycbomber_4 class=small align=center valign=center> - </td>
+<td id=yccarrier_4 class=small align=center valign=center>25</td>
+<td id=yccruiser_4 class=small align=center valign=center>55</td>
+<td id=ycfighter_4 class=small align=center valign=center> - </td>
+<td id=ycinfantry_4 class=small align=center valign=center>75</td>
+<td id=yclander_4 class=small align=center valign=center>25</td>
+<td id=ycmd.tank_4 class=small align=center valign=center>25</td>
+<td id=ycmech_4 class=small align=center valign=center>75</td>
+<td id=ycmegatank_4 class=small align=center valign=center>10</td>
+<td id=ycmissile_4 class=small align=center valign=center>65</td>
+<td id=ycneotank_4 class=small align=center valign=center>20</td>
+<td id=ycpiperunner_4 class=small align=center valign=center>55</td>
+<td id=ycrecon_4 class=small align=center valign=center>55</td>
+<td id=ycrocket_4 class=small align=center valign=center>65</td>
+<td id=ycstealth_4 class=small align=center valign=center> - </td>
+<td id=ycsub_4 class=small align=center valign=center>25</td>
+<td id=yct-copter_4 class=small align=center valign=center>95</td>
+<td id=yctank_4 class=small align=center valign=center>55</td>
+</tr>
+<tr id="highlights5">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gebattleship.gif border=0></td>
+<td id=ycanti-air_5 class=small align=center valign=center>85</td>
+<td id=ycapc_5 class=small align=center valign=center>80</td>
+<td id=ycartillery_5 class=small align=center valign=center>80</td>
+<td id=ycb-copter_5 class=small align=center valign=center> - </td>
+<td id=ycbattleship_5 class=small align=center valign=center>50</td>
+<td id=ycblackboat_5 class=small align=center valign=center>95</td>
+<td id=ycblackbomb_5 class=small align=center valign=center> - </td>
+<td id=ycbomber_5 class=small align=center valign=center> - </td>
+<td id=yccarrier_5 class=small align=center valign=center>60</td>
+<td id=yccruiser_5 class=small align=center valign=center>95</td>
+<td id=ycfighter_5 class=small align=center valign=center> - </td>
+<td id=ycinfantry_5 class=small align=center valign=center>95</td>
+<td id=yclander_5 class=small align=center valign=center>95</td>
+<td id=ycmd.tank_5 class=small align=center valign=center>55</td>
+<td id=ycmech_5 class=small align=center valign=center>90</td>
+<td id=ycmegatank_5 class=small align=center valign=center>25</td>
+<td id=ycmissile_5 class=small align=center valign=center>90</td>
+<td id=ycneotank_5 class=small align=center valign=center>50</td>
+<td id=ycpiperunner_5 class=small align=center valign=center>80</td>
+<td id=ycrecon_5 class=small align=center valign=center>90</td>
+<td id=ycrocket_5 class=small align=center valign=center>85</td>
+<td id=ycstealth_5 class=small align=center valign=center> - </td>
+<td id=ycsub_5 class=small align=center valign=center>95</td>
+<td id=yct-copter_5 class=small align=center valign=center> - </td>
+<td id=yctank_5 class=small align=center valign=center>80</td>
+</tr>
+<tr id="highlights6">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geblackboat.gif border=0></td>
+<td id=ycanti-air_6 class=small align=center valign=center> - </td>
+<td id=ycapc_6 class=small align=center valign=center> - </td>
+<td id=ycartillery_6 class=small align=center valign=center> - </td>
+<td id=ycb-copter_6 class=small align=center valign=center> - </td>
+<td id=ycbattleship_6 class=small align=center valign=center> - </td>
+<td id=ycblackboat_6 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_6 class=small align=center valign=center> - </td>
+<td id=ycbomber_6 class=small align=center valign=center> - </td>
+<td id=yccarrier_6 class=small align=center valign=center> - </td>
+<td id=yccruiser_6 class=small align=center valign=center> - </td>
+<td id=ycfighter_6 class=small align=center valign=center> - </td>
+<td id=ycinfantry_6 class=small align=center valign=center> - </td>
+<td id=yclander_6 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_6 class=small align=center valign=center> - </td>
+<td id=ycmech_6 class=small align=center valign=center> - </td>
+<td id=ycmegatank_6 class=small align=center valign=center> - </td>
+<td id=ycmissile_6 class=small align=center valign=center> - </td>
+<td id=ycneotank_6 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_6 class=small align=center valign=center> - </td>
+<td id=ycrecon_6 class=small align=center valign=center> - </td>
+<td id=ycrocket_6 class=small align=center valign=center> - </td>
+<td id=ycstealth_6 class=small align=center valign=center> - </td>
+<td id=ycsub_6 class=small align=center valign=center> - </td>
+<td id=yct-copter_6 class=small align=center valign=center> - </td>
+<td id=yctank_6 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights7">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geblackbomb.gif border=0></td>
+<td id=ycanti-air_7 class=small align=center valign=center> - </td>
+<td id=ycapc_7 class=small align=center valign=center> - </td>
+<td id=ycartillery_7 class=small align=center valign=center> - </td>
+<td id=ycb-copter_7 class=small align=center valign=center> - </td>
+<td id=ycbattleship_7 class=small align=center valign=center> - </td>
+<td id=ycblackboat_7 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_7 class=small align=center valign=center> - </td>
+<td id=ycbomber_7 class=small align=center valign=center> - </td>
+<td id=yccarrier_7 class=small align=center valign=center> - </td>
+<td id=yccruiser_7 class=small align=center valign=center> - </td>
+<td id=ycfighter_7 class=small align=center valign=center> - </td>
+<td id=ycinfantry_7 class=small align=center valign=center> - </td>
+<td id=yclander_7 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_7 class=small align=center valign=center> - </td>
+<td id=ycmech_7 class=small align=center valign=center> - </td>
+<td id=ycmegatank_7 class=small align=center valign=center> - </td>
+<td id=ycmissile_7 class=small align=center valign=center> - </td>
+<td id=ycneotank_7 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_7 class=small align=center valign=center> - </td>
+<td id=ycrecon_7 class=small align=center valign=center> - </td>
+<td id=ycrocket_7 class=small align=center valign=center> - </td>
+<td id=ycstealth_7 class=small align=center valign=center> - </td>
+<td id=ycsub_7 class=small align=center valign=center> - </td>
+<td id=yct-copter_7 class=small align=center valign=center> - </td>
+<td id=yctank_7 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights8">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gebomber.gif border=0></td>
+<td id=ycanti-air_8 class=small align=center valign=center>95</td>
+<td id=ycapc_8 class=small align=center valign=center>105</td>
+<td id=ycartillery_8 class=small align=center valign=center>105</td>
+<td id=ycb-copter_8 class=small align=center valign=center> - </td>
+<td id=ycbattleship_8 class=small align=center valign=center>75</td>
+<td id=ycblackboat_8 class=small align=center valign=center>95</td>
+<td id=ycblackbomb_8 class=small align=center valign=center> - </td>
+<td id=ycbomber_8 class=small align=center valign=center> - </td>
+<td id=yccarrier_8 class=small align=center valign=center>75</td>
+<td id=yccruiser_8 class=small align=center valign=center>85</td>
+<td id=ycfighter_8 class=small align=center valign=center> - </td>
+<td id=ycinfantry_8 class=small align=center valign=center>110</td>
+<td id=yclander_8 class=small align=center valign=center>95</td>
+<td id=ycmd.tank_8 class=small align=center valign=center>95</td>
+<td id=ycmech_8 class=small align=center valign=center>110</td>
+<td id=ycmegatank_8 class=small align=center valign=center>35</td>
+<td id=ycmissile_8 class=small align=center valign=center>105</td>
+<td id=ycneotank_8 class=small align=center valign=center>90</td>
+<td id=ycpiperunner_8 class=small align=center valign=center>105</td>
+<td id=ycrecon_8 class=small align=center valign=center>105</td>
+<td id=ycrocket_8 class=small align=center valign=center>105</td>
+<td id=ycstealth_8 class=small align=center valign=center> - </td>
+<td id=ycsub_8 class=small align=center valign=center>95</td>
+<td id=yct-copter_8 class=small align=center valign=center> - </td>
+<td id=yctank_8 class=small align=center valign=center>105</td>
+</tr>
+<tr id="highlights9">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gecarrier.gif border=0></td>
+<td id=ycanti-air_9 class=small align=center valign=center> - </td>
+<td id=ycapc_9 class=small align=center valign=center> - </td>
+<td id=ycartillery_9 class=small align=center valign=center> - </td>
+<td id=ycb-copter_9 class=small align=center valign=center>115</td>
+<td id=ycbattleship_9 class=small align=center valign=center> - </td>
+<td id=ycblackboat_9 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_9 class=small align=center valign=center>120</td>
+<td id=ycbomber_9 class=small align=center valign=center>100</td>
+<td id=yccarrier_9 class=small align=center valign=center> - </td>
+<td id=yccruiser_9 class=small align=center valign=center> - </td>
+<td id=ycfighter_9 class=small align=center valign=center>100</td>
+<td id=ycinfantry_9 class=small align=center valign=center> - </td>
+<td id=yclander_9 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_9 class=small align=center valign=center> - </td>
+<td id=ycmech_9 class=small align=center valign=center> - </td>
+<td id=ycmegatank_9 class=small align=center valign=center> - </td>
+<td id=ycmissile_9 class=small align=center valign=center> - </td>
+<td id=ycneotank_9 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_9 class=small align=center valign=center> - </td>
+<td id=ycrecon_9 class=small align=center valign=center> - </td>
+<td id=ycrocket_9 class=small align=center valign=center> - </td>
+<td id=ycstealth_9 class=small align=center valign=center>100</td>
+<td id=ycsub_9 class=small align=center valign=center> - </td>
+<td id=yct-copter_9 class=small align=center valign=center>115</td>
+<td id=yctank_9 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights10">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gecruiser.gif border=0></td>
+<td id=ycanti-air_10 class=small align=center valign=center> - </td>
+<td id=ycapc_10 class=small align=center valign=center> - </td>
+<td id=ycartillery_10 class=small align=center valign=center> - </td>
+<td id=ycb-copter_10 class=small align=center valign=center>115</td>
+<td id=ycbattleship_10 class=small align=center valign=center> - </td>
+<td id=ycblackboat_10 class=small align=center valign=center>25</td>
+<td id=ycblackbomb_10 class=small align=center valign=center>120</td>
+<td id=ycbomber_10 class=small align=center valign=center>65</td>
+<td id=yccarrier_10 class=small align=center valign=center>5</td>
+<td id=yccruiser_10 class=small align=center valign=center> - </td>
+<td id=ycfighter_10 class=small align=center valign=center>55</td>
+<td id=ycinfantry_10 class=small align=center valign=center> - </td>
+<td id=yclander_10 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_10 class=small align=center valign=center> - </td>
+<td id=ycmech_10 class=small align=center valign=center> - </td>
+<td id=ycmegatank_10 class=small align=center valign=center> - </td>
+<td id=ycmissile_10 class=small align=center valign=center> - </td>
+<td id=ycneotank_10 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_10 class=small align=center valign=center> - </td>
+<td id=ycrecon_10 class=small align=center valign=center> - </td>
+<td id=ycrocket_10 class=small align=center valign=center> - </td>
+<td id=ycstealth_10 class=small align=center valign=center>100</td>
+<td id=ycsub_10 class=small align=center valign=center>90</td>
+<td id=yct-copter_10 class=small align=center valign=center>115</td>
+<td id=yctank_10 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights11">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gefighter.gif border=0></td>
+<td id=ycanti-air_11 class=small align=center valign=center> - </td>
+<td id=ycapc_11 class=small align=center valign=center> - </td>
+<td id=ycartillery_11 class=small align=center valign=center> - </td>
+<td id=ycb-copter_11 class=small align=center valign=center>100</td>
+<td id=ycbattleship_11 class=small align=center valign=center> - </td>
+<td id=ycblackboat_11 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_11 class=small align=center valign=center>120</td>
+<td id=ycbomber_11 class=small align=center valign=center>100</td>
+<td id=yccarrier_11 class=small align=center valign=center> - </td>
+<td id=yccruiser_11 class=small align=center valign=center> - </td>
+<td id=ycfighter_11 class=small align=center valign=center>55</td>
+<td id=ycinfantry_11 class=small align=center valign=center> - </td>
+<td id=yclander_11 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_11 class=small align=center valign=center> - </td>
+<td id=ycmech_11 class=small align=center valign=center> - </td>
+<td id=ycmegatank_11 class=small align=center valign=center> - </td>
+<td id=ycmissile_11 class=small align=center valign=center> - </td>
+<td id=ycneotank_11 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_11 class=small align=center valign=center> - </td>
+<td id=ycrecon_11 class=small align=center valign=center> - </td>
+<td id=ycrocket_11 class=small align=center valign=center> - </td>
+<td id=ycstealth_11 class=small align=center valign=center>85</td>
+<td id=ycsub_11 class=small align=center valign=center> - </td>
+<td id=yct-copter_11 class=small align=center valign=center>100</td>
+<td id=yctank_11 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights12">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geinfantry.gif border=0></td>
+<td id=ycanti-air_12 class=small align=center valign=center>5</td>
+<td id=ycapc_12 class=small align=center valign=center>14</td>
+<td id=ycartillery_12 class=small align=center valign=center>15</td>
+<td id=ycb-copter_12 class=small align=center valign=center>7</td>
+<td id=ycbattleship_12 class=small align=center valign=center> - </td>
+<td id=ycblackboat_12 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_12 class=small align=center valign=center> - </td>
+<td id=ycbomber_12 class=small align=center valign=center> - </td>
+<td id=yccarrier_12 class=small align=center valign=center> - </td>
+<td id=yccruiser_12 class=small align=center valign=center> - </td>
+<td id=ycfighter_12 class=small align=center valign=center> - </td>
+<td id=ycinfantry_12 class=small align=center valign=center>55</td>
+<td id=yclander_12 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_12 class=small align=center valign=center>1</td>
+<td id=ycmech_12 class=small align=center valign=center>45</td>
+<td id=ycmegatank_12 class=small align=center valign=center>1</td>
+<td id=ycmissile_12 class=small align=center valign=center>25</td>
+<td id=ycneotank_12 class=small align=center valign=center>1</td>
+<td id=ycpiperunner_12 class=small align=center valign=center>5</td>
+<td id=ycrecon_12 class=small align=center valign=center>12</td>
+<td id=ycrocket_12 class=small align=center valign=center>25</td>
+<td id=ycstealth_12 class=small align=center valign=center> - </td>
+<td id=ycsub_12 class=small align=center valign=center> - </td>
+<td id=yct-copter_12 class=small align=center valign=center>30</td>
+<td id=yctank_12 class=small align=center valign=center>5</td>
+</tr>
+<tr id="highlights13">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gelander.gif border=0></td>
+<td id=ycanti-air_13 class=small align=center valign=center> - </td>
+<td id=ycapc_13 class=small align=center valign=center> - </td>
+<td id=ycartillery_13 class=small align=center valign=center> - </td>
+<td id=ycb-copter_13 class=small align=center valign=center> - </td>
+<td id=ycbattleship_13 class=small align=center valign=center> - </td>
+<td id=ycblackboat_13 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_13 class=small align=center valign=center> - </td>
+<td id=ycbomber_13 class=small align=center valign=center> - </td>
+<td id=yccarrier_13 class=small align=center valign=center> - </td>
+<td id=yccruiser_13 class=small align=center valign=center> - </td>
+<td id=ycfighter_13 class=small align=center valign=center> - </td>
+<td id=ycinfantry_13 class=small align=center valign=center> - </td>
+<td id=yclander_13 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_13 class=small align=center valign=center> - </td>
+<td id=ycmech_13 class=small align=center valign=center> - </td>
+<td id=ycmegatank_13 class=small align=center valign=center> - </td>
+<td id=ycmissile_13 class=small align=center valign=center> - </td>
+<td id=ycneotank_13 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_13 class=small align=center valign=center> - </td>
+<td id=ycrecon_13 class=small align=center valign=center> - </td>
+<td id=ycrocket_13 class=small align=center valign=center> - </td>
+<td id=ycstealth_13 class=small align=center valign=center> - </td>
+<td id=ycsub_13 class=small align=center valign=center> - </td>
+<td id=yct-copter_13 class=small align=center valign=center> - </td>
+<td id=yctank_13 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights14">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gemd.tank.gif border=0></td>
+<td id=ycanti-air_14 class=small align=center valign=center>105</td>
+<td id=ycapc_14 class=small align=center valign=center>105</td>
+<td id=ycartillery_14 class=small align=center valign=center>105</td>
+<td id=ycb-copter_14 class=small align=center valign=center>12</td>
+<td id=ycbattleship_14 class=small align=center valign=center>10</td>
+<td id=ycblackboat_14 class=small align=center valign=center>35</td>
+<td id=ycblackbomb_14 class=small align=center valign=center> - </td>
+<td id=ycbomber_14 class=small align=center valign=center> - </td>
+<td id=yccarrier_14 class=small align=center valign=center>10</td>
+<td id=yccruiser_14 class=small align=center valign=center>45</td>
+<td id=ycfighter_14 class=small align=center valign=center> - </td>
+<td id=ycinfantry_14 class=small align=center valign=center>105</td>
+<td id=yclander_14 class=small align=center valign=center>35</td>
+<td id=ycmd.tank_14 class=small align=center valign=center>55</td>
+<td id=ycmech_14 class=small align=center valign=center>95</td>
+<td id=ycmegatank_14 class=small align=center valign=center>25</td>
+<td id=ycmissile_14 class=small align=center valign=center>105</td>
+<td id=ycneotank_14 class=small align=center valign=center>45</td>
+<td id=ycpiperunner_14 class=small align=center valign=center>85</td>
+<td id=ycrecon_14 class=small align=center valign=center>105</td>
+<td id=ycrocket_14 class=small align=center valign=center>105</td>
+<td id=ycstealth_14 class=small align=center valign=center> - </td>
+<td id=ycsub_14 class=small align=center valign=center>10</td>
+<td id=yct-copter_14 class=small align=center valign=center>45</td>
+<td id=yctank_14 class=small align=center valign=center>85</td>
+</tr>
+<tr id="highlights15">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gemech.gif border=0></td>
+<td id=ycanti-air_15 class=small align=center valign=center>65</td>
+<td id=ycapc_15 class=small align=center valign=center>75</td>
+<td id=ycartillery_15 class=small align=center valign=center>70</td>
+<td id=ycb-copter_15 class=small align=center valign=center>9</td>
+<td id=ycbattleship_15 class=small align=center valign=center> - </td>
+<td id=ycblackboat_15 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_15 class=small align=center valign=center> - </td>
+<td id=ycbomber_15 class=small align=center valign=center> - </td>
+<td id=yccarrier_15 class=small align=center valign=center> - </td>
+<td id=yccruiser_15 class=small align=center valign=center> - </td>
+<td id=ycfighter_15 class=small align=center valign=center> - </td>
+<td id=ycinfantry_15 class=small align=center valign=center>65</td>
+<td id=yclander_15 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_15 class=small align=center valign=center>15</td>
+<td id=ycmech_15 class=small align=center valign=center>55</td>
+<td id=ycmegatank_15 class=small align=center valign=center>5</td>
+<td id=ycmissile_15 class=small align=center valign=center>85</td>
+<td id=ycneotank_15 class=small align=center valign=center>15</td>
+<td id=ycpiperunner_15 class=small align=center valign=center>55</td>
+<td id=ycrecon_15 class=small align=center valign=center>85</td>
+<td id=ycrocket_15 class=small align=center valign=center>85</td>
+<td id=ycstealth_15 class=small align=center valign=center> - </td>
+<td id=ycsub_15 class=small align=center valign=center> - </td>
+<td id=yct-copter_15 class=small align=center valign=center>35</td>
+<td id=yctank_15 class=small align=center valign=center>55</td>
+</tr>
+<tr id="highlights16">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gemegatank.gif border=0></td>
+<td id=ycanti-air_16 class=small align=center valign=center>195</td>
+<td id=ycapc_16 class=small align=center valign=center>195</td>
+<td id=ycartillery_16 class=small align=center valign=center>195</td>
+<td id=ycb-copter_16 class=small align=center valign=center>22</td>
+<td id=ycbattleship_16 class=small align=center valign=center>45</td>
+<td id=ycblackboat_16 class=small align=center valign=center>105</td>
+<td id=ycblackbomb_16 class=small align=center valign=center> - </td>
+<td id=ycbomber_16 class=small align=center valign=center> - </td>
+<td id=yccarrier_16 class=small align=center valign=center>45</td>
+<td id=yccruiser_16 class=small align=center valign=center>65</td>
+<td id=ycfighter_16 class=small align=center valign=center> - </td>
+<td id=ycinfantry_16 class=small align=center valign=center>135</td>
+<td id=yclander_16 class=small align=center valign=center>75</td>
+<td id=ycmd.tank_16 class=small align=center valign=center>125</td>
+<td id=ycmech_16 class=small align=center valign=center>125</td>
+<td id=ycmegatank_16 class=small align=center valign=center>65</td>
+<td id=ycmissile_16 class=small align=center valign=center>195</td>
+<td id=ycneotank_16 class=small align=center valign=center>115</td>
+<td id=ycpiperunner_16 class=small align=center valign=center>180</td>
+<td id=ycrecon_16 class=small align=center valign=center>195</td>
+<td id=ycrocket_16 class=small align=center valign=center>195</td>
+<td id=ycstealth_16 class=small align=center valign=center> - </td>
+<td id=ycsub_16 class=small align=center valign=center>45</td>
+<td id=yct-copter_16 class=small align=center valign=center>55</td>
+<td id=yctank_16 class=small align=center valign=center>180</td>
+</tr>
+<tr id="highlights17">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gemissile.gif border=0></td>
+<td id=ycanti-air_17 class=small align=center valign=center> - </td>
+<td id=ycapc_17 class=small align=center valign=center> - </td>
+<td id=ycartillery_17 class=small align=center valign=center> - </td>
+<td id=ycb-copter_17 class=small align=center valign=center>120</td>
+<td id=ycbattleship_17 class=small align=center valign=center> - </td>
+<td id=ycblackboat_17 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_17 class=small align=center valign=center>120</td>
+<td id=ycbomber_17 class=small align=center valign=center>100</td>
+<td id=yccarrier_17 class=small align=center valign=center> - </td>
+<td id=yccruiser_17 class=small align=center valign=center> - </td>
+<td id=ycfighter_17 class=small align=center valign=center>100</td>
+<td id=ycinfantry_17 class=small align=center valign=center> - </td>
+<td id=yclander_17 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_17 class=small align=center valign=center> - </td>
+<td id=ycmech_17 class=small align=center valign=center> - </td>
+<td id=ycmegatank_17 class=small align=center valign=center> - </td>
+<td id=ycmissile_17 class=small align=center valign=center> - </td>
+<td id=ycneotank_17 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_17 class=small align=center valign=center> - </td>
+<td id=ycrecon_17 class=small align=center valign=center> - </td>
+<td id=ycrocket_17 class=small align=center valign=center> - </td>
+<td id=ycstealth_17 class=small align=center valign=center>100</td>
+<td id=ycsub_17 class=small align=center valign=center> - </td>
+<td id=yct-copter_17 class=small align=center valign=center>120</td>
+<td id=yctank_17 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights18">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/geneotank.gif border=0></td>
+<td id=ycanti-air_18 class=small align=center valign=center>115</td>
+<td id=ycapc_18 class=small align=center valign=center>125</td>
+<td id=ycartillery_18 class=small align=center valign=center>115</td>
+<td id=ycb-copter_18 class=small align=center valign=center>22</td>
+<td id=ycbattleship_18 class=small align=center valign=center>15</td>
+<td id=ycblackboat_18 class=small align=center valign=center>40</td>
+<td id=ycblackbomb_18 class=small align=center valign=center> - </td>
+<td id=ycbomber_18 class=small align=center valign=center> - </td>
+<td id=yccarrier_18 class=small align=center valign=center>15</td>
+<td id=yccruiser_18 class=small align=center valign=center>50</td>
+<td id=ycfighter_18 class=small align=center valign=center> - </td>
+<td id=ycinfantry_18 class=small align=center valign=center>125</td>
+<td id=yclander_18 class=small align=center valign=center>40</td>
+<td id=ycmd.tank_18 class=small align=center valign=center>75</td>
+<td id=ycmech_18 class=small align=center valign=center>115</td>
+<td id=ycmegatank_18 class=small align=center valign=center>35</td>
+<td id=ycmissile_18 class=small align=center valign=center>125</td>
+<td id=ycneotank_18 class=small align=center valign=center>55</td>
+<td id=ycpiperunner_18 class=small align=center valign=center>105</td>
+<td id=ycrecon_18 class=small align=center valign=center>125</td>
+<td id=ycrocket_18 class=small align=center valign=center>125</td>
+<td id=ycstealth_18 class=small align=center valign=center> - </td>
+<td id=ycsub_18 class=small align=center valign=center>15</td>
+<td id=yct-copter_18 class=small align=center valign=center>55</td>
+<td id=yctank_18 class=small align=center valign=center>105</td>
+</tr>
+<tr id="highlights19">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gepiperunner.gif border=0></td>
+<td id=ycanti-air_19 class=small align=center valign=center>85</td>
+<td id=ycapc_19 class=small align=center valign=center>80</td>
+<td id=ycartillery_19 class=small align=center valign=center>80</td>
+<td id=ycb-copter_19 class=small align=center valign=center>105</td>
+<td id=ycbattleship_19 class=small align=center valign=center>55</td>
+<td id=ycblackboat_19 class=small align=center valign=center>60</td>
+<td id=ycblackbomb_19 class=small align=center valign=center>120</td>
+<td id=ycbomber_19 class=small align=center valign=center>75</td>
+<td id=yccarrier_19 class=small align=center valign=center>60</td>
+<td id=yccruiser_19 class=small align=center valign=center>60</td>
+<td id=ycfighter_19 class=small align=center valign=center>65</td>
+<td id=ycinfantry_19 class=small align=center valign=center>95</td>
+<td id=yclander_19 class=small align=center valign=center>60</td>
+<td id=ycmd.tank_19 class=small align=center valign=center>55</td>
+<td id=ycmech_19 class=small align=center valign=center>90</td>
+<td id=ycmegatank_19 class=small align=center valign=center>25</td>
+<td id=ycmissile_19 class=small align=center valign=center>90</td>
+<td id=ycneotank_19 class=small align=center valign=center>50</td>
+<td id=ycpiperunner_19 class=small align=center valign=center>80</td>
+<td id=ycrecon_19 class=small align=center valign=center>90</td>
+<td id=ycrocket_19 class=small align=center valign=center>85</td>
+<td id=ycstealth_19 class=small align=center valign=center>75</td>
+<td id=ycsub_19 class=small align=center valign=center>85</td>
+<td id=yct-copter_19 class=small align=center valign=center>105</td>
+<td id=yctank_19 class=small align=center valign=center>80</td>
+</tr>
+<tr id="highlights20">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gerecon.gif border=0></td>
+<td id=ycanti-air_20 class=small align=center valign=center>4</td>
+<td id=ycapc_20 class=small align=center valign=center>45</td>
+<td id=ycartillery_20 class=small align=center valign=center>45</td>
+<td id=ycb-copter_20 class=small align=center valign=center>10</td>
+<td id=ycbattleship_20 class=small align=center valign=center> - </td>
+<td id=ycblackboat_20 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_20 class=small align=center valign=center> - </td>
+<td id=ycbomber_20 class=small align=center valign=center> - </td>
+<td id=yccarrier_20 class=small align=center valign=center> - </td>
+<td id=yccruiser_20 class=small align=center valign=center> - </td>
+<td id=ycfighter_20 class=small align=center valign=center> - </td>
+<td id=ycinfantry_20 class=small align=center valign=center>70</td>
+<td id=yclander_20 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_20 class=small align=center valign=center>1</td>
+<td id=ycmech_20 class=small align=center valign=center>65</td>
+<td id=ycmegatank_20 class=small align=center valign=center>1</td>
+<td id=ycmissile_20 class=small align=center valign=center>28</td>
+<td id=ycneotank_20 class=small align=center valign=center>1</td>
+<td id=ycpiperunner_20 class=small align=center valign=center>6</td>
+<td id=ycrecon_20 class=small align=center valign=center>35</td>
+<td id=ycrocket_20 class=small align=center valign=center>55</td>
+<td id=ycstealth_20 class=small align=center valign=center> - </td>
+<td id=ycsub_20 class=small align=center valign=center> - </td>
+<td id=yct-copter_20 class=small align=center valign=center>35</td>
+<td id=yctank_20 class=small align=center valign=center>6</td>
+</tr>
+<tr id="highlights21">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gerocket.gif border=0></td>
+<td id=ycanti-air_21 class=small align=center valign=center>85</td>
+<td id=ycapc_21 class=small align=center valign=center>80</td>
+<td id=ycartillery_21 class=small align=center valign=center>80</td>
+<td id=ycb-copter_21 class=small align=center valign=center> - </td>
+<td id=ycbattleship_21 class=small align=center valign=center>55</td>
+<td id=ycblackboat_21 class=small align=center valign=center>60</td>
+<td id=ycblackbomb_21 class=small align=center valign=center> - </td>
+<td id=ycbomber_21 class=small align=center valign=center> - </td>
+<td id=yccarrier_21 class=small align=center valign=center>60</td>
+<td id=yccruiser_21 class=small align=center valign=center>85</td>
+<td id=ycfighter_21 class=small align=center valign=center> - </td>
+<td id=ycinfantry_21 class=small align=center valign=center>95</td>
+<td id=yclander_21 class=small align=center valign=center>60</td>
+<td id=ycmd.tank_21 class=small align=center valign=center>55</td>
+<td id=ycmech_21 class=small align=center valign=center>90</td>
+<td id=ycmegatank_21 class=small align=center valign=center>25</td>
+<td id=ycmissile_21 class=small align=center valign=center>90</td>
+<td id=ycneotank_21 class=small align=center valign=center>50</td>
+<td id=ycpiperunner_21 class=small align=center valign=center>80</td>
+<td id=ycrecon_21 class=small align=center valign=center>90</td>
+<td id=ycrocket_21 class=small align=center valign=center>85</td>
+<td id=ycstealth_21 class=small align=center valign=center> - </td>
+<td id=ycsub_21 class=small align=center valign=center>85</td>
+<td id=yct-copter_21 class=small align=center valign=center> - </td>
+<td id=yctank_21 class=small align=center valign=center>80</td>
+</tr>
+<tr id="highlights22">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gestealth.gif border=0></td>
+<td id=ycanti-air_22 class=small align=center valign=center>50</td>
+<td id=ycapc_22 class=small align=center valign=center>85</td>
+<td id=ycartillery_22 class=small align=center valign=center>75</td>
+<td id=ycb-copter_22 class=small align=center valign=center>85</td>
+<td id=ycbattleship_22 class=small align=center valign=center>45</td>
+<td id=ycblackboat_22 class=small align=center valign=center>65</td>
+<td id=ycblackbomb_22 class=small align=center valign=center>120</td>
+<td id=ycbomber_22 class=small align=center valign=center>70</td>
+<td id=yccarrier_22 class=small align=center valign=center>45</td>
+<td id=yccruiser_22 class=small align=center valign=center>35</td>
+<td id=ycfighter_22 class=small align=center valign=center>45</td>
+<td id=ycinfantry_22 class=small align=center valign=center>90</td>
+<td id=yclander_22 class=small align=center valign=center>65</td>
+<td id=ycmd.tank_22 class=small align=center valign=center>70</td>
+<td id=ycmech_22 class=small align=center valign=center>90</td>
+<td id=ycmegatank_22 class=small align=center valign=center>15</td>
+<td id=ycmissile_22 class=small align=center valign=center>85</td>
+<td id=ycneotank_22 class=small align=center valign=center>60</td>
+<td id=ycpiperunner_22 class=small align=center valign=center>80</td>
+<td id=ycrecon_22 class=small align=center valign=center>85</td>
+<td id=ycrocket_22 class=small align=center valign=center>85</td>
+<td id=ycstealth_22 class=small align=center valign=center>55</td>
+<td id=ycsub_22 class=small align=center valign=center>55</td>
+<td id=yct-copter_22 class=small align=center valign=center>95</td>
+<td id=yctank_22 class=small align=center valign=center>75</td>
+</tr>
+<tr id="highlights23">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/gesub.gif border=0></td>
+<td id=ycanti-air_23 class=small align=center valign=center> - </td>
+<td id=ycapc_23 class=small align=center valign=center> - </td>
+<td id=ycartillery_23 class=small align=center valign=center> - </td>
+<td id=ycb-copter_23 class=small align=center valign=center> - </td>
+<td id=ycbattleship_23 class=small align=center valign=center>55</td>
+<td id=ycblackboat_23 class=small align=center valign=center>95</td>
+<td id=ycblackbomb_23 class=small align=center valign=center> - </td>
+<td id=ycbomber_23 class=small align=center valign=center> - </td>
+<td id=yccarrier_23 class=small align=center valign=center>75</td>
+<td id=yccruiser_23 class=small align=center valign=center>25</td>
+<td id=ycfighter_23 class=small align=center valign=center> - </td>
+<td id=ycinfantry_23 class=small align=center valign=center> - </td>
+<td id=yclander_23 class=small align=center valign=center>95</td>
+<td id=ycmd.tank_23 class=small align=center valign=center> - </td>
+<td id=ycmech_23 class=small align=center valign=center> - </td>
+<td id=ycmegatank_23 class=small align=center valign=center> - </td>
+<td id=ycmissile_23 class=small align=center valign=center> - </td>
+<td id=ycneotank_23 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_23 class=small align=center valign=center> - </td>
+<td id=ycrecon_23 class=small align=center valign=center> - </td>
+<td id=ycrocket_23 class=small align=center valign=center> - </td>
+<td id=ycstealth_23 class=small align=center valign=center> - </td>
+<td id=ycsub_23 class=small align=center valign=center>55</td>
+<td id=yct-copter_23 class=small align=center valign=center> - </td>
+<td id=yctank_23 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights24">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/get-copter.gif border=0></td>
+<td id=ycanti-air_24 class=small align=center valign=center> - </td>
+<td id=ycapc_24 class=small align=center valign=center> - </td>
+<td id=ycartillery_24 class=small align=center valign=center> - </td>
+<td id=ycb-copter_24 class=small align=center valign=center> - </td>
+<td id=ycbattleship_24 class=small align=center valign=center> - </td>
+<td id=ycblackboat_24 class=small align=center valign=center> - </td>
+<td id=ycblackbomb_24 class=small align=center valign=center> - </td>
+<td id=ycbomber_24 class=small align=center valign=center> - </td>
+<td id=yccarrier_24 class=small align=center valign=center> - </td>
+<td id=yccruiser_24 class=small align=center valign=center> - </td>
+<td id=ycfighter_24 class=small align=center valign=center> - </td>
+<td id=ycinfantry_24 class=small align=center valign=center> - </td>
+<td id=yclander_24 class=small align=center valign=center> - </td>
+<td id=ycmd.tank_24 class=small align=center valign=center> - </td>
+<td id=ycmech_24 class=small align=center valign=center> - </td>
+<td id=ycmegatank_24 class=small align=center valign=center> - </td>
+<td id=ycmissile_24 class=small align=center valign=center> - </td>
+<td id=ycneotank_24 class=small align=center valign=center> - </td>
+<td id=ycpiperunner_24 class=small align=center valign=center> - </td>
+<td id=ycrecon_24 class=small align=center valign=center> - </td>
+<td id=ycrocket_24 class=small align=center valign=center> - </td>
+<td id=ycstealth_24 class=small align=center valign=center> - </td>
+<td id=ycsub_24 class=small align=center valign=center> - </td>
+<td id=yct-copter_24 class=small align=center valign=center> - </td>
+<td id=yctank_24 class=small align=center valign=center> - </td>
+</tr>
+<tr id="highlights25">
+<td style="border-left: 1px solid #AAAAAA;" class=small align=center valign=center><img src=terrain/aw1/getank.gif border=0></td>
+<td id=ycanti-air_25 class=small align=center valign=center>65</td>
+<td id=ycapc_25 class=small align=center valign=center>75</td>
+<td id=ycartillery_25 class=small align=center valign=center>70</td>
+<td id=ycb-copter_25 class=small align=center valign=center>10</td>
+<td id=ycbattleship_25 class=small align=center valign=center>1</td>
+<td id=ycblackboat_25 class=small align=center valign=center>10</td>
+<td id=ycblackbomb_25 class=small align=center valign=center> - </td>
+<td id=ycbomber_25 class=small align=center valign=center> - </td>
+<td id=yccarrier_25 class=small align=center valign=center>1</td>
+<td id=yccruiser_25 class=small align=center valign=center>5</td>
+<td id=ycfighter_25 class=small align=center valign=center> - </td>
+<td id=ycinfantry_25 class=small align=center valign=center>75</td>
+<td id=yclander_25 class=small align=center valign=center>10</td>
+<td id=ycmd.tank_25 class=small align=center valign=center>15</td>
+<td id=ycmech_25 class=small align=center valign=center>70</td>
+<td id=ycmegatank_25 class=small align=center valign=center>10</td>
+<td id=ycmissile_25 class=small align=center valign=center>85</td>
+<td id=ycneotank_25 class=small align=center valign=center>15</td>
+<td id=ycpiperunner_25 class=small align=center valign=center>55</td>
+<td id=ycrecon_25 class=small align=center valign=center>85</td>
+<td id=ycrocket_25 class=small align=center valign=center>85</td>
+<td id=ycstealth_25 class=small align=center valign=center> - </td>
+<td id=ycsub_25 class=small align=center valign=center>1</td>
+<td id=yct-copter_25 class=small align=center valign=center>40</td>
+<td id=yctank_25 class=small align=center valign=center>55</td>
+</tr>
+</table>
+</td></tr></table>
+<span><br><br><br></span>
+<span class=small_text_11>
+Advance Wars is (c) 1990-2001 <a href="http://www.nintendo.com">Nintendo</a> and (c) 2001 <a href="http://www.intsys.co.jp/">Intelligent Systems</a>. All images are copyright their respective owners.<br><br>
+<!-- End Page (1787687224) (0) (15:47:4) -->
+</span>
+</section>
+</div>
+
+      <!-- <script src="js/jquery-3.3.1.min.js"></script> -->
+      <script src="js/axios.min.js"></script>
+      <!-- Script for the login box -->
+      <script>
+            var login = document.getElementById("login"),
+                  formElements = [].slice.call(document.getElementsByClassName("login-input")),
+                  loginForm = document.querySelector(".login-form"),
+                  errSpan = document.getElementById("login-err"),
+                  usernameInput = formElements[0],
+                  passwordInput = formElements[1];
+            var errMsg;
+
+            var loginBox = document.querySelector("#login-tab");
+            var forgotPassword = document.querySelector(".login-forgot-password");
+            var forgotPasswordTab = document.querySelector("#forgot-password-tab");
+            var forgotPasswordForm = document.querySelector(".forgot-password-form");
+
+            var forgotPasswordSubmit = document.querySelector(".forgot-password-submit");
+            var forgotPasswordRes = document.querySelector(".forgot-password-res");
+            
+            forgotPassword.onclick = function() {
+                  toggleDisplays([
+                        { el: loginBox, display: "none" }, 
+                        { el: forgotPasswordTab, display: "block"}
+                  ]);
+
+                  var forgotPasswordBack = document.querySelector(".forgot-password-back");
+                  forgotPasswordBack.onclick = function() {
+                        //Reset to initial state
+                        toggleDisplays([
+                              { el: loginBox, display: "block" },
+                              { el: forgotPasswordTab, display: "none" },
+                              { el: forgotPasswordForm, display: "flex" },
+                              { el: forgotPasswordRes, display: "none" }
+                        ]);
+                  }
+            }
+
+            forgotPasswordSubmit.onclick = function() {
+                  var forgotPasswordUsername = document.querySelector(".forgot-password-username");
+                  var forgotPasswordEmail = document.querySelector(".forgot-password-email");
+
+                  axios.post("api/forgot_password.php", { 
+                        username: forgotPasswordUsername.value,
+                        email: forgotPasswordEmail.value 
+                  })
+                  .then(function(res) {
+
+                        forgotPasswordRes.textContent = res.data.message;
+
+                        toggleDisplays([
+                              { el: forgotPasswordForm, display: "none" },
+                              { el: forgotPasswordRes, display: "block" }
+                        ]);
+                  })
+            }
+
+            //Used for the login box's tabs
+            function toggleDisplays(tabs) {
+                  tabs.forEach(function(tab) { tab.el.style.display = tab.display });
+            }
+            
+            login.onclick = function(e) {
+                  e.preventDefault();
+                  const uc = verifyEmpty(usernameInput),
+                        pc = verifyEmpty(passwordInput);
+                  if(uc && pc) {
+                        formElements.forEach(function(el) {
+                              el.style.background = "";
+                        })
+                        verifyLogin().done(function(match) { 
+                              if(match == 1) { loginForm.submit(); loadCurrPage(); }
+                              else { showErr(match); }
+                        })
+                  }
+            }   
+            function verifyEmpty(el) {
+                  if(el.value.length === 0) {
+                        showErr()
+                        return false;
+                  }
+                  else return true;
+            } 
+            function verifyLogin() {
+                  const post = $.post("logincheck.php", {username: usernameInput.value, password: passwordInput.value});
+                  return post;
+            }
+            function showErr(error) {
+                  if (!error) {
+                        var errMsg = "Username or Password is incorrect";
+                        errSpan.textContent = errMsg;
+                  } else { 
+                        errSpan.innerHTML = error;
+                  }    
+            }
+            function loadCurrPage() {
+                  window.location = 'damage.php';
+                  return false;
+            }
+      </script>
+
+      <script>
+            const fixedHeader = document.getElementById("fixed-header-wrapper");
+            let smallHeader = false;
+            if(window.pageYOffset !== 0) {
+                  fixedHeader.classList.add("header-small")
+            }
+            document.body.onscroll = function() {
+                  if(window.pageYOffset !== 0 && smallHeader === false) {
+                        // console.log("?");
+                        smallHeader = true;
+                        fixedHeader.classList.add("header-small");
+                  } else if(window.pageYOffset === 0) {
+                        smallHeader = false;
+                        fixedHeader.classList.remove("header-small");
+                  }
+            }
+            
+
+      </script>
+<script src="js/jquery-3.3.1.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,916 @@
+<html>
+<head>
+<title>Terrain Chart - AWBW  
+</title>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=0.75">
+<link rel="stylesheet" href="css/awbw_minify.css?1787600923" type="text/css">
+<link rel="stylesheet" type="text/css" href="css/header.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/main.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/slideshow.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/game.css?1787600923">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css">
+      <link rel="stylesheet" href="css/calculator_new.css?1787600923">
+      <link rel="stylesheet" href="css/messages.css?1787600923">
+      <link rel="stylesheet" href="css/layout.css?1787600923">
+<link rel="shortcut icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<link rel="icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<script src="js/vue.min.js"></script>
+<script src="js/axios.js"></script>
+<script type="text/javascript">
+let mtDiffStart = "45784";let mtDiffEnd = "-45424";   function move_check(query, url) {
+      var reply = confirm(query);
+      if (reply) {
+         this.location.href = url;
+      }
+   }
+
+</script>
+<script src="js/lib/maintenance.js?1787600923"></script>
+</head>
+<body>
+<!-- Begin Page (1787687224) (15:47:4) -->
+<div id="overDiv" style="position:absolute; visibility:hidden; z-index:900;"></div>
+<script type="text/javascript" language="JavaScript" src="js/overlib_mini_minify.js?v=1.0"></script>
+
+<div id="fixed-header-wrapper">
+    <nav id="top-header-nav">
+        <div id="above-nav"></div>
+        <div id="logo-background2">
+            <a href="/" style="display: block;">
+                <img id="logo" height=78 width=170 src="terrain/awbwlogo11-highres_withnewarmies_andnewAB.png"></img>
+            </a>
+        </div>
+        
+        <ul id="nav-options" style="margin: auto;">
+
+                    <!-- <span style="position: absolute; top: -30px; left: 5px;">Signups for <a style="color: #009966; text-decoration: underline;" target="_blank" href="viewtournament.php?tournaments_id=768">Amarriner Cup 5</a> are open until Feb 2th, 5 PM ET</span> -->
+            <!-- <span style="position: absolute; top: -36px; left: 5px; color: red">Announcement text here.</span> -->
+
+        
+         
+            <li id="login-button" style="padding-left: 15px; padding-right: 15px;">
+                <label id="login-box-button" for="login-box-toggle">Login</label>
+                <input id="login-box-toggle" type="checkbox">
+
+                <!-- JS Code for login stuff is in footer.php -->
+                <div id="login-box">
+                    <div id="login-tab">
+                        <span id="login-err"></span>
+                                                <form class="login-form">
+                            Username <input class="login-input" type="text"><br>
+                            Password <input class="login-input" type="password" maxlength='100'>
+                            
+                            <span 
+                                class="small_text underline pointer login-forgot-password">
+                                Forgot Password?
+                            </span>
+    
+                            <input id="login" type="submit" value="LOG IN">
+                            <hr/>
+                        </form>
+    
+                        <p>Don't have an account?</p>
+                        <div id="register"><a href="register.php" style="display: block; width: 100%; height: 100%;"><span style="display:block; text-align: center; padding-top: 4px;">REGISTER</span></a></div>
+    
+                        <div class="login-box-arrow up-arrow"></div>
+
+                    </div>
+
+                    <!-- Forgot password tab -->
+                    <div id="forgot-password-tab" style="display: none">
+                        <i class="forgot-password-back fas fa-long-arrow-alt-left"></i>
+                        <div class="forgot-password-form login-form">
+                            <span class="forgot-password-desc small_text">Please enter your account name and email address. Instructions on how to reset your password will be sent.</span>
+
+                            Username
+                            <!-- Username field -->
+                            <input type="text" class="forgot-password-username login-input">
+
+                            Email
+                            <!-- Email field -->
+                            <input type="text" class="forgot-password-email login-input">
+                            <button class="forgot-password-submit">SEND</button>
+                        </div>
+                        <div class="forgot-password-res small_text" style="display: none"></div>
+                    </div>
+                </div>
+            </li>
+        
+            <li id="games-menu" onclick="void(0)">
+                Games
+                <ul id="games-dropdown" class="dropdown-menu">
+                    
+                    <li><a class="dropdown-menu-link" href="live_queue.php?rated=false&bnew=true">Live Queue</a></li>
+
+                    <div class="arrow up-arrow"></div>
+                    
+                    <li><a class="dropdown-menu-link" href="gamescurrent_all.php">View Active</a></li>
+                    <li><a class="dropdown-menu-link" href="gamescompleted.php">View Completed</a></li>
+                </ul>
+            </li>
+
+            <li id="competitions-menu" onclick="void(0)">
+                
+                Competitions
+                <ul id="competitions-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="newleague.php">Global League</a></li>
+                    <li><a class="dropdown-menu-link" href="live_queue.php">Live League</a> <span id="dropdown-alert"><img src="terrain/newicon.png"></span></li>
+                    <li>
+                        <a class="dropdown-menu-link" href="viewtournament.php">Tournaments</a>
+                                            
+                        <div class="arrow up-arrow"></div>
+                    </li>
+
+                    
+                                    </ul>
+            </li>
+
+            <li id="design-maps-menu" onclick="void(0)">
+                Design Maps
+                <ul id="design-maps-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="searchmaps.php">Search Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="recentmaps.php">Recent Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="categories.php">Categories</a></li>
+                                        <div class="arrow up-arrow"></div>
+                </ul>
+            </li>
+
+            <li id="right-side-menu">
+                <li id="community-menu" onclick="void(0)">
+                    Community
+                    <ul id="community-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="users.php"><img src="terrain/magnifying_glass.png" class="community-menu-img">Search Users</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.twitch.tv/directory/category/advance-wars-by-web" target="_blank"><img src="terrain/twitch-icon.png" class="community-menu-img">Twitch Livestreams</img></a></li>
+                        <li><a class="dropdown-menu-link" href="discord.php"><img src="terrain/discord-icon-upscale.png" class="community-menu-img">Discord Chat</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.reddit.com/r/AWBW/" target="_blank"><img src="terrain/reddit-icon-upscale.png" class="community-menu-img">Reddit (r/AWBW)</img></a></li>
+                        <li><a class="dropdown-menu-link" href="donate.php"><img src="terrain/patreon-icon-upscale.png" class="community-menu-img">Patreon</img></a></li>
+                        <li>
+                                <span class="main-text"><a class="dropdown-menu-link" style="padding-right: 0px;" href="https://isndev.forumotion.co.uk/c2-advance-wars-by-web/" target="_blank"><img src="terrain/forum.png" class="community-menu-img">Forum</img></a></span>
+                                <span class="bracket-text">&nbsp;<a class="dropdown-menu-link" style="padding-left: 0px;" href="http://www.amarriner.com/awbw_forum/">[Archive]</a></span>
+                        </li>
+                        <hr>
+                        <span class="dropdown-header">Contests</span>
+                        <li>
+                            <a class="dropdown-menu-link" href="custom_army_contest.php">
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/aainfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/uwinfantry.gif"></img></div>
+                                Custom Armies
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/scinfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/neinfantry.gif"></img></div>
+
+                            </a>
+                                                    </li>
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="tools-menu" onclick="void(0)">
+                    Tools
+                    <ul id="tools-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="moveplanner.php">Move Planner</a></li>
+                        <li><a class="dropdown-menu-link" href="calculator.php">Damage Calculator</a></li>
+                        
+                        
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="infos-menu" onclick="void(0)">
+                    
+                    Info
+                    <ul id="infos-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="guide.php">FAQ</a></li>
+                        <li><a class="dropdown-menu-link" href="tutorials.php">Tutorials</a></li>
+                        <li id="changelog">
+
+                            <a class="dropdown-menu-link" href="changelog.php">Changelog</a>
+                            
+                        </li>
+                        <li><a class="dropdown-menu-link" href="chart.php">Charts</a></li>
+                        <li><a class="dropdown-menu-link" href="http://awbw.wikia.com/wiki/Advance_Wars_By_Web_Wiki">AWBW Wiki</a></li>
+                        <li><a class="dropdown-menu-link" href="https://warswiki.org/">Wars Wiki</a></li>
+                    </ul>
+                </li>
+
+                <li id="contact-menu">
+                    <a href="contact.php">Contact</a>
+                </li>
+
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<div id="outer">
+
+        <!-- <section id="main" style="overflow-x: scroll;"> -->
+    <section id="main">
+
+<!-- incoming server maintenance alert -->
+<div id="game-server-alert-div" class="flex container hv-center" style="border: solid 2px red; height: 30px; width: 380px; margin-bottom: 5px; display: none;">
+<span id="game-server-alert-text" class="error"><b>Warning! Daily server maintenance starts in 59s ...</b></span>
+</div>
+<table cellspacing=1 cellpadding=2>
+<tr><td class="bordertitle"><b>Terrain Chart</b></td></tr>
+<tr><td class="borderwhite">
+<table cellspacing=0 cellpadding=2>
+<tr>
+<td colspan="2">&nbsp;</td>
+<td align=center class="smallheader" colspan=8><span class=yellowtext><b>Clear</b></span></td>
+<td align=center class="smallheader" colspan=8><span class=yellowtext><b>Rain</b></span></td>
+<td align=center class="smallheader" colspan=8><span class=yellowtext><b>Snow</b></span></td>
+</tr>
+<tr>
+<td align=center class="smallheader"><span class=yellowtext><b>Terrain</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>Defense</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>F</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>B</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>T</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>W</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>A</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>S</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>L</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>P</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>F</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>B</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>T</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>W</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>A</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>S</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>L</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>P</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>F</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>B</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>T</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>W</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>A</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>S</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>L</b></span></td>
+<td align=center class="smallheader"><span class=yellowtext><b>P</b></span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/plain.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 1 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;3&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;3&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/mountain.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 4 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;4&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/wood.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 2 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;3&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;3&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;4&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;3&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/hriver.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/hroad.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/hbridge.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/sea.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/hshoal.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/reef.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 1 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthcity.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthbase.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthairport.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthport.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthhq.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 4 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/hpipe.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/missilesilo.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthcomtower.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/greenearthlab.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 3 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;1&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;2&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+<tr>
+<td style="border-left: 1px solid #AAAAAA;" valign=center align=center class=small><img src=terrain/aw1/teleporter.gif></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11> &nbsp; 0 &nbsp; </span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td style="border-right: 2px solid #0066CC;" valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+<td  valign=center align=center class=small><span class=small_text_11>&nbsp;-&nbsp;</span></td>
+</tr>
+</table>
+</td></tr></table>
+<br><br>
+<span><br><br><br></span>
+<span class=small_text_11>
+Advance Wars is (c) 1990-2001 <a href="http://www.nintendo.com">Nintendo</a> and (c) 2001 <a href="http://www.intsys.co.jp/">Intelligent Systems</a>. All images are copyright their respective owners.<br><br>
+<!-- End Page (1787687224) (0) (15:47:4) -->
+</span>
+</section>
+</div>
+
+      <!-- <script src="js/jquery-3.3.1.min.js"></script> -->
+      <script src="js/axios.min.js"></script>
+      <!-- Script for the login box -->
+      <script>
+            var login = document.getElementById("login"),
+                  formElements = [].slice.call(document.getElementsByClassName("login-input")),
+                  loginForm = document.querySelector(".login-form"),
+                  errSpan = document.getElementById("login-err"),
+                  usernameInput = formElements[0],
+                  passwordInput = formElements[1];
+            var errMsg;
+
+            var loginBox = document.querySelector("#login-tab");
+            var forgotPassword = document.querySelector(".login-forgot-password");
+            var forgotPasswordTab = document.querySelector("#forgot-password-tab");
+            var forgotPasswordForm = document.querySelector(".forgot-password-form");
+
+            var forgotPasswordSubmit = document.querySelector(".forgot-password-submit");
+            var forgotPasswordRes = document.querySelector(".forgot-password-res");
+            
+            forgotPassword.onclick = function() {
+                  toggleDisplays([
+                        { el: loginBox, display: "none" }, 
+                        { el: forgotPasswordTab, display: "block"}
+                  ]);
+
+                  var forgotPasswordBack = document.querySelector(".forgot-password-back");
+                  forgotPasswordBack.onclick = function() {
+                        //Reset to initial state
+                        toggleDisplays([
+                              { el: loginBox, display: "block" },
+                              { el: forgotPasswordTab, display: "none" },
+                              { el: forgotPasswordForm, display: "flex" },
+                              { el: forgotPasswordRes, display: "none" }
+                        ]);
+                  }
+            }
+
+            forgotPasswordSubmit.onclick = function() {
+                  var forgotPasswordUsername = document.querySelector(".forgot-password-username");
+                  var forgotPasswordEmail = document.querySelector(".forgot-password-email");
+
+                  axios.post("api/forgot_password.php", { 
+                        username: forgotPasswordUsername.value,
+                        email: forgotPasswordEmail.value 
+                  })
+                  .then(function(res) {
+
+                        forgotPasswordRes.textContent = res.data.message;
+
+                        toggleDisplays([
+                              { el: forgotPasswordForm, display: "none" },
+                              { el: forgotPasswordRes, display: "block" }
+                        ]);
+                  })
+            }
+
+            //Used for the login box's tabs
+            function toggleDisplays(tabs) {
+                  tabs.forEach(function(tab) { tab.el.style.display = tab.display });
+            }
+            
+            login.onclick = function(e) {
+                  e.preventDefault();
+                  const uc = verifyEmpty(usernameInput),
+                        pc = verifyEmpty(passwordInput);
+                  if(uc && pc) {
+                        formElements.forEach(function(el) {
+                              el.style.background = "";
+                        })
+                        verifyLogin().done(function(match) { 
+                              if(match == 1) { loginForm.submit(); loadCurrPage(); }
+                              else { showErr(match); }
+                        })
+                  }
+            }   
+            function verifyEmpty(el) {
+                  if(el.value.length === 0) {
+                        showErr()
+                        return false;
+                  }
+                  else return true;
+            } 
+            function verifyLogin() {
+                  const post = $.post("logincheck.php", {username: usernameInput.value, password: passwordInput.value});
+                  return post;
+            }
+            function showErr(error) {
+                  if (!error) {
+                        var errMsg = "Username or Password is incorrect";
+                        errSpan.textContent = errMsg;
+                  } else { 
+                        errSpan.innerHTML = error;
+                  }    
+            }
+            function loadCurrPage() {
+                  window.location = 'terrain.php';
+                  return false;
+            }
+      </script>
+
+      <script>
+            const fixedHeader = document.getElementById("fixed-header-wrapper");
+            let smallHeader = false;
+            if(window.pageYOffset !== 0) {
+                  fixedHeader.classList.add("header-small")
+            }
+            document.body.onscroll = function() {
+                  if(window.pageYOffset !== 0 && smallHeader === false) {
+                        // console.log("?");
+                        smallHeader = true;
+                        fixedHeader.classList.add("header-small");
+                  } else if(window.pageYOffset === 0) {
+                        smallHeader = false;
+                        fixedHeader.classList.remove("header-small");
+                  }
+            }
+            
+
+      </script>
+<script src="js/jquery-3.3.1.min.js"></script>
+</body>
+</html>
+ 

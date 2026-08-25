@@ -1,0 +1,8 @@
+[package]
+name = "awbw-engine"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Rules engine for Advance Wars by Web (AWBW), built for RL self-play"
+
+[dependencies]

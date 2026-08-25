@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["crates/awbw-engine"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "thin"

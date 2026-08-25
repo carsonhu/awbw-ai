@@ -941,6 +941,7 @@ impl<'a> Verifier<'a> {
         if let Some(transport) = loaded.live(transport_awbw) {
             loaded.engine.state.unload_to(transport, cargo, Pos::new(x, y));
         }
+        let _ = (x, y);
         ActionOutcome::Applied
     }
 

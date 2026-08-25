@@ -54,9 +54,13 @@ unit HP, 5 stragglers. No common cause found; diminishing returns.
 cargo run --release -p awbw-replay --bin bc-stats -- data/prepared
 ```
 
-Across 366 non-fog games: **128k labelled orders, 350 per game, 94.5% legal**,
-91.3% usable once power-affected orders are dropped. Humans spend 57% of orders
-moving, 17% building, 15% attacking, 10% capturing.
+Across 366 non-fog games: **138k labelled orders, 377 per game, 97.4% legal**,
+90.7% usable once power-affected orders are dropped. Humans spend 57% of orders
+moving, 17% building, 16% attacking, 9% capturing.
+
+It also reports rejections by position within the turn, which is how state
+corruption shows itself: a flat profile means a rejected order is not poisoning
+the ones after it.
 
 ## Bugs it has caught
 

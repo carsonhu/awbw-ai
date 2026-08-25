@@ -50,6 +50,9 @@ fn main() {
         .cloned();
 
     let (mut games, mut samples, mut legal, mut powered) = (0u64, 0u64, 0u64, 0u64);
+    // Illegality by position within the turn. If a rejected order corrupts the
+    // state, later orders in the same turn should fail far more often.
+    let mut by_position: Vec<(u64, u64)> = vec![(0, 0); 6];
     let mut kinds: BTreeMap<&str, u64> = BTreeMap::new();
     let mut illegal_kinds: BTreeMap<&str, u64> = BTreeMap::new();
 
@@ -71,6 +74,11 @@ fn main() {
         while !cursor.finished() {
             let Some(sample) = cursor.sample() else { break };
             samples += 1;
+            let bucket = (cursor.order_index() / 5).min(by_position.len() - 1);
+            by_position[bucket].0 += 1;
+            if !sample.legal {
+                by_position[bucket].1 += 1;
+            }
             let name = OrderKind::from_index(sample.code.kind as usize)
                 .map(|k| match k {
                     OrderKind::Wait => "move",
@@ -104,6 +112,22 @@ fn main() {
     println!("  usable for a loss:           {usable} ({:.1}%)", pct(usable));
     if games > 0 {
         println!("  per game:                    {}", samples / games);
+    }
+
+    println!("\nillegality by position within the turn:");
+    for (i, (total, bad)) in by_position.iter().enumerate() {
+        if *total == 0 {
+            continue;
+        }
+        let label = if i + 1 == by_position.len() {
+            format!("{}+", i * 5)
+        } else {
+            format!("{}-{}", i * 5, i * 5 + 4)
+        };
+        println!(
+            "  orders {label:<7} {:>5.1}% rejected  ({total} orders)",
+            100.0 * *bad as f64 / *total as f64
+        );
     }
 
     println!("\nwhat humans actually do:");

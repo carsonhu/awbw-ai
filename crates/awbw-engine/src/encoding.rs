@@ -326,19 +326,20 @@ pub fn encode(state: &GameState, action: Action) -> Option<ActionCode> {
         },
         Action::Unload {
             transport,
-            dest,
             cargo,
             drop_at,
         } => {
+            let from = state.unit(transport)?.pos;
             let slot = state
                 .unit(transport)?
                 .cargo
                 .iter()
                 .position(|&c| c == cargo)? as u32;
-            let direction = direction_of(dest, drop_at)?;
+            let direction = direction_of(from, drop_at)?;
             ActionCode {
-                source: of(transport)?,
-                dest: tile(dest),
+                source: tile(from),
+                // Unloading moves nobody, so the destination is where it stands.
+                dest: tile(from),
                 kind: OrderKind::Unload as u8,
                 param: slot * 4 + direction,
             }
@@ -386,10 +387,9 @@ pub fn decode(state: &GameState, code: ActionCode) -> Option<Action> {
         OrderKind::Unload => {
             let slot = (code.param / 4) as usize;
             let cargo = *state.unit(unit)?.cargo.get(slot)?;
-            let drop_at = offset(state, dest, code.param % 4)?;
+            let drop_at = offset(state, source, code.param % 4)?;
             Action::Unload {
                 transport: unit,
-                dest,
                 cargo,
                 drop_at,
             }

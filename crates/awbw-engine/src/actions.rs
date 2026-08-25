@@ -31,10 +31,15 @@ pub enum Action {
     Build { at: Pos, typ: UnitType },
     /// Move onto an allied transport at `dest` and board it.
     Load { unit: UnitId, dest: Pos },
-    /// Move the transport to `dest`, then drop `cargo` onto `drop_at`.
+    /// Drop `cargo` onto an adjacent tile.
+    ///
+    /// AWBW departs from the cartridge here: a transport "may unload at any
+    /// point in their turn, even if they have already moved, and doing so does
+    /// not end the unit's turn either, effectively making unloading a free
+    /// action". So this carries no destination — the transport unloads from
+    /// wherever it stands, and moving is a separate order.
     Unload {
         transport: UnitId,
-        dest: Pos,
         cargo: UnitId,
         drop_at: Pos,
     },
@@ -169,10 +174,9 @@ impl Engine {
             Action::Load { unit, dest } => self.check_load(unit, dest),
             Action::Unload {
                 transport,
-                dest,
                 cargo,
                 drop_at,
-            } => self.check_unload(transport, dest, cargo, drop_at),
+            } => self.check_unload(transport, cargo, drop_at),
             Action::Join { unit, dest } => self.check_join(unit, dest),
             Action::Supply { unit, dest } => self.check_supply(unit, dest),
         }
@@ -288,19 +292,21 @@ impl Engine {
     fn check_unload(
         &mut self,
         transport_id: UnitId,
-        dest: Pos,
         cargo_id: UnitId,
         drop_at: Pos,
     ) -> Result<(), ActionError> {
-        self.check_move(transport_id, dest)?;
-        if self.state.unit_id_at(dest).is_some_and(|o| o != transport_id) {
-            return Err(ActionError::Occupied);
+        let transport = *self.state.unit(transport_id).ok_or(ActionError::NoSuchUnit)?;
+        if transport.owner != self.state.current {
+            return Err(ActionError::NotYourUnit);
         }
-        let transport = *self.state.unit(transport_id).unwrap();
+        // Deliberately no `moved` check: unloading is free in AWBW.
+        if transport.carried_by.is_some() {
+            return Err(ActionError::AlreadyMoved);
+        }
         if !transport.cargo.contains(&cargo_id) {
             return Err(ActionError::NotATransport);
         }
-        if dest.distance(drop_at) != 1 {
+        if transport.pos.distance(drop_at) != 1 {
             return Err(ActionError::OutOfRange);
         }
         if self.state.unit_id_at(drop_at).is_some() {
@@ -396,14 +402,11 @@ impl Engine {
             }
             Action::Unload {
                 transport,
-                dest,
                 cargo,
                 drop_at,
             } => {
-                self.state.relocate(transport, dest);
-                self.spend_move(transport, dest);
+                // Free action: the transport keeps whatever move it had left.
                 self.state.unload_to(transport, cargo, drop_at);
-                self.state.unit_mut(transport).unwrap().moved = true;
             }
             Action::Join { unit, dest } => {
                 let other = self.state.unit_id_at(dest).unwrap();
@@ -651,6 +654,19 @@ impl Engine {
             let unit = *self.state.unit(unit_id).unwrap();
             self.compute_reach(unit_id);
             self.push_unit_actions(unit_id, unit, out);
+            self.push_unloads(out, unit_id, unit);
+        }
+
+        // Transports that have already moved can still unload.
+        let loaded: Vec<UnitId> = self
+            .state
+            .units_of(player)
+            .filter(|u| u.moved && u.carried_by.is_none() && u.cargo_len() > 0)
+            .map(|u| u.id)
+            .collect();
+        for unit_id in loaded {
+            let unit = *self.state.unit(unit_id).unwrap();
+            self.push_unloads(out, unit_id, unit);
         }
 
         unit_ids.clear();
@@ -706,7 +722,6 @@ impl Engine {
                 if unit.typ == UnitType::Apc {
                     out.push(Action::Supply { unit: unit_id, dest });
                 }
-                self.push_unloads(out, unit_id, unit, dest);
             } else if let Some(other_id) = occupant {
                 let other = *self.state.unit(other_id).unwrap();
                 if other.owner == player
@@ -743,6 +758,7 @@ impl Engine {
         }
         self.compute_reach(unit_id);
         self.push_unit_actions(unit_id, unit, out);
+        self.push_unloads(out, unit_id, unit);
     }
 
     /// Whether this tile is an owned production property that can afford at
@@ -763,6 +779,13 @@ impl Engine {
         out.clear();
         if let Some(unit) = self.state.unit_id_at(at) {
             self.legal_actions_for(unit, out);
+            // Unloading costs a transport nothing, so a transport that has
+            // already moved still has this to offer.
+            if let Some(u) = self.state.unit(unit).copied() {
+                if u.owner == self.state.current && u.moved {
+                    self.push_unloads(out, unit, u);
+                }
+            }
             return;
         }
         for typ in UnitType::ALL {
@@ -828,14 +851,9 @@ impl Engine {
         }
     }
 
-    fn push_unloads(
-        &self,
-        out: &mut Vec<Action>,
-        unit_id: UnitId,
-        unit: crate::state::Unit,
-        dest: Pos,
-    ) {
-        if unit.cargo_len() == 0 {
+    /// Unloads available from where a transport currently stands.
+    fn push_unloads(&self, out: &mut Vec<Action>, unit_id: UnitId, unit: crate::state::Unit) {
+        if unit.cargo_len() == 0 || unit.carried_by.is_some() {
             return;
         }
         for slot in 0..MAX_CARGO {
@@ -843,7 +861,7 @@ impl Engine {
             let Some(cargo) = self.state.unit(cargo_id) else {
                 continue;
             };
-            for drop_at in self.state.map.neighbors(dest) {
+            for drop_at in self.state.map.neighbors(unit.pos) {
                 if self.state.unit_id_at(drop_at).is_some() {
                     continue;
                 }
@@ -858,7 +876,6 @@ impl Engine {
                 }
                 out.push(Action::Unload {
                     transport: unit_id,
-                    dest,
                     cargo: cargo_id,
                     drop_at,
                 });
@@ -1186,9 +1203,14 @@ mod tests {
         assert_eq!(e.state.unit(inf).unwrap().carried_by, Some(apc));
         assert!(e.state.unit_at(Pos::new(2, 0)).is_none());
 
+        // The transport drives off, having already spent its move loading.
+        e.state.unit_mut(apc).unwrap().moved = false;
+        e.apply(Action::Move { unit: apc, dest: Pos::new(7, 0) }).unwrap();
+        assert!(e.state.unit(apc).unwrap().moved);
+
+        // Unloading is free in AWBW: a transport may do it after moving.
         e.apply(Action::Unload {
             transport: apc,
-            dest: Pos::new(7, 0),
             cargo: inf,
             drop_at: Pos::new(8, 0),
         })
@@ -1196,6 +1218,27 @@ mod tests {
         assert_eq!(e.state.unit(inf).unwrap().pos, Pos::new(8, 0));
         assert!(e.state.unit(inf).unwrap().moved, "unloaded units cannot act");
         assert_eq!(e.state.unit(apc).unwrap().cargo_len(), 0);
+    }
+
+    #[test]
+    fn unloading_is_free_and_does_not_spend_the_transports_turn() {
+        // "transports may unload at any point in their turn, even if they have
+        // already moved, and doing so does not end the unit's turn either" --
+        // the AWBW wiki. The cartridge behaves differently.
+        let mut e = plains(9, 1);
+        let apc = e.state.spawn(UnitType::Apc, 0, Pos::new(4, 0));
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(5, 0));
+        e.state.load_into(inf, apc);
+        e.state.unit_mut(inf).unwrap().moved = false;
+
+        // Unload first...
+        e.apply(Action::Unload { transport: apc, cargo: inf, drop_at: Pos::new(3, 0) })
+            .unwrap();
+        assert_eq!(e.state.unit(inf).unwrap().pos, Pos::new(3, 0));
+        assert!(!e.state.unit(apc).unwrap().moved, "unloading is free");
+
+        // ...and the transport can still move afterwards.
+        assert!(e.apply(Action::Move { unit: apc, dest: Pos::new(7, 0) }).is_ok());
     }
 
     #[test]

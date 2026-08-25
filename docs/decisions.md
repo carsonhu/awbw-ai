@@ -92,10 +92,19 @@ a label. 94.5% pass across 366 non-fog games and 128k orders, which is the
 strongest available evidence that the translation and the engine agree. The
 failures are counted, not hidden, and the flag lets a trainer drop them.
 
-**Move-then-unload is recorded as two orders and modelled as one.** AWBW logs a
-transport's move and its unload separately; `Action::Unload` bundles them and so
-requires an unmoved transport. Essentially every recorded unload therefore reads
-as illegal. It is 0.3% of orders, so it is documented rather than fixed.
+**Unloading is a free action, and not part of a move.** AWBW departs from the
+cartridge: "transports may unload at any point in their turn, even if they have
+already moved, and doing so does not end the unit's turn either" (the wiki). So
+`Action::Unload` carries no destination — the transport unloads from where it
+stands, moving is a separate order, and a transport that has already moved is
+still a legal source. Bundling the two, as the cartridge does, made essentially
+every recorded unload read as illegal.
+
+**A rejected order must still be forced onto the board.** The imitation cursor
+used to fall back to ending the turn, which handed play to the opponent
+mid-turn and made every later order in that turn illegal too. The damage was
+visible as a gradient — 2.7% of a turn's first orders rejected against 13.2% of
+its last — and disappeared once rejected orders were forced through instead.
 
 ## Verification
 

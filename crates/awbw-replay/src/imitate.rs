@@ -131,10 +131,8 @@ pub fn translate(loaded: &Loaded, action: &serde_json::Value) -> Option<Action> 
             let rec = action.get("unit").and_then(unwrap_vision)?;
             let cargo = loaded.unit_for(as_num(rec.get("units_id"))?)?;
             let transport = loaded.unit_for(as_num(action.get("transportID"))?)?;
-            let dest = loaded.state().unit(transport)?.pos;
             Some(Action::Unload {
                 transport,
-                dest,
                 cargo,
                 drop_at: Pos::new(
                     as_num(rec.get("units_x"))? as u8,
@@ -212,6 +210,11 @@ impl<'a> Cursor<'a> {
         self.loaded.is_none()
     }
 
+    /// How many orders into the current turn the cursor is.
+    pub fn order_index(&self) -> usize {
+        self.order
+    }
+
     /// The position the next order was played in.
     pub fn state(&self) -> Option<&GameState> {
         self.loaded.as_ref().map(|l| l.state())
@@ -263,10 +266,13 @@ impl<'a> Cursor<'a> {
         let Some(turn) = self.turn_ref() else { return };
         if let (Some(raw), Some(loaded)) = (turn.actions.get(self.order), self.loaded.as_mut()) {
             if let Some(action) = translate(loaded, raw) {
-                // Force it through: a rejected order still happened, and the
-                // next position has to reflect it.
                 if loaded.engine_mut().apply(action).is_err() {
-                    let _ = loaded.engine_mut().apply(Action::EndTurn);
+                    // A rejected order still happened, so the board has to move
+                    // on as if it had. Ending the turn instead would hand play
+                    // to the opponent mid-turn and make every later order in
+                    // this turn illegal too — measured as a rise from 2.7%
+                    // rejected in a turn's first orders to 13.2% in its last.
+                    force(loaded, action);
                 }
             }
         }
@@ -285,5 +291,61 @@ impl Loaded {
     /// The engine, mutably, for callers replaying a turn themselves.
     pub fn engine_mut(&mut self) -> &mut Engine {
         &mut self.engine
+    }
+}
+
+/// Applies an order the engine rejected, as nearly as the board allows.
+///
+/// The recorded game did this, so the next position must reflect it however
+/// the engine feels about it. Getting the board approximately right is far
+/// better than leaving it exactly wrong.
+fn force(loaded: &mut Loaded, action: Action) {
+    let engine = loaded.engine_mut();
+    match action {
+        Action::EndTurn => {
+            engine.state.end_turn();
+        }
+        Action::Build { at, typ } => {
+            let owner = engine.state.current;
+            if engine.state.unit_id_at(at).is_none() {
+                let id = engine.state.spawn(typ, owner, at);
+                if let Some(u) = engine.state.unit_mut(id) {
+                    u.moved = true;
+                }
+            }
+            let cost = typ.stats().cost;
+            let funds = &mut engine.state.players[owner as usize].funds;
+            *funds = funds.saturating_sub(cost);
+        }
+        Action::Move { unit, dest }
+        | Action::Capture { unit, dest }
+        | Action::Supply { unit, dest }
+        | Action::Attack { unit, dest, .. } => {
+            if engine.state.unit_id_at(dest).is_none() {
+                engine.state.relocate(unit, dest);
+            }
+            if let Some(u) = engine.state.unit_mut(unit) {
+                u.moved = true;
+            }
+        }
+        Action::Join { unit, dest } => {
+            let _ = dest;
+            engine.state.destroy(unit);
+        }
+        Action::Load { unit, dest } => {
+            if let Some(transport) = engine.state.unit_id_at(dest) {
+                engine.state.load_into(unit, transport);
+            }
+            if let Some(u) = engine.state.unit_mut(unit) {
+                u.moved = true;
+            }
+        }
+        Action::Unload {
+            transport,
+            cargo,
+            drop_at,
+        } => {
+            engine.state.unload_to(transport, cargo, drop_at);
+        }
     }
 }

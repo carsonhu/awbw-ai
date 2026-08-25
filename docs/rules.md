@@ -28,6 +28,8 @@ AWBW's formula, which differs from the cartridge in ways that matter:
 - Air units and pipe seams get zero terrain stars.
 - The primary weapon is used when it has an entry and the attacker has ammo;
   otherwise the secondary.
+- Unloading is a **free action**: a transport may unload after moving, and
+  unloading does not end its turn. The cartridge bundles the two; AWBW does not.
 - Com Towers add +10% attack each.
 
 ## Implemented

@@ -6,7 +6,7 @@
 
 | module | holds |
 |---|---|
-| `types.rs` | `UnitType`, `TerrainKind`, `MoveType`, `Weather`. Discriminants are table indices, so their order must match the generators. |
+| `types.rs` | Core enums. Discriminants are table indices, so their order must match the generators. |
 | `data.rs` | **Generated.** Damage matrix, unit stats, movement costs, terrain ids. |
 | `co_data.rs` | **Generated.** CO day-to-day abilities. |
 | `map.rs` | `Pos`, `Map`. Static terrain, shared behind an `Arc`. |
@@ -21,13 +21,13 @@
 `crates/awbw-replay` — verification: `verify-replays` diffs recorded games,
 `check-fog` checks visibility. See `verification.md`.
 
-`crates/awbw-bots` — baselines and the arena, to rate a policy in absolute
-terms; self-play Elo is self-referential. `greedy` scores every legal order one
-ply deep, `capturer` is the same with combat off, `random` is the floor. `arena`
+`crates/awbw-bots` — baselines and the arena, to rate a policy in absolute terms
+(self-play Elo is self-referential). `greedy` scores every legal order one ply
+deep, `capturer` is the same with combat off, `random` is the floor; `arena`
 runs a round robin on a symmetric land-only board (`arena --show-map`).
 
-`crates/awbw-py` — a batched environment for Python. Games step in lockstep, a
-batch per call, sampling the four heads autoregressively: `source_mask`,
+`crates/awbw-py` — a batched Python environment. Games step in lockstep, a batch
+per call, sampling the four heads autoregressively: `source_mask`,
 `dest_mask(sources)`, `kind_mask`, `param_mask`, `step`. Not in the default
 build; see `workflow.md`.
 

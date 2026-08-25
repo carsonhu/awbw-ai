@@ -9,8 +9,8 @@ measured against thousands of recorded human games.
 - **Rules verified at 99.979%** against 127 real games on the ruleset the agent
   trains on, with 108 of them reproduced move-for-move. Fog visibility agrees
   with 99.39% of 6,035 per-tile judgements.
-- **179k micro-steps/sec/core** of random self-play on the factorized action
-  space, which is what an RL policy would use.
+- **144k env-steps/sec/core** through the batched Python environment, with
+  observations and legality masks included.
 - CO day-to-day abilities and fog of war are modelled; CO powers, silos and
   pipe seams are not, on purpose.
 
@@ -47,9 +47,8 @@ cargo run --release -p awbw-replay -- data/prepared --no-fog
 Done: game data, combat formula, state, movement, the action set,
 replay-differential verification, CO day-to-day abilities, fog of war.
 
-Next: observation and action encoding for RL; baseline bots and an Elo ladder
-as an absolute yardstick; PyO3 bindings and a vectorized environment; PPO
-self-play.
+Done too: RL observation and action encoding, baseline bots and an arena, and
+a batched Python environment. Next: PPO self-play.
 
 ## Credit
 

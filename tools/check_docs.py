@@ -14,10 +14,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Loaded every session, so it gets the tightest budget of all.
+#
+# Budgets are raised only when a doc has grown because the *project* did, and
+# never to avoid trimming something stale. architecture.md went from 90 to 110
+# when the workspace went from two crates to five; that is real content, and
+# squeezing prose to save single lines was costing more than the limit saved.
 BUDGETS = {
     "CLAUDE.md": 45,
     "README.md": 60,
-    "docs/architecture.md": 90,
+    "docs/architecture.md": 110,
     "docs/rules.md": 90,
     "docs/verification.md": 90,
     "docs/decisions.md": 110,

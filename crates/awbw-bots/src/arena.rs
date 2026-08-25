@@ -6,8 +6,48 @@
 use awbw_engine::actions::Engine;
 use awbw_engine::state::{GameSettings, GameState, Outcome, Player, PlayerId};
 
+use crate::awbw_map::AwbwMap;
 use crate::map::symmetric_map;
 use crate::Bot;
+
+/// Where matches are played.
+///
+/// A real league map is the honest test — it is the board the replay corpus was
+/// recorded on and the one an agent would face — but the synthetic board needs
+/// no data file, so it stays available for tests.
+#[derive(Debug, Clone)]
+pub enum Board {
+    Synthetic { width: u8, height: u8 },
+    Awbw(Box<AwbwMap>),
+}
+
+impl Board {
+    pub fn name(&self) -> &str {
+        match self {
+            Board::Synthetic { .. } => "synthetic",
+            Board::Awbw(m) => &m.name,
+        }
+    }
+
+    /// The opening position, including whatever units the map deploys.
+    pub fn new_state(&self, fog: bool) -> GameState {
+        let settings = GameSettings { fog, ..GameSettings::default() };
+        match self {
+            Board::Synthetic { width, height } => {
+                let (map, owners) = symmetric_map(*width, *height);
+                let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
+                GameState::new(map, settings, players, &owners)
+            }
+            Board::Awbw(m) => m.new_game(settings, 10_000),
+        }
+    }
+}
+
+impl Default for Board {
+    fn default() -> Self {
+        Board::Synthetic { width: 13, height: 13 }
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct MatchResult {
@@ -39,12 +79,8 @@ pub fn elo_difference(score: f64) -> f64 {
     -400.0 * (1.0 / clamped - 1.0).log10()
 }
 
-fn new_game(seed: u64, fog: bool) -> Engine {
-    let (map, owners) = symmetric_map(13, 13);
-    let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
-    let settings = GameSettings { fog, ..GameSettings::default() };
-    let state = GameState::new(map, settings, players, &owners);
-    Engine::new(state, seed)
+fn new_game(board: &Board, seed: u64, fog: bool) -> Engine {
+    Engine::new(board.new_state(fog), seed)
 }
 
 /// Plays one game and returns the winner, or `None` for a draw on the day cap.
@@ -58,7 +94,19 @@ pub fn play_game(
     max_day: u16,
     fog: bool,
 ) -> Option<PlayerId> {
-    let mut engine = new_game(seed, fog);
+    play_game_on(&Board::default(), first, second, seed, max_day, fog)
+}
+
+/// As [`play_game`], on a chosen board.
+pub fn play_game_on(
+    board: &Board,
+    first: &mut dyn Bot,
+    second: &mut dyn Bot,
+    seed: u64,
+    max_day: u16,
+    fog: bool,
+) -> Option<PlayerId> {
+    let mut engine = new_game(board, seed, fog);
     first.reset(seed);
     second.reset(seed ^ 0x9E37_79B9);
 
@@ -100,14 +148,29 @@ pub fn play_game(
 
 /// Plays `games` games, alternating who moves first.
 pub fn play_match(a: &mut dyn Bot, b: &mut dyn Bot, games: u32, max_day: u16) -> MatchResult {
+    play_match_on(&Board::default(), a, b, games, max_day)
+}
+
+/// As [`play_match`], on a chosen board.
+///
+/// Swapping seats matters more on a real map than on the synthetic one: league
+/// maps often hand the player moving second an extra starting unit, so the
+/// seats are not interchangeable.
+pub fn play_match_on(
+    board: &Board,
+    a: &mut dyn Bot,
+    b: &mut dyn Bot,
+    games: u32,
+    max_day: u16,
+) -> MatchResult {
     let mut result = MatchResult::default();
     for game in 0..games {
         let seed = 0xA11CE ^ game as u64;
         let a_is_first = game % 2 == 0;
         let winner = if a_is_first {
-            play_game(a, b, seed, max_day, false)
+            play_game_on(board, a, b, seed, max_day, false)
         } else {
-            play_game(b, a, seed, max_day, false)
+            play_game_on(board, b, a, seed, max_day, false)
         };
         let a_seat: PlayerId = if a_is_first { 0 } else { 1 };
         match winner {

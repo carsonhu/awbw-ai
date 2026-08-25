@@ -81,6 +81,10 @@ pub fn symmetric_map(width: u8, height: u8) -> (Arc<Map>, Vec<Option<PlayerId>>)
 
 /// Renders a map as ASCII, so a match result can be read against the board it
 /// was played on rather than taken on trust.
+///
+/// Every symbol is lower case by default and upper-cased for seat 0, so
+/// ownership is legible on properties; neutral property stays lower case, like
+/// the ground.
 pub fn render(map: &Map, owners: &[Option<PlayerId>]) -> String {
     use awbw_engine::map::Pos;
     use std::collections::HashMap;
@@ -101,26 +105,38 @@ pub fn render(map: &Map, owners: &[Option<PlayerId>]) -> String {
                 TerrainKind::Wood => 'w',
                 TerrainKind::Mountain => '^',
                 TerrainKind::Road => '-',
+                TerrainKind::Bridge => '=',
+                TerrainKind::River => 'r',
                 TerrainKind::Sea => '~',
-                TerrainKind::Hq => 'H',
-                TerrainKind::Base => 'B',
+                TerrainKind::Shoal => 's',
+                TerrainKind::Reef => 'o',
+                TerrainKind::Hq => 'q',
+                TerrainKind::Base => 'b',
                 TerrainKind::City => 'c',
-                TerrainKind::Airport => 'A',
-                TerrainKind::Port => 'P',
-                _ => '?',
+                TerrainKind::Airport => 'a',
+                TerrainKind::Port => 'p',
+                TerrainKind::ComTower => 't',
+                TerrainKind::Lab => 'l',
+                TerrainKind::Silo | TerrainKind::SiloEmpty => 'i',
+                TerrainKind::Pipe => '#',
+                TerrainKind::PipeSeam | TerrainKind::PipeRubble => '+',
+                TerrainKind::Teleporter => '@',
             };
-            // Owned property is upper case for seat 0, lower for seat 1.
-            let symbol = match owner_at.get(&pos).copied().flatten() {
+            out.push(match owner_at.get(&pos).copied().flatten() {
                 Some(0) => symbol.to_ascii_uppercase(),
-                Some(_) => symbol.to_ascii_lowercase(),
-                None => symbol,
-            };
-            out.push(symbol);
+                _ => symbol,
+            });
         }
         out.push('\n');
     }
     out
 }
+
+/// The legend for [`render`].
+pub const RENDER_LEGEND: &str = "  . plain   w wood    ^ mountain  - road    = bridge  r river
+  ~ sea     s shoal   o reef      # pipe    + seam    @ teleporter
+  q hq      b base    c city      a airport p port    t tower   l lab   i silo
+  UPPER CASE = seat 0, lower = seat 1 or neutral";
 
 #[cfg(test)]
 mod tests {

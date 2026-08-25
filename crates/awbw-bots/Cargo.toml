@@ -7,6 +7,8 @@ description = "Baseline opponents and a match arena, for measuring agents in abs
 
 [dependencies]
 awbw-engine = { path = "../awbw-engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [[bin]]
 name = "arena"

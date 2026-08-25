@@ -23,8 +23,9 @@ use awbw_engine::encoding::{
     decode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
     ActionMasks,
 };
-use awbw_engine::state::{GameSettings, GameState, Outcome, Player, PlayerId};
-use awbw_bots::map::symmetric_map;
+use awbw_engine::state::{GameState, Outcome, PlayerId};
+use awbw_bots::arena::Board;
+use awbw_bots::awbw_map::{AwbwMap, RIVER_SUPREME};
 
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadwriteArray2};
@@ -59,10 +60,9 @@ fn advantage(state: &GameState, player: PlayerId) -> f32 {
 pub struct VecEnv {
     games: Vec<Game>,
     masks: Vec<ActionMasks>,
+    board: Board,
     max_day: u16,
     fog: bool,
-    width: u8,
-    height: u8,
     seed: u64,
     /// Weight on the change in material advantage. Zero trains on the win
     /// signal alone, which is correct but very sparse over a thousand-step game.
@@ -72,13 +72,7 @@ pub struct VecEnv {
 
 impl VecEnv {
     fn new_game(&self, index: usize, episode: u64) -> Game {
-        let (map, owners) = symmetric_map(self.width, self.height);
-        let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
-        let settings = GameSettings {
-            fog: self.fog,
-            ..GameSettings::default()
-        };
-        let state = GameState::new(map, settings, players, &owners);
+        let state = self.board.new_state(self.fog);
         let seed = self
             .seed
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
@@ -130,45 +124,52 @@ fn check_len(name: &str, got: usize, want: usize) -> PyResult<()> {
 #[pymethods]
 impl VecEnv {
     #[new]
-    #[pyo3(signature = (num_envs, seed=0, max_day=30, fog=false, width=13, height=13, shaping=0.0))]
+    /// `map_path` defaults to the committed league map; pass `None` for the
+    /// synthetic board, which needs no data file.
+    #[pyo3(signature = (num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None))]
     fn new(
         num_envs: usize,
         seed: u64,
         max_day: u16,
         fog: bool,
-        width: u8,
-        height: u8,
         shaping: f32,
+        map_path: Option<String>,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
         }
+        let board = match map_path.as_deref() {
+            Some("synthetic") => Board::default(),
+            other => {
+                let path = other.unwrap_or(RIVER_SUPREME);
+                Board::Awbw(Box::new(AwbwMap::load(path).map_err(PyValueError::new_err)?))
+            }
+        };
+
         let mut env = VecEnv {
             games: Vec::new(),
             masks: Vec::new(),
+            board,
             max_day,
             fog,
-            width,
-            height,
             seed,
             shaping,
             episodes: 0,
         };
-        // A placeholder game so `new_game` can be called before `games` exists.
         for i in 0..num_envs {
-            let game = {
-                let (map, owners) = symmetric_map(width, height);
-                let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
-                let settings = GameSettings { fog, ..GameSettings::default() };
-                let state = GameState::new(map, settings, players, &owners);
-                let engine = Engine::new(state, seed.wrapping_add(i as u64));
-                let last_advantage = advantage(&engine.state, engine.state.current);
-                Game { engine, last_advantage, steps: 0 }
-            };
-            env.games.push(game);
+            let state = env.board.new_state(fog);
+            let engine = Engine::new(state, seed.wrapping_add(i as u64));
+            let last_advantage = advantage(&engine.state, engine.state.current);
+            env.games.push(Game { engine, last_advantage, steps: 0 });
             env.masks.push(ActionMasks::new());
         }
         Ok(env)
+    }
+
+    /// The board these games are played on.
+    #[getter]
+    fn map_name(&self) -> String {
+        self.board.name().to_string()
     }
 
     #[getter]
@@ -426,8 +427,9 @@ impl VecEnv {
     fn __repr__(&self) -> String {
         let (h, w) = self.board_shape();
         format!(
-            "VecEnv(num_envs={}, board={h}x{w}, fog={}, max_day={}, shaping={})",
+            "VecEnv(num_envs={}, map={:?} {h}x{w}, fog={}, max_day={}, shaping={})",
             self.games.len(),
+            self.board.name(),
             self.fog,
             self.max_day,
             self.shaping

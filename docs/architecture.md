@@ -24,7 +24,8 @@
 `crates/awbw-bots` — baselines and the arena, to rate a policy in absolute terms
 (self-play Elo is self-referential). `greedy` scores every legal order one ply
 deep, `capturer` is the same with combat off, `random` is the floor; `arena`
-runs a round robin on a symmetric land-only board (`arena --show-map`).
+runs a round robin on a `Board`, which is a real AWBW map by default and a
+synthetic symmetric one on request (`arena --show-map`).
 
 `crates/awbw-py` — a batched Python environment. Games step in lockstep, a batch
 per call, sampling the four heads autoregressively: `source_mask`,

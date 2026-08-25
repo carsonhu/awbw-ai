@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 data/prepared/
-data/maps/
+# Fetched map cache, except the canonical training map: an ignored *directory*
+# cannot have exceptions, so the contents are ignored instead.
+data/maps/*
+!data/maps/119544.json
 python/*.pyd
 python/*.so

@@ -6,6 +6,7 @@
 //! a learned policy is actually getting anywhere.
 
 pub mod arena;
+pub mod awbw_map;
 pub mod greedy;
 pub mod map;
 

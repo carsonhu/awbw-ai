@@ -50,6 +50,21 @@ fog agreement.
 
 **Reefs conceal ground and sea units**, exactly as woods do. See Sourcing.
 
+## Training setup
+
+**The board is A River Supreme (AWBW map 119544)**, committed at
+`data/maps/119544.json`. Picked over the other popular league maps because it
+has the largest pool of recorded standard games (~1,875), the smallest board of
+the clean candidates (17x18), perfect 180-degree rotational symmetry, and —
+alone among the popular maps — no terrain the engine leaves unimplemented. A
+real map also removes the mismatch between the training environment and the
+replay corpus: same board, same rules, same opening.
+
+**Its starting units are deliberately asymmetric.** Blue Moon gets an infantry
+Orange Star has no counterpart for, on top of the mirrored Black Boats. That is
+a property of the map, not a loading bug, and it means the seats are *not*
+interchangeable — evaluation has to swap them, which the arena does.
+
 ## Verification
 
 **Each recorded turn is an independent test case.** Load the snapshot, replay

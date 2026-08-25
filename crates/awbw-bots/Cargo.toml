@@ -1,0 +1,13 @@
+[package]
+name = "awbw-bots"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Baseline opponents and a match arena, for measuring agents in absolute terms"
+
+[dependencies]
+awbw-engine = { path = "../awbw-engine" }
+
+[[bin]]
+name = "arena"
+path = "src/bin/arena.rs"

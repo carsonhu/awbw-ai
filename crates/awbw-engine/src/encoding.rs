@@ -24,7 +24,7 @@
 use crate::actions::{Action, Engine};
 use crate::map::Pos;
 use crate::state::{GameState, PlayerId, MAX_CARGO};
-use crate::types::{TerrainKind, UnitType, Weather};
+use crate::types::{TerrainKind, UnitType};
 use crate::vision::Vision;
 
 // --- observation ----------------------------------------------------------

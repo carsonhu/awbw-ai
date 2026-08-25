@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "awbw-bots"
+version = "0.1.0"
+dependencies = [
+ "awbw-engine",
+]
+
+[[package]]
 name = "awbw-engine"
 version = "0.1.0"
 

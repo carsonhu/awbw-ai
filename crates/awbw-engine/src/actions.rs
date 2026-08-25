@@ -13,6 +13,7 @@ use crate::state::{
     can_carry, cargo_capacity, GameState, PlayerId, UnitId, CAPTURE_FULL, MAX_CARGO,
 };
 use crate::types::{TerrainKind, UnitType};
+use crate::vision::Vision;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -83,6 +84,9 @@ pub struct ActionReport {
     pub attacker_destroyed: bool,
     pub property_captured: bool,
     pub unit_built: Option<UnitId>,
+    /// The move stopped early because it ran into a unit the mover could not
+    /// see. Always false without fog.
+    pub ambushed: bool,
 }
 
 /// The mutable context an action needs: the state plus the luck source.
@@ -90,6 +94,9 @@ pub struct Engine {
     pub state: GameState,
     pub rng: Rng,
     reach: Reach,
+    /// What the player to move can see. Rebuilt whenever the board changes;
+    /// without fog it is simply everything.
+    vision: Vision,
     /// Scratch buffers reused by `legal_actions_into`.
     movable: Vec<UnitId>,
     sites: Vec<Pos>,
@@ -97,12 +104,37 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(state: GameState, seed: u64) -> Self {
-        Engine {
+        let mut engine = Engine {
             state,
             rng: Rng::new(seed),
             reach: Reach::new(),
+            vision: Vision::new(),
             movable: Vec::new(),
             sites: Vec::new(),
+        };
+        engine.refresh_vision();
+        engine
+    }
+
+    /// Recomputes the moving player's view. Cheap without fog, and needed after
+    /// anything that moves, builds or destroys a unit.
+    pub fn refresh_vision(&mut self) {
+        let player = self.state.current;
+        self.vision.compute(&self.state, player);
+    }
+
+    /// What the player to move can see.
+    pub fn vision(&self) -> &Vision {
+        &self.vision
+    }
+
+    /// Reachability for a unit, from behind its owner's fog.
+    fn compute_reach(&mut self, unit_id: UnitId) {
+        if self.state.settings.fog {
+            let (reach, state, vision) = (&mut self.reach, &self.state, &self.vision);
+            reach.compute_with_vision(state, unit_id, vision);
+        } else {
+            self.reach.compute(&self.state, unit_id);
         }
     }
 
@@ -155,7 +187,7 @@ impl Engine {
         if unit.moved || unit.carried_by.is_some() {
             return Err(ActionError::AlreadyMoved);
         }
-        self.reach.compute(&self.state, unit_id);
+        self.compute_reach(unit_id);
         if !self.reach.can_reach(&self.state, dest) {
             return Err(ActionError::Unreachable);
         }
@@ -168,7 +200,6 @@ impl Engine {
             return Err(ActionError::Occupied);
         }
         let unit = *self.state.unit(unit_id).unwrap();
-        let stats = unit.typ.stats();
 
         // Indirects must fire from where they started.
         if unit.typ.is_indirect() && dest != unit.pos {
@@ -182,6 +213,10 @@ impl Engine {
 
         let defender = self.state.unit_at(target).ok_or(ActionError::NoTarget)?;
         if !self.state.are_enemies(unit.owner, defender.owner) {
+            return Err(ActionError::NoTarget);
+        }
+        // You cannot shoot what you have not found.
+        if !self.vision.sees_unit(&self.state, defender) {
             return Err(ActionError::NoTarget);
         }
         if defender.hidden && !combat::can_target_hidden(unit.typ, defender.typ) {
@@ -326,8 +361,10 @@ impl Engine {
                 self.state.end_turn();
             }
             Action::Move { unit, dest } => {
-                self.state.relocate(unit, dest);
-                self.spend_move(unit, dest);
+                let stop = self.ambush_stop(unit, dest);
+                report.ambushed = stop != dest;
+                self.state.relocate(unit, stop);
+                self.spend_move(unit, stop);
                 self.state.unit_mut(unit).unwrap().moved = true;
             }
             Action::Attack { unit, dest, target } => {
@@ -381,7 +418,32 @@ impl Engine {
         }
 
         self.state.check_eliminations();
+        self.refresh_vision();
         Ok(report)
+    }
+
+    /// Where a move actually ends.
+    ///
+    /// Under fog the planned route may run through a tile holding an enemy the
+    /// mover never saw. AWBW halts the unit on the last tile before it, which
+    /// is what makes hiding in woods a trap rather than a formality.
+    fn ambush_stop(&mut self, unit_id: UnitId, dest: Pos) -> Pos {
+        if !self.state.settings.fog {
+            return dest;
+        }
+        let Some(owner) = self.state.unit(unit_id).map(|u| u.owner) else {
+            return dest;
+        };
+        let path = self.reach.path_to(&self.state, dest);
+        for (i, &step) in path.iter().enumerate().skip(1) {
+            let Some(other) = self.state.unit_at(step) else {
+                continue;
+            };
+            if self.state.are_enemies(owner, other.owner) {
+                return path[i - 1];
+            }
+        }
+        dest
     }
 
     /// Burns the fuel a move cost. `self.reach` still holds the unit's map
@@ -587,7 +649,7 @@ impl Engine {
 
         for &unit_id in unit_ids.iter() {
             let unit = *self.state.unit(unit_id).unwrap();
-            self.reach.compute(&self.state, unit_id);
+            self.compute_reach(unit_id);
             self.push_unit_actions(unit_id, unit, out);
         }
 
@@ -679,7 +741,7 @@ impl Engine {
         if unit.owner != self.state.current || unit.moved || unit.carried_by.is_some() {
             return;
         }
-        self.reach.compute(&self.state, unit_id);
+        self.compute_reach(unit_id);
         self.push_unit_actions(unit_id, unit, out);
     }
 
@@ -719,6 +781,9 @@ impl Engine {
                     continue;
                 };
                 if !self.state.are_enemies(unit.owner, other.owner) {
+                    continue;
+                }
+                if !self.vision.sees_unit(&self.state, other) {
                     continue;
                 }
                 if other.hidden && !combat::can_target_hidden(unit.typ, other.typ) {
@@ -1182,6 +1247,117 @@ mod tests {
         per_unit.sort_by_key(|a| format!("{a:?}"));
         assert_eq!(per_unit, expected);
         assert!(!expected.is_empty());
+    }
+
+    fn fog_engine(width: u8, height: u8, kinds: Vec<TerrainKind>) -> Engine {
+        let map = Arc::new(Map::from_kinds(width, height, kinds).unwrap());
+        let props = map.properties().len();
+        let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
+        let settings = GameSettings { fog: true, ..GameSettings::default() };
+        let state = GameState::new(map, settings, players, &vec![None; props]);
+        Engine::new(state, 7)
+    }
+
+    #[test]
+    fn an_unseen_enemy_ambushes_a_passing_unit() {
+        // A tank sees three tiles, so an enemy five tiles down the corridor is
+        // beyond its knowledge and does not appear on the route it plans.
+        let mut e = fog_engine(9, 1, vec![TerrainKind::Plain; 9]);
+        let tank = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(5, 0));
+        e.refresh_vision();
+
+        // The hidden unit does not block planning...
+        assert!(e.check(Action::Move { unit: tank, dest: Pos::new(6, 0) }).is_ok());
+        // ...but the tank is stopped on the last tile before it.
+        let report = e.apply(Action::Move { unit: tank, dest: Pos::new(6, 0) }).unwrap();
+        assert!(report.ambushed);
+        assert_eq!(e.state.unit(tank).unwrap().pos, Pos::new(4, 0));
+    }
+
+    #[test]
+    fn a_visible_enemy_blocks_instead_of_ambushing() {
+        let mut e = fog_engine(9, 1, vec![TerrainKind::Plain; 9]);
+        let tank = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(2, 0));
+        e.refresh_vision();
+        // Tank vision is 3, so this one is in plain sight and blocks the route.
+        assert_eq!(
+            e.check(Action::Move { unit: tank, dest: Pos::new(6, 0) }),
+            Err(ActionError::Unreachable)
+        );
+    }
+
+    #[test]
+    fn units_you_cannot_see_cannot_be_shot() {
+        let mut kinds = vec![TerrainKind::Plain; 9];
+        kinds[5] = TerrainKind::Wood;
+        let mut e = fog_engine(9, 1, kinds);
+        let arty = e.state.spawn(UnitType::Artillery, 0, Pos::new(3, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(5, 0));
+        e.refresh_vision();
+
+        // In range (2 tiles) but concealed by the woods.
+        assert_eq!(
+            e.check(Action::Attack { unit: arty, dest: Pos::new(3, 0), target: Pos::new(5, 0) }),
+            Err(ActionError::NoTarget)
+        );
+        assert!(!e
+            .legal_actions()
+            .iter()
+            .any(|a| matches!(a, Action::Attack { .. })));
+
+        // Put a spotter next to the woods and the shot opens up.
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(4, 0));
+        e.refresh_vision();
+        assert!(e
+            .check(Action::Attack { unit: arty, dest: Pos::new(3, 0), target: Pos::new(5, 0) })
+            .is_ok());
+    }
+
+    #[test]
+    fn without_fog_nothing_is_hidden_or_ambushed() {
+        let mut kinds = vec![TerrainKind::Plain; 9];
+        kinds[4] = TerrainKind::Wood;
+        let mut e = engine(9, 1, kinds);
+        let tank = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(4, 0));
+        // The enemy is visible, so it blocks rather than ambushes.
+        assert_eq!(
+            e.check(Action::Move { unit: tank, dest: Pos::new(6, 0) }),
+            Err(ActionError::Unreachable)
+        );
+        let report = e.apply(Action::Move { unit: tank, dest: Pos::new(3, 0) }).unwrap();
+        assert!(!report.ambushed);
+    }
+
+    #[test]
+    fn a_random_fog_game_terminates_without_panicking() {
+        let mut kinds = vec![TerrainKind::Plain; 49];
+        kinds[0] = TerrainKind::Base;
+        kinds[24] = TerrainKind::City;
+        kinds[48] = TerrainKind::Base;
+        for i in [10, 17, 31, 38] {
+            kinds[i] = TerrainKind::Wood;
+        }
+        let map = Arc::new(Map::from_kinds(7, 7, kinds).unwrap());
+        let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
+        let settings = GameSettings { fog: true, ..GameSettings::default() };
+        let state = GameState::new(map, settings, players, &[Some(0), None, Some(1)]);
+        let mut e = Engine::new(state, 4242);
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(1, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(5, 6));
+        e.refresh_vision();
+
+        let mut rng = Rng::new(11);
+        for _ in 0..3000 {
+            if e.state.outcome() != Outcome::InProgress {
+                break;
+            }
+            let actions = e.legal_actions();
+            let pick = actions[rng.roll_inclusive(actions.len() as u32 - 1) as usize];
+            e.apply(pick).expect("enumerated actions must apply");
+        }
     }
 
     #[test]

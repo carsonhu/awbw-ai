@@ -11,6 +11,7 @@
 //! engine's own min/max spread. HP differences within one displayed point of
 //! the record are attributed to luck and reported separately from real bugs.
 
+pub mod fog;
 pub mod schema;
 
 use std::collections::HashMap;
@@ -141,7 +142,7 @@ impl PlayerMap {
 
 /// The engine state for one recorded turn, plus the id translation needed to
 /// follow the recorded orders.
-struct Loaded {
+pub struct Loaded {
     engine: Engine,
     /// AWBW unit id -> engine unit id.
     ids: HashMap<i64, UnitId>,
@@ -162,6 +163,22 @@ struct Loaded {
 }
 
 impl Loaded {
+    /// The reconstructed board.
+    pub fn state(&self) -> &GameState {
+        &self.engine.state
+    }
+
+    /// The reconstructed board, mutably, for callers replaying a turn's effects
+    /// themselves (the fog checker removes casualties as they fall).
+    pub fn state_mut(&mut self) -> &mut GameState {
+        &mut self.engine.state
+    }
+
+    /// The engine unit currently holding an AWBW unit id.
+    pub fn unit_for(&self, awbw_id: i64) -> Option<UnitId> {
+        self.live(awbw_id)
+    }
+
     fn bind(&mut self, awbw_id: i64, unit: UnitId) {
         self.ids.insert(awbw_id, unit);
         self.awbw_of.insert(unit, awbw_id);
@@ -212,6 +229,17 @@ impl<'a> Verifier<'a> {
             settings,
             country_owner,
         })
+    }
+
+    /// The engine seat an AWBW player id occupies.
+    pub fn player_index(&self, awbw_id: i64) -> Option<PlayerId> {
+        self.players.index(awbw_id)
+    }
+
+    /// Rebuilds the engine state from a recorded snapshot, for callers outside
+    /// the verifier (the fog checker).
+    pub fn load_turn_public(&self, turn: &Turn) -> Result<Loaded, String> {
+        self.load_turn(turn)
     }
 
     /// Rebuilds the engine state from a recorded snapshot.

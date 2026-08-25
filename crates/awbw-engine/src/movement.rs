@@ -11,6 +11,7 @@
 
 use crate::map::Pos;
 use crate::state::{GameState, UnitId, NO_UNIT};
+use crate::vision::Vision;
 
 pub const UNREACHABLE: u8 = u8::MAX;
 const NO_PREV: u16 = u16::MAX;
@@ -48,8 +49,22 @@ impl Reach {
         self.cost[index]
     }
 
-    /// Fills this `Reach` with everywhere `unit` can move to this turn.
+    /// Fills this `Reach` with everywhere `unit` can move to this turn,
+    /// assuming the whole board is known.
     pub fn compute(&mut self, state: &GameState, unit_id: UnitId) {
+        self.compute_inner(state, unit_id, None)
+    }
+
+    /// As [`Reach::compute`], but from behind fog.
+    ///
+    /// An enemy the mover cannot see does not block the route it plans, because
+    /// the mover does not know it is there. Walking into one is what springs an
+    /// ambush, and that is resolved when the move is actually made.
+    pub fn compute_with_vision(&mut self, state: &GameState, unit_id: UnitId, vision: &Vision) {
+        self.compute_inner(state, unit_id, Some(vision))
+    }
+
+    fn compute_inner(&mut self, state: &GameState, unit_id: UnitId, vision: Option<&Vision>) {
         let map = &state.map;
         let tiles = map.tile_count();
         self.cost.clear();
@@ -112,11 +127,18 @@ impl Reach {
                     let Some(step) = map.terrain_at(next).move_cost(weather, move_type) else {
                         continue;
                     };
-                    // Enemies block the tile outright.
+                    // Enemies block the tile outright -- but only the ones
+                    // the mover knows about.
                     let occupant = state.occupancy_at(next_index);
                     if occupant != NO_UNIT {
                         match state.unit(occupant) {
-                            Some(other) if state.are_enemies(owner, other.owner) => continue,
+                            Some(other) if state.are_enemies(owner, other.owner) => {
+                                let known =
+                                    vision.map_or(true, |v| v.sees_unit(state, other));
+                                if known {
+                                    continue;
+                                }
+                            }
                             _ => {}
                         }
                     }

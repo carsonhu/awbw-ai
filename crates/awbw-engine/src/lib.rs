@@ -15,6 +15,7 @@ pub mod movement;
 pub mod rng;
 pub mod state;
 pub mod types;
+pub mod vision;
 
 pub use actions::{Action, ActionError, ActionReport, Engine};
 pub use co_data::{co_by_awbw_id, co_by_name, CoData};
@@ -23,6 +24,7 @@ pub use movement::Reach;
 pub use rng::Rng;
 pub use state::{GameSettings, GameState, Outcome, Player, Unit, UnitId};
 pub use types::{MoveType, TerrainKind, UnitType, Weather};
+pub use vision::Vision;
 
 #[cfg(test)]
 mod data_tests {

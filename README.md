@@ -111,8 +111,8 @@ a 15x15 map, 30-day games, single core:
 
 | path | branching | micro-steps/sec |
 |------|-----------|-----------------|
-| flat | ~204 | ~38k |
-| factorized | ~26 | ~121k |
+| flat | ~204 | ~54k |
+| factorized | ~26 | ~179k |
 
 ## Roadmap
 
@@ -121,8 +121,7 @@ a 15x15 map, 30-day games, single core:
    capture, build, load/unload, join, supply, turn bookkeeping, win conditions)
 3. ~~Replay-differential verification harness~~ (done)
 4. ~~CO day-to-day abilities~~ (done: 99.98% agreement on power-free games)
-5. Fog of war — vision, hidden units, ambush-on-move. The corpus has more fog
-   games than standard ones (36.5k vs 27.7k), so this also unlocks most of it.
+5. ~~Fog of war~~ (done: 99.4% agreement on per-tile visibility)
 6. CO powers, missile silos, pipe seams
 7. Baseline bots + internal Elo ladder
 8. PyO3 bindings, Gym-style env, PPO self-play
@@ -154,10 +153,43 @@ defence-against-indirects. The luck-range COs (Nell, Flak, Jugger) *are*
 implemented but are **unverified** — they are banned in Global League play, so
 no game in the corpus exercises them.
 
+## Fog of war
+
+Sight is Manhattan distance from each unit, extended by the terrain it stands
+on (mountains add three, and aircraft get nothing from the ground below).
+Adjacent tiles *pierce*: cover and concealment fail at arm's length. Further
+out, a surface unit in woods is hidden, as is a dived sub or a hidden stealth,
+while aircraft stay visible because they fly above cover. Owned properties
+watch their own tile.
+
+In play this means an enemy you cannot see does not block the route you plan —
+walking into one halts you on the tile before it (`ActionReport::ambushed`) —
+and you cannot fire on what you have not found.
+
+### How it was checked
+
+Fog replays store the *full* board in their snapshots, so those cannot test
+vision. The move records can: AWBW writes one path per player, and the
+opposing player's copy flags every step with whether they could see the unit
+standing there. That is a per-tile statement of what the defender's fog
+allowed.
+
+**99.44% agreement over 6,035 judged path steps**, with 3 cases where the
+engine saw too little and 31 where it saw too much. Almost all of the latter
+fall on a single turn — the one where Drake fires Typhoon, which brings rain
+and shortens sight. Powers are unmodelled, so that is the expected cost.
+
+Two rules the corpus settled that guessing would have got wrong:
+
+- A defender's sight **shrinks as its units die mid-turn**. Computing the view
+  once from the opening snapshot made the engine look far too sharp; it was the
+  checker at fault, not the engine.
+- **Reefs do not conceal.** DefendPeace treats them as cover, following the
+  cartridge, but every unit recorded on a reef was visible to an opponent that
+  cover should have blocked. The naval fog sample is small, so this is flagged
+  in the code for rechecking.
+
 ## Rules not yet implemented
 
-Fog of war and vision, CO powers and CO-specific stats, missile silos,
-pipe-seam destruction, teleporters, weather changing mid-game, and Black Bomb
-detonation. Turn-order details flagged for the replay harness to confirm:
-the exact ordering of income vs. repair vs. fuel upkeep, and repair funding
-when a player cannot afford a full heal.
+CO powers, missile silos, pipe-seam destruction, teleporters, weather changing
+mid-game, and Black Bomb detonation.

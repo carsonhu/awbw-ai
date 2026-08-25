@@ -37,12 +37,40 @@ will be validated by replaying recorded actions and diffing predicted state
 against recorded state, turn by turn. ~28k are filename-tagged standard 1v1
 ("GL STD"); FOG/HF variants tagged likewise; the rest need content inspection.
 
+## Action space
+
+A turn is a variable-length sequence of single orders ending in `EndTurn`, so
+one environment step is one order rather than a whole turn. Two enumeration
+paths exist:
+
+- `legal_actions_into` — every legal order for every unit. What a flat policy
+  or a search needs, but it costs one reachability search *per unit per step*.
+- `legal_actions_for(unit)` — one unit's orders, for a factorized policy that
+  picks which unit acts first and what it does second. One search per step.
+
+Both are exercised against each other in tests. Random self-play throughput on
+a 15x15 map, 30-day games, single core:
+
+| path | branching | micro-steps/sec |
+|------|-----------|-----------------|
+| flat | ~204 | ~38k |
+| factorized | ~26 | ~121k |
+
 ## Roadmap
 
 1. ~~Data capture + combat formula~~ (done)
-2. Game state, movement/pathfinding, full action set (move, attack, capture,
-   build, load/unload, join, resupply, powers later), fog
-3. Replay-differential verification harness
-4. Baseline bots + internal Elo ladder
-5. PyO3 bindings, Gym-style env, PPO self-play (restricted ruleset first:
+2. ~~Game state, movement/pathfinding, core action set~~ (done: move, attack,
+   capture, build, load/unload, join, supply, turn bookkeeping, win conditions)
+3. Fog of war, CO powers, missile silos, pipe seams
+4. Replay-differential verification harness
+5. Baseline bots + internal Elo ladder
+6. PyO3 bindings, Gym-style env, PPO self-play (restricted ruleset first:
    1v1, no fog, no COs)
+
+## Rules not yet implemented
+
+Fog of war and vision, CO powers and CO-specific stats, missile silos,
+pipe-seam destruction, teleporters, weather changing mid-game, and Black Bomb
+detonation. Turn-order details flagged for the replay harness to confirm:
+the exact ordering of income vs. repair vs. fuel upkeep, and repair funding
+when a player cannot afford a full heal.

@@ -1,0 +1,1195 @@
+//! The action set, legality checking, and application.
+//!
+//! One action is one order: move a unit, move-and-shoot, capture, build, and so
+//! on. A turn is a variable-length sequence of these ending in `EndTurn`, which
+//! is what makes the game tractable as an RL environment — each env step picks
+//! one order from a masked, enumerable set rather than composing a whole turn.
+
+use crate::combat::{self, CoModifiers, DamageSpread, VANILLA_CO, VANILLA_GOOD_LUCK_MAX};
+use crate::map::Pos;
+use crate::movement::Reach;
+use crate::rng::Rng;
+use crate::state::{
+    can_carry, cargo_capacity, GameState, PlayerId, UnitId, CAPTURE_FULL, MAX_CARGO,
+};
+use crate::types::{TerrainKind, UnitType};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    /// Move to `dest` (possibly staying put) and end the unit's turn.
+    Move { unit: UnitId, dest: Pos },
+    /// Move to `dest`, then attack the unit at `target`.
+    Attack {
+        unit: UnitId,
+        dest: Pos,
+        target: Pos,
+    },
+    /// Move to `dest` and capture the property there.
+    Capture { unit: UnitId, dest: Pos },
+    /// Produce a unit at an owned, empty production property.
+    Build { at: Pos, typ: UnitType },
+    /// Move onto an allied transport at `dest` and board it.
+    Load { unit: UnitId, dest: Pos },
+    /// Move the transport to `dest`, then drop `cargo` onto `drop_at`.
+    Unload {
+        transport: UnitId,
+        dest: Pos,
+        cargo: UnitId,
+        drop_at: Pos,
+    },
+    /// Merge into a damaged friendly unit of the same type at `dest`.
+    Join { unit: UnitId, dest: Pos },
+    /// Move an APC to `dest` and resupply every adjacent ally.
+    Supply { unit: UnitId, dest: Pos },
+    EndTurn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionError {
+    NoSuchUnit,
+    NotYourUnit,
+    AlreadyMoved,
+    Unreachable,
+    Occupied,
+    NoTarget,
+    OutOfRange,
+    CannotAttackThat,
+    NotCapturable,
+    NotAProductionSite,
+    CannotProduceThat,
+    NotEnoughFunds,
+    UnitLimitReached,
+    NoRoom,
+    CannotCarryThat,
+    CannotJoinThat,
+    NotATransport,
+    NotASupplier,
+}
+
+impl std::fmt::Display for ActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for ActionError {}
+
+/// What happened when an action resolved, for logging and reward shaping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ActionReport {
+    pub damage_dealt: u8,
+    pub damage_taken: u8,
+    pub defender_destroyed: bool,
+    pub attacker_destroyed: bool,
+    pub property_captured: bool,
+    pub unit_built: Option<UnitId>,
+}
+
+/// The mutable context an action needs: the state plus the luck source.
+pub struct Engine {
+    pub state: GameState,
+    pub rng: Rng,
+    reach: Reach,
+    /// Scratch buffers reused by `legal_actions_into`.
+    movable: Vec<UnitId>,
+    sites: Vec<Pos>,
+}
+
+impl Engine {
+    pub fn new(state: GameState, seed: u64) -> Self {
+        Engine {
+            state,
+            rng: Rng::new(seed),
+            reach: Reach::new(),
+            movable: Vec::new(),
+            sites: Vec::new(),
+        }
+    }
+
+    /// CO modifiers for a player. Vanilla for now; real COs plug in here.
+    fn co_of(&self, _player: PlayerId) -> CoModifiers {
+        VANILLA_CO
+    }
+
+    // --- legality ----------------------------------------------------------
+
+    /// Checks an action without applying it.
+    pub fn check(&mut self, action: Action) -> Result<(), ActionError> {
+        match action {
+            Action::EndTurn => Ok(()),
+            Action::Build { at, typ } => self.check_build(at, typ),
+            Action::Move { unit, dest } => {
+                self.check_move(unit, dest)?;
+                if self.state.unit_id_at(dest).is_some_and(|o| o != unit) {
+                    return Err(ActionError::Occupied);
+                }
+                Ok(())
+            }
+            Action::Attack { unit, dest, target } => self.check_attack(unit, dest, target),
+            Action::Capture { unit, dest } => self.check_capture(unit, dest),
+            Action::Load { unit, dest } => self.check_load(unit, dest),
+            Action::Unload {
+                transport,
+                dest,
+                cargo,
+                drop_at,
+            } => self.check_unload(transport, dest, cargo, drop_at),
+            Action::Join { unit, dest } => self.check_join(unit, dest),
+            Action::Supply { unit, dest } => self.check_supply(unit, dest),
+        }
+    }
+
+    /// Shared preamble: the unit is ours, hasn't acted, and `dest` is in range.
+    fn check_move(&mut self, unit_id: UnitId, dest: Pos) -> Result<(), ActionError> {
+        let unit = self.state.unit(unit_id).ok_or(ActionError::NoSuchUnit)?;
+        if unit.owner != self.state.current {
+            return Err(ActionError::NotYourUnit);
+        }
+        if unit.moved || unit.carried_by.is_some() {
+            return Err(ActionError::AlreadyMoved);
+        }
+        self.reach.compute(&self.state, unit_id);
+        if !self.reach.can_reach(&self.state, dest) {
+            return Err(ActionError::Unreachable);
+        }
+        Ok(())
+    }
+
+    fn check_attack(&mut self, unit_id: UnitId, dest: Pos, target: Pos) -> Result<(), ActionError> {
+        self.check_move(unit_id, dest)?;
+        if self.state.unit_id_at(dest).is_some_and(|o| o != unit_id) {
+            return Err(ActionError::Occupied);
+        }
+        let unit = *self.state.unit(unit_id).unwrap();
+        let stats = unit.typ.stats();
+
+        // Indirects must fire from where they started.
+        if unit.typ.is_indirect() && dest != unit.pos {
+            return Err(ActionError::OutOfRange);
+        }
+        let distance = dest.distance(target);
+        if distance < stats.range_min.max(1) as u32 || distance > stats.range_max.max(1) as u32 {
+            return Err(ActionError::OutOfRange);
+        }
+
+        let defender = self.state.unit_at(target).ok_or(ActionError::NoTarget)?;
+        if !self.state.are_enemies(unit.owner, defender.owner) {
+            return Err(ActionError::NoTarget);
+        }
+        if defender.hidden && !combat::can_target_hidden(unit.typ, defender.typ) {
+            return Err(ActionError::CannotAttackThat);
+        }
+        if combat::base_percentage(unit.typ, defender.typ, unit.ammo).is_none() {
+            return Err(ActionError::CannotAttackThat);
+        }
+        Ok(())
+    }
+
+    fn check_capture(&mut self, unit_id: UnitId, dest: Pos) -> Result<(), ActionError> {
+        self.check_move(unit_id, dest)?;
+        if self.state.unit_id_at(dest).is_some_and(|o| o != unit_id) {
+            return Err(ActionError::Occupied);
+        }
+        let unit = *self.state.unit(unit_id).unwrap();
+        if !matches!(unit.typ, UnitType::Infantry | UnitType::Mech) {
+            return Err(ActionError::NotCapturable);
+        }
+        let building = self.state.building_at(dest).ok_or(ActionError::NotCapturable)?;
+        if building.owner == Some(unit.owner) {
+            return Err(ActionError::NotCapturable);
+        }
+        Ok(())
+    }
+
+    fn check_build(&self, at: Pos, typ: UnitType) -> Result<(), ActionError> {
+        let player = self.state.current;
+        let building = self
+            .state
+            .building_at(at)
+            .ok_or(ActionError::NotAProductionSite)?;
+        if building.owner != Some(player) {
+            return Err(ActionError::NotAProductionSite);
+        }
+        if !building.can_produce(typ) {
+            return Err(ActionError::CannotProduceThat);
+        }
+        if self.state.unit_id_at(at).is_some() {
+            return Err(ActionError::Occupied);
+        }
+        if self.state.player(player).funds < typ.stats().cost {
+            return Err(ActionError::NotEnoughFunds);
+        }
+        if self.state.unit_count(player) >= self.state.settings.unit_limit {
+            return Err(ActionError::UnitLimitReached);
+        }
+        Ok(())
+    }
+
+    fn check_load(&mut self, unit_id: UnitId, dest: Pos) -> Result<(), ActionError> {
+        self.check_move(unit_id, dest)?;
+        let unit = *self.state.unit(unit_id).unwrap();
+        let transport_id = self.state.unit_id_at(dest).ok_or(ActionError::NotATransport)?;
+        let transport = *self.state.unit(transport_id).unwrap();
+        if !self.state.are_allied(unit.owner, transport.owner) {
+            return Err(ActionError::NotATransport);
+        }
+        if !can_carry(transport.typ, unit.typ) {
+            return Err(ActionError::CannotCarryThat);
+        }
+        if transport.cargo_len() >= cargo_capacity(transport.typ) {
+            return Err(ActionError::NoRoom);
+        }
+        Ok(())
+    }
+
+    fn check_unload(
+        &mut self,
+        transport_id: UnitId,
+        dest: Pos,
+        cargo_id: UnitId,
+        drop_at: Pos,
+    ) -> Result<(), ActionError> {
+        self.check_move(transport_id, dest)?;
+        if self.state.unit_id_at(dest).is_some_and(|o| o != transport_id) {
+            return Err(ActionError::Occupied);
+        }
+        let transport = *self.state.unit(transport_id).unwrap();
+        if !transport.cargo.contains(&cargo_id) {
+            return Err(ActionError::NotATransport);
+        }
+        if dest.distance(drop_at) != 1 {
+            return Err(ActionError::OutOfRange);
+        }
+        if self.state.unit_id_at(drop_at).is_some() {
+            return Err(ActionError::Occupied);
+        }
+        let cargo = self.state.unit(cargo_id).ok_or(ActionError::NoSuchUnit)?;
+        // The passenger must be able to stand where it is dropped.
+        self.state
+            .map
+            .terrain_at(drop_at)
+            .move_cost(self.state.weather, cargo.move_type())
+            .ok_or(ActionError::Unreachable)?;
+        Ok(())
+    }
+
+    fn check_join(&mut self, unit_id: UnitId, dest: Pos) -> Result<(), ActionError> {
+        self.check_move(unit_id, dest)?;
+        let unit = *self.state.unit(unit_id).unwrap();
+        let other_id = self.state.unit_id_at(dest).ok_or(ActionError::CannotJoinThat)?;
+        if other_id == unit_id {
+            return Err(ActionError::CannotJoinThat);
+        }
+        let other = *self.state.unit(other_id).unwrap();
+        if other.owner != unit.owner || other.typ != unit.typ {
+            return Err(ActionError::CannotJoinThat);
+        }
+        if other.hp100 >= 100 {
+            return Err(ActionError::CannotJoinThat);
+        }
+        // Neither side may be carrying anything: AWBW has nowhere to put it.
+        if unit.cargo_len() > 0 || other.cargo_len() > 0 {
+            return Err(ActionError::CannotJoinThat);
+        }
+        Ok(())
+    }
+
+    fn check_supply(&mut self, unit_id: UnitId, dest: Pos) -> Result<(), ActionError> {
+        self.check_move(unit_id, dest)?;
+        if self.state.unit_id_at(dest).is_some_and(|o| o != unit_id) {
+            return Err(ActionError::Occupied);
+        }
+        let unit = *self.state.unit(unit_id).unwrap();
+        if unit.typ != UnitType::Apc {
+            return Err(ActionError::NotASupplier);
+        }
+        Ok(())
+    }
+
+    // --- application -------------------------------------------------------
+
+    /// Validates and applies an action, advancing the game.
+    pub fn apply(&mut self, action: Action) -> Result<ActionReport, ActionError> {
+        self.check(action)?;
+        let mut report = ActionReport::default();
+
+        match action {
+            Action::EndTurn => {
+                self.state.end_turn();
+            }
+            Action::Move { unit, dest } => {
+                self.state.relocate(unit, dest);
+                self.spend_move(unit, dest);
+                self.state.unit_mut(unit).unwrap().moved = true;
+            }
+            Action::Attack { unit, dest, target } => {
+                self.state.relocate(unit, dest);
+                self.spend_move(unit, dest);
+                self.state.unit_mut(unit).unwrap().moved = true;
+                report = self.resolve_battle(unit, target);
+            }
+            Action::Capture { unit, dest } => {
+                self.state.relocate(unit, dest);
+                self.spend_move(unit, dest);
+                self.state.unit_mut(unit).unwrap().moved = true;
+                report.property_captured = self.resolve_capture(unit, dest);
+            }
+            Action::Build { at, typ } => {
+                let player = self.state.current;
+                self.state.players[player as usize].funds -= typ.stats().cost;
+                let id = self.state.spawn(typ, player, at);
+                // Fresh units cannot act on the turn they are built.
+                self.state.unit_mut(id).unwrap().moved = true;
+                report.unit_built = Some(id);
+            }
+            Action::Load { unit, dest } => {
+                let transport = self.state.unit_id_at(dest).unwrap();
+                self.spend_move(unit, dest);
+                self.state.load_into(unit, transport);
+                self.state.unit_mut(unit).unwrap().moved = true;
+            }
+            Action::Unload {
+                transport,
+                dest,
+                cargo,
+                drop_at,
+            } => {
+                self.state.relocate(transport, dest);
+                self.spend_move(transport, dest);
+                self.state.unload_to(transport, cargo, drop_at);
+                self.state.unit_mut(transport).unwrap().moved = true;
+            }
+            Action::Join { unit, dest } => {
+                let other = self.state.unit_id_at(dest).unwrap();
+                self.resolve_join(unit, other);
+            }
+            Action::Supply { unit, dest } => {
+                self.state.relocate(unit, dest);
+                self.spend_move(unit, dest);
+                self.state.unit_mut(unit).unwrap().moved = true;
+                self.resolve_supply(unit, dest);
+            }
+        }
+
+        self.state.check_eliminations();
+        Ok(report)
+    }
+
+    /// Burns the fuel a move cost. `self.reach` still holds the unit's map
+    /// because `check` just computed it.
+    fn spend_move(&mut self, unit_id: UnitId, dest: Pos) {
+        let cost = self.reach.cost_to(&self.state, dest).unwrap_or(0);
+        if let Some(unit) = self.state.unit_mut(unit_id) {
+            unit.fuel = unit.fuel.saturating_sub(cost);
+        }
+    }
+
+    /// Resolves an attack and its counterattack, rolling luck for each.
+    fn resolve_battle(&mut self, attacker_id: UnitId, target: Pos) -> ActionReport {
+        let mut report = ActionReport::default();
+        let Some(defender_id) = self.state.unit_id_at(target) else {
+            return report;
+        };
+        let attacker = *self.state.unit(attacker_id).unwrap();
+        let defender = *self.state.unit(defender_id).unwrap();
+
+        let Some((pct, weapon)) =
+            combat::base_percentage(attacker.typ, defender.typ, attacker.ammo)
+        else {
+            return report;
+        };
+        if weapon == combat::Weapon::Primary {
+            self.state.unit_mut(attacker_id).unwrap().ammo -= 1;
+        }
+
+        let damage = self.roll_damage(pct, attacker, defender, target);
+        report.damage_dealt = damage as u8;
+
+        let defender_hp = defender.hp100 as i32 - damage;
+        if defender_hp <= 0 {
+            report.defender_destroyed = true;
+            self.state.destroy(defender_id);
+            return report;
+        }
+        self.state.unit_mut(defender_id).unwrap().hp100 = defender_hp as u8;
+
+        // Counterattack: only between two direct-combat units in range.
+        if attacker.typ.is_indirect() || defender.typ.is_indirect() {
+            return report;
+        }
+        let defender = *self.state.unit(defender_id).unwrap();
+        let Some((counter_pct, counter_weapon)) =
+            combat::base_percentage(defender.typ, attacker.typ, defender.ammo)
+        else {
+            return report;
+        };
+        if counter_weapon == combat::Weapon::Primary {
+            self.state.unit_mut(defender_id).unwrap().ammo -= 1;
+        }
+        let attacker = *self.state.unit(attacker_id).unwrap();
+        let counter = self.roll_damage(counter_pct, defender, attacker, attacker.pos);
+        report.damage_taken = counter as u8;
+
+        let attacker_hp = attacker.hp100 as i32 - counter;
+        if attacker_hp <= 0 {
+            report.attacker_destroyed = true;
+            self.state.destroy(attacker_id);
+        } else {
+            self.state.unit_mut(attacker_id).unwrap().hp100 = attacker_hp as u8;
+        }
+        report
+    }
+
+    /// One luck roll of AWBW's damage formula for a concrete pairing.
+    fn roll_damage(
+        &mut self,
+        pct: i32,
+        attacker: crate::state::Unit,
+        defender: crate::state::Unit,
+        defender_pos: Pos,
+    ) -> i32 {
+        let terrain = self.state.map.terrain_at(defender_pos);
+        let terrain_defense = combat::effective_terrain_defense(defender.move_type(), terrain);
+        let good_luck = self.rng.roll_inclusive(VANILLA_GOOD_LUCK_MAX as u32) as i32;
+        combat::damage_roll(
+            pct,
+            attacker.hp100 as i32,
+            defender.hp100 as i32,
+            terrain_defense,
+            self.co_of(attacker.owner),
+            self.co_of(defender.owner),
+            self.state.com_tower_bonus(attacker.owner),
+            good_luck,
+            0,
+        )
+    }
+
+    /// Applies capture progress; returns whether the property changed hands.
+    fn resolve_capture(&mut self, unit_id: UnitId, pos: Pos) -> bool {
+        let unit = *self.state.unit(unit_id).unwrap();
+        let owner = unit.owner;
+        let progress = unit.display_hp();
+
+        let Some(building) = self.state.building_at_mut(pos) else {
+            return false;
+        };
+        building.capture_remaining = building.capture_remaining.saturating_sub(progress);
+        if building.capture_remaining > 0 {
+            return false;
+        }
+
+        let kind = building.kind;
+        let previous = building.owner;
+        building.owner = Some(owner);
+        building.capture_remaining = CAPTURE_FULL;
+
+        // Taking an HQ wipes out its owner and hands over everything they held.
+        if kind == TerrainKind::Hq {
+            if let Some(loser) = previous {
+                self.state.eliminate(loser, Some(owner));
+            }
+        }
+        true
+    }
+
+    fn resolve_join(&mut self, unit_id: UnitId, other_id: UnitId) {
+        let unit = *self.state.unit(unit_id).unwrap();
+        let other = *self.state.unit(other_id).unwrap();
+        let stats = unit.typ.stats();
+
+        let combined = unit.hp100 as u16 + other.hp100 as u16;
+        // HP above 10 is refunded at the unit's per-HP value.
+        let overflow = combined.saturating_sub(100);
+        if overflow > 0 {
+            let display_overflow = (overflow as u32 + 9) / 10;
+            self.state.players[unit.owner as usize].funds += display_overflow * (stats.cost / 10);
+        }
+
+        let target = self.state.unit_mut(other_id).unwrap();
+        target.hp100 = combined.min(100) as u8;
+        target.fuel = (unit.fuel as u16 + other.fuel as u16).min(stats.max_fuel as u16) as u8;
+        target.ammo = (unit.ammo as u16 + other.ammo as u16).min(stats.max_ammo as u16) as u8;
+        target.moved = true;
+
+        self.state.destroy(unit_id);
+    }
+
+    fn resolve_supply(&mut self, unit_id: UnitId, pos: Pos) {
+        let owner = self.state.unit(unit_id).unwrap().owner;
+        let neighbors: Vec<Pos> = self.state.map.neighbors(pos).collect();
+        for n in neighbors {
+            let Some(id) = self.state.unit_id_at(n) else {
+                continue;
+            };
+            let Some(other) = self.state.unit(id).copied() else {
+                continue;
+            };
+            if !self.state.are_allied(owner, other.owner) {
+                continue;
+            }
+            let stats = other.typ.stats();
+            let u = self.state.unit_mut(id).unwrap();
+            u.fuel = stats.max_fuel;
+            u.ammo = stats.max_ammo;
+        }
+    }
+
+    // --- enumeration -------------------------------------------------------
+
+    /// Every legal action for the player to move, for action masking.
+    ///
+    /// `EndTurn` is always included and always last, so a policy can never be
+    /// left with an empty mask.
+    pub fn legal_actions(&mut self) -> Vec<Action> {
+        let mut out = Vec::new();
+        self.legal_actions_into(&mut out);
+        out
+    }
+
+    /// As [`Engine::legal_actions`], but refills a caller-owned buffer. Self-play
+    /// calls this once per micro-step, so it must not allocate.
+    pub fn legal_actions_into(&mut self, out: &mut Vec<Action>) {
+        out.clear();
+        let player = self.state.current;
+
+        // Taken from `self` so the loop can hold `&mut self.reach`, and handed
+        // back at the end to keep its capacity.
+        let mut unit_ids = std::mem::take(&mut self.movable);
+        unit_ids.clear();
+        unit_ids.extend(
+            self.state
+                .units_of(player)
+                .filter(|u| !u.moved && u.carried_by.is_none())
+                .map(|u| u.id),
+        );
+
+        for &unit_id in unit_ids.iter() {
+            let unit = *self.state.unit(unit_id).unwrap();
+            self.reach.compute(&self.state, unit_id);
+            self.push_unit_actions(unit_id, unit, out);
+        }
+
+        unit_ids.clear();
+        self.movable = unit_ids;
+
+        // Production. Buildings are few, so this scan stays cheap.
+        let mut sites = std::mem::take(&mut self.sites);
+        sites.clear();
+        sites.extend(
+            self.state
+                .buildings_of(player)
+                .filter(|b| {
+                    matches!(b.kind, TerrainKind::Base | TerrainKind::Airport | TerrainKind::Port)
+                })
+                .map(|b| b.pos),
+        );
+        for &at in sites.iter() {
+            if self.state.unit_id_at(at).is_some() {
+                continue;
+            }
+            for typ in UnitType::ALL {
+                if self.check_build(at, typ).is_ok() {
+                    out.push(Action::Build { at, typ });
+                }
+            }
+        }
+        sites.clear();
+        self.sites = sites;
+
+        out.push(Action::EndTurn);
+    }
+
+    /// Every order one unit can give, assuming `self.reach` already holds its
+    /// movement map.
+    fn push_unit_actions(&self, unit_id: UnitId, unit: crate::state::Unit, out: &mut Vec<Action>) {
+        let player = unit.owner;
+        for dest in self.reach.reachable(&self.state) {
+            let occupant = self.state.unit_id_at(dest);
+            let free = occupant.is_none() || occupant == Some(unit_id);
+
+            if free {
+                out.push(Action::Move { unit: unit_id, dest });
+                self.push_attacks(out, unit_id, unit, dest);
+
+                if matches!(unit.typ, UnitType::Infantry | UnitType::Mech)
+                    && self
+                        .state
+                        .building_at(dest)
+                        .is_some_and(|b| b.owner != Some(player))
+                {
+                    out.push(Action::Capture { unit: unit_id, dest });
+                }
+                if unit.typ == UnitType::Apc {
+                    out.push(Action::Supply { unit: unit_id, dest });
+                }
+                self.push_unloads(out, unit_id, unit, dest);
+            } else if let Some(other_id) = occupant {
+                let other = *self.state.unit(other_id).unwrap();
+                if other.owner == player
+                    && other.typ == unit.typ
+                    && other.hp100 < 100
+                    && unit.cargo_len() == 0
+                    && other.cargo_len() == 0
+                {
+                    out.push(Action::Join { unit: unit_id, dest });
+                }
+                if self.state.are_allied(player, other.owner)
+                    && can_carry(other.typ, unit.typ)
+                    && other.cargo_len() < cargo_capacity(other.typ)
+                {
+                    out.push(Action::Load { unit: unit_id, dest });
+                }
+            }
+        }
+    }
+
+    /// Orders available to a single unit.
+    ///
+    /// This is the cheap path for a factorized policy that picks *which unit*
+    /// first and *what it does* second: it costs one reachability search
+    /// instead of one per unit, which is the difference between O(n) and O(n^2)
+    /// work per turn.
+    pub fn legal_actions_for(&mut self, unit_id: UnitId, out: &mut Vec<Action>) {
+        out.clear();
+        let Some(unit) = self.state.unit(unit_id).copied() else {
+            return;
+        };
+        if unit.owner != self.state.current || unit.moved || unit.carried_by.is_some() {
+            return;
+        }
+        self.reach.compute(&self.state, unit_id);
+        self.push_unit_actions(unit_id, unit, out);
+    }
+
+    /// Units belonging to the player to move that still have an order left.
+    pub fn movable_units(&self) -> impl Iterator<Item = UnitId> + '_ {
+        let player = self.state.current;
+        self.state
+            .units_of(player)
+            .filter(|u| !u.moved && u.carried_by.is_none())
+            .map(|u| u.id)
+    }
+
+    /// Enumerates shots from `dest` by walking the weapon's range diamond.
+    ///
+    /// Scanning the diamond rather than every unit on the map matters: a direct
+    /// unit looks at 4 tiles instead of the whole army, and this runs once per
+    /// reachable tile per unit per step.
+    fn push_attacks(&self, out: &mut Vec<Action>, unit_id: UnitId, unit: crate::state::Unit, dest: Pos) {
+        let stats = unit.typ.stats();
+        if unit.typ.is_indirect() && dest != unit.pos {
+            return;
+        }
+        let min = stats.range_min.max(1) as i32;
+        let max = stats.range_max.max(1) as i32;
+        for dy in -max..=max {
+            let span = max - dy.abs();
+            for dx in -span..=span {
+                let distance = dx.abs() + dy.abs();
+                if distance < min || distance == 0 {
+                    continue;
+                }
+                let (tx, ty) = (dest.x as i32 + dx, dest.y as i32 + dy);
+                if !self.state.map.contains(tx, ty) {
+                    continue;
+                }
+                let target = Pos::new(tx as u8, ty as u8);
+                let Some(other) = self.state.unit_at(target) else {
+                    continue;
+                };
+                if !self.state.are_enemies(unit.owner, other.owner) {
+                    continue;
+                }
+                if other.hidden && !combat::can_target_hidden(unit.typ, other.typ) {
+                    continue;
+                }
+                if combat::base_percentage(unit.typ, other.typ, unit.ammo).is_none() {
+                    continue;
+                }
+                out.push(Action::Attack {
+                    unit: unit_id,
+                    dest,
+                    target,
+                });
+            }
+        }
+    }
+
+    fn push_unloads(
+        &self,
+        out: &mut Vec<Action>,
+        unit_id: UnitId,
+        unit: crate::state::Unit,
+        dest: Pos,
+    ) {
+        if unit.cargo_len() == 0 {
+            return;
+        }
+        for slot in 0..MAX_CARGO {
+            let cargo_id = unit.cargo[slot];
+            let Some(cargo) = self.state.unit(cargo_id) else {
+                continue;
+            };
+            for drop_at in self.state.map.neighbors(dest) {
+                if self.state.unit_id_at(drop_at).is_some() {
+                    continue;
+                }
+                if self
+                    .state
+                    .map
+                    .terrain_at(drop_at)
+                    .move_cost(self.state.weather, cargo.move_type())
+                    .is_none()
+                {
+                    continue;
+                }
+                out.push(Action::Unload {
+                    transport: unit_id,
+                    dest,
+                    cargo: cargo_id,
+                    drop_at,
+                });
+            }
+        }
+    }
+
+    /// Expected-damage preview for a candidate attack, without rolling.
+    pub fn preview_damage(
+        &self,
+        attacker_id: UnitId,
+        target: Pos,
+    ) -> Option<DamageSpread> {
+        let attacker = self.state.unit(attacker_id)?;
+        let defender = self.state.unit_at(target)?;
+        let (pct, _) = combat::base_percentage(attacker.typ, defender.typ, attacker.ammo)?;
+        let terrain = self.state.map.terrain_at(target);
+        Some(combat::damage_spread(
+            pct,
+            attacker.hp100 as i32,
+            defender.hp100 as i32,
+            combat::effective_terrain_defense(defender.move_type(), terrain),
+            self.co_of(attacker.owner),
+            self.co_of(defender.owner),
+            self.state.com_tower_bonus(attacker.owner),
+            VANILLA_GOOD_LUCK_MAX,
+            0,
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::Map;
+    use crate::state::{GameSettings, GameState, Outcome, Player};
+    use crate::types::TerrainKind;
+    use std::sync::Arc;
+
+    fn engine(width: u8, height: u8, kinds: Vec<TerrainKind>) -> Engine {
+        let map = Arc::new(Map::from_kinds(width, height, kinds).unwrap());
+        let props = map.properties().len();
+        let players = vec![
+            Player { funds: 10_000, team: 1, eliminated: false },
+            Player { funds: 10_000, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &vec![None; props]);
+        Engine::new(state, 12345)
+    }
+
+    fn plains(w: u8, h: u8) -> Engine {
+        engine(w, h, vec![TerrainKind::Plain; w as usize * h as usize])
+    }
+
+    #[test]
+    fn move_marks_the_unit_and_burns_fuel() {
+        let mut e = plains(9, 1);
+        let id = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        let fuel = e.state.unit(id).unwrap().fuel;
+        e.apply(Action::Move { unit: id, dest: Pos::new(3, 0) }).unwrap();
+        let unit = e.state.unit(id).unwrap();
+        assert_eq!(unit.pos, Pos::new(3, 0));
+        assert!(unit.moved);
+        assert_eq!(unit.fuel, fuel - 3);
+        // A second order is refused.
+        assert_eq!(
+            e.apply(Action::Move { unit: id, dest: Pos::new(4, 0) }),
+            Err(ActionError::AlreadyMoved)
+        );
+    }
+
+    #[test]
+    fn cannot_move_another_players_unit() {
+        let mut e = plains(5, 1);
+        let id = e.state.spawn(UnitType::Tank, 1, Pos::new(0, 0));
+        assert_eq!(
+            e.apply(Action::Move { unit: id, dest: Pos::new(1, 0) }),
+            Err(ActionError::NotYourUnit)
+        );
+    }
+
+    #[test]
+    fn attack_damages_and_draws_a_counter() {
+        let mut e = plains(5, 1);
+        let attacker = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        let defender = e.state.spawn(UnitType::Tank, 1, Pos::new(3, 0));
+        let report = e
+            .apply(Action::Attack {
+                unit: attacker,
+                dest: Pos::new(2, 0),
+                target: Pos::new(3, 0),
+            })
+            .unwrap();
+        assert!(report.damage_dealt > 0);
+        assert!(report.damage_taken > 0, "a surviving direct unit counters");
+        assert!(e.state.unit(defender).unwrap().hp100 < 100);
+        assert!(e.state.unit(attacker).unwrap().hp100 < 100);
+        // Both spent a round of primary ammo.
+        assert_eq!(e.state.unit(attacker).unwrap().ammo, UnitType::Tank.stats().max_ammo - 1);
+    }
+
+    #[test]
+    fn indirect_units_must_hold_still_and_take_no_counter() {
+        let mut e = plains(9, 1);
+        let arty = e.state.spawn(UnitType::Artillery, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Tank, 1, Pos::new(2, 0));
+
+        // Cannot move and fire in the same order.
+        assert_eq!(
+            e.check(Action::Attack {
+                unit: arty,
+                dest: Pos::new(1, 0),
+                target: Pos::new(2, 0)
+            }),
+            Err(ActionError::OutOfRange)
+        );
+        // Adjacent targets are inside the minimum range, so also illegal.
+        assert!(e
+            .check(Action::Attack {
+                unit: arty,
+                dest: Pos::new(0, 0),
+                target: Pos::new(1, 0)
+            })
+            .is_err());
+
+        let report = e
+            .apply(Action::Attack {
+                unit: arty,
+                dest: Pos::new(0, 0),
+                target: Pos::new(2, 0),
+            })
+            .unwrap();
+        assert!(report.damage_dealt > 0);
+        assert_eq!(report.damage_taken, 0);
+    }
+
+    #[test]
+    fn killing_blow_prevents_the_counter() {
+        let mut e = plains(5, 1);
+        let attacker = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        let defender = e.state.spawn(UnitType::Infantry, 1, Pos::new(1, 0));
+        e.state.unit_mut(defender).unwrap().hp100 = 10;
+        let report = e
+            .apply(Action::Attack {
+                unit: attacker,
+                dest: Pos::new(0, 0),
+                target: Pos::new(1, 0),
+            })
+            .unwrap();
+        assert!(report.defender_destroyed);
+        assert_eq!(report.damage_taken, 0);
+        assert!(e.state.unit(defender).is_none());
+        assert_eq!(e.state.unit(attacker).unwrap().hp100, 100);
+    }
+
+    #[test]
+    fn capture_takes_two_turns_at_full_health() {
+        let mut kinds = vec![TerrainKind::Plain; 5];
+        kinds[2] = TerrainKind::City;
+        let mut e = engine(5, 1, kinds);
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+
+        let report = e.apply(Action::Capture { unit: inf, dest: Pos::new(2, 0) }).unwrap();
+        assert!(!report.property_captured);
+        assert_eq!(e.state.building_at(Pos::new(2, 0)).unwrap().capture_remaining, 10);
+
+        e.state.unit_mut(inf).unwrap().moved = false;
+        let report = e.apply(Action::Capture { unit: inf, dest: Pos::new(2, 0) }).unwrap();
+        assert!(report.property_captured);
+        assert_eq!(e.state.building_at(Pos::new(2, 0)).unwrap().owner, Some(0));
+    }
+
+    #[test]
+    fn damaged_units_capture_more_slowly() {
+        let mut kinds = vec![TerrainKind::Plain; 3];
+        kinds[1] = TerrainKind::City;
+        let mut e = engine(3, 1, kinds);
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        e.state.unit_mut(inf).unwrap().hp100 = 55; // displays as 6
+        e.apply(Action::Capture { unit: inf, dest: Pos::new(1, 0) }).unwrap();
+        assert_eq!(e.state.building_at(Pos::new(1, 0)).unwrap().capture_remaining, 14);
+    }
+
+    #[test]
+    fn walking_off_a_property_resets_its_capture() {
+        let mut kinds = vec![TerrainKind::Plain; 5];
+        kinds[2] = TerrainKind::City;
+        let mut e = engine(5, 1, kinds);
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(2, 0));
+        e.apply(Action::Capture { unit: inf, dest: Pos::new(2, 0) }).unwrap();
+        assert_eq!(e.state.building_at(Pos::new(2, 0)).unwrap().capture_remaining, 10);
+
+        e.state.unit_mut(inf).unwrap().moved = false;
+        e.apply(Action::Move { unit: inf, dest: Pos::new(3, 0) }).unwrap();
+        assert_eq!(
+            e.state.building_at(Pos::new(2, 0)).unwrap().capture_remaining,
+            CAPTURE_FULL
+        );
+    }
+
+    #[test]
+    fn capturing_an_hq_wins_the_game() {
+        let mut kinds = vec![TerrainKind::Plain; 3];
+        kinds[1] = TerrainKind::Hq;
+        let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
+        let players = vec![
+            Player { funds: 0, team: 1, eliminated: false },
+            Player { funds: 0, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(1)]);
+        let mut e = Engine::new(state, 1);
+
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Tank, 1, Pos::new(2, 0));
+        e.apply(Action::Capture { unit: inf, dest: Pos::new(1, 0) }).unwrap();
+        e.state.unit_mut(inf).unwrap().moved = false;
+        let report = e.apply(Action::Capture { unit: inf, dest: Pos::new(1, 0) }).unwrap();
+
+        assert!(report.property_captured);
+        assert!(e.state.player(1).eliminated);
+        assert_eq!(e.state.unit_count(1), 0, "losing the HQ loses the army");
+        assert_eq!(e.state.outcome(), Outcome::Winner(0));
+    }
+
+    #[test]
+    fn build_costs_funds_and_produces_a_spent_unit() {
+        let mut kinds = vec![TerrainKind::Plain; 3];
+        kinds[0] = TerrainKind::Base;
+        let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
+        let players = vec![
+            Player { funds: 8000, team: 1, eliminated: false },
+            Player { funds: 0, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(0)]);
+        let mut e = Engine::new(state, 1);
+
+        let report = e.apply(Action::Build { at: Pos::new(0, 0), typ: UnitType::Tank }).unwrap();
+        let id = report.unit_built.unwrap();
+        assert_eq!(e.state.player(0).funds, 1000);
+        assert!(e.state.unit(id).unwrap().moved);
+
+        // Too expensive now, and the tile is taken.
+        assert_eq!(
+            e.check(Action::Build { at: Pos::new(0, 0), typ: UnitType::Tank }),
+            Err(ActionError::Occupied)
+        );
+    }
+
+    #[test]
+    fn bases_refuse_air_and_sea_units() {
+        let mut kinds = vec![TerrainKind::Plain; 3];
+        kinds[0] = TerrainKind::Base;
+        let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
+        let players = vec![
+            Player { funds: 99_000, team: 1, eliminated: false },
+            Player { funds: 0, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(0)]);
+        let mut e = Engine::new(state, 1);
+        assert_eq!(
+            e.check(Action::Build { at: Pos::new(0, 0), typ: UnitType::Fighter }),
+            Err(ActionError::CannotProduceThat)
+        );
+        assert!(e.check(Action::Build { at: Pos::new(0, 0), typ: UnitType::Infantry }).is_ok());
+    }
+
+    #[test]
+    fn load_and_unload_moves_passengers() {
+        let mut e = plains(9, 1);
+        let apc = e.state.spawn(UnitType::Apc, 0, Pos::new(4, 0));
+        let inf = e.state.spawn(UnitType::Infantry, 0, Pos::new(2, 0));
+
+        e.apply(Action::Load { unit: inf, dest: Pos::new(4, 0) }).unwrap();
+        assert_eq!(e.state.unit(inf).unwrap().carried_by, Some(apc));
+        assert!(e.state.unit_at(Pos::new(2, 0)).is_none());
+
+        e.apply(Action::Unload {
+            transport: apc,
+            dest: Pos::new(7, 0),
+            cargo: inf,
+            drop_at: Pos::new(8, 0),
+        })
+        .unwrap();
+        assert_eq!(e.state.unit(inf).unwrap().pos, Pos::new(8, 0));
+        assert!(e.state.unit(inf).unwrap().moved, "unloaded units cannot act");
+        assert_eq!(e.state.unit(apc).unwrap().cargo_len(), 0);
+    }
+
+    #[test]
+    fn join_merges_hp_and_refunds_overflow() {
+        let mut e = plains(5, 1);
+        let a = e.state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        let b = e.state.spawn(UnitType::Infantry, 0, Pos::new(1, 0));
+        e.state.unit_mut(a).unwrap().hp100 = 60;
+        e.state.unit_mut(b).unwrap().hp100 = 60;
+        let funds = e.state.player(0).funds;
+
+        e.apply(Action::Join { unit: a, dest: Pos::new(1, 0) }).unwrap();
+        assert!(e.state.unit(a).is_none());
+        assert_eq!(e.state.unit(b).unwrap().hp100, 100);
+        // 2 HP over the cap, refunded at 100 funds each.
+        assert_eq!(e.state.player(0).funds, funds + 200);
+    }
+
+    #[test]
+    fn join_refuses_full_health_and_mismatched_types() {
+        let mut e = plains(5, 1);
+        let a = e.state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(1, 0));
+        assert_eq!(
+            e.check(Action::Join { unit: a, dest: Pos::new(1, 0) }),
+            Err(ActionError::CannotJoinThat)
+        );
+        let mech = e.state.spawn(UnitType::Mech, 0, Pos::new(2, 0));
+        e.state.unit_mut(mech).unwrap().hp100 = 50;
+        assert_eq!(
+            e.check(Action::Join { unit: a, dest: Pos::new(2, 0) }),
+            Err(ActionError::CannotJoinThat)
+        );
+    }
+
+    #[test]
+    fn apc_supply_refills_neighbors() {
+        let mut e = plains(5, 1);
+        let apc = e.state.spawn(UnitType::Apc, 0, Pos::new(0, 0));
+        let tank = e.state.spawn(UnitType::Tank, 0, Pos::new(2, 0));
+        e.state.unit_mut(tank).unwrap().ammo = 0;
+        e.state.unit_mut(tank).unwrap().fuel = 5;
+
+        e.apply(Action::Supply { unit: apc, dest: Pos::new(1, 0) }).unwrap();
+        let tank = e.state.unit(tank).unwrap();
+        assert_eq!(tank.ammo, UnitType::Tank.stats().max_ammo);
+        assert_eq!(tank.fuel, UnitType::Tank.stats().max_fuel);
+    }
+
+    #[test]
+    fn legal_actions_are_never_empty_and_always_check_out() {
+        let mut kinds = vec![TerrainKind::Plain; 25];
+        kinds[0] = TerrainKind::Base;
+        kinds[12] = TerrainKind::City;
+        let map = Arc::new(Map::from_kinds(5, 5, kinds).unwrap());
+        let players = vec![
+            Player { funds: 20_000, team: 1, eliminated: false },
+            Player { funds: 20_000, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None]);
+        let mut e = Engine::new(state, 99);
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(2, 2));
+        e.state.spawn(UnitType::Artillery, 0, Pos::new(1, 1));
+        e.state.spawn(UnitType::Tank, 1, Pos::new(3, 3));
+
+        let actions = e.legal_actions();
+        assert!(actions.len() > 10);
+        assert_eq!(actions.last(), Some(&Action::EndTurn));
+        // Everything enumerated must survive a fresh legality check.
+        for action in &actions {
+            assert!(e.check(*action).is_ok(), "illegal action enumerated: {action:?}");
+        }
+        // The capture and a build are both in there.
+        assert!(actions.iter().any(|a| matches!(a, Action::Capture { .. })));
+        assert!(actions.iter().any(|a| matches!(a, Action::Build { .. })));
+    }
+
+    #[test]
+    fn per_unit_enumeration_agrees_with_the_flat_list() {
+        let mut kinds = vec![TerrainKind::Plain; 25];
+        kinds[0] = TerrainKind::Base;
+        kinds[12] = TerrainKind::City;
+        let map = Arc::new(Map::from_kinds(5, 5, kinds).unwrap());
+        let players = vec![
+            Player { funds: 20_000, team: 1, eliminated: false },
+            Player { funds: 20_000, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None]);
+        let mut e = Engine::new(state, 5);
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(2, 2));
+        e.state.spawn(UnitType::Artillery, 0, Pos::new(1, 1));
+        let apc = e.state.spawn(UnitType::Apc, 0, Pos::new(0, 2));
+        let rider = e.state.spawn(UnitType::Mech, 0, Pos::new(0, 3));
+        e.state.load_into(rider, apc);
+        e.state.spawn(UnitType::Tank, 1, Pos::new(3, 3));
+
+        let flat = e.legal_actions();
+        let mut per_unit = Vec::new();
+        let mut buffer = Vec::new();
+        let units: Vec<UnitId> = e.movable_units().collect();
+        for unit in units {
+            e.legal_actions_for(unit, &mut buffer);
+            per_unit.extend(buffer.iter().copied());
+        }
+
+        let mut expected: Vec<Action> = flat
+            .iter()
+            .copied()
+            .filter(|a| !matches!(a, Action::Build { .. } | Action::EndTurn))
+            .collect();
+        expected.sort_by_key(|a| format!("{a:?}"));
+        per_unit.sort_by_key(|a| format!("{a:?}"));
+        assert_eq!(per_unit, expected);
+        assert!(!expected.is_empty());
+    }
+
+    #[test]
+    fn a_random_game_terminates_without_panicking() {
+        let mut kinds = vec![TerrainKind::Plain; 49];
+        kinds[0] = TerrainKind::Base;
+        kinds[24] = TerrainKind::City;
+        kinds[48] = TerrainKind::Base;
+        let map = Arc::new(Map::from_kinds(7, 7, kinds).unwrap());
+        let players = vec![
+            Player { funds: 10_000, team: 1, eliminated: false },
+            Player { funds: 10_000, team: 2, eliminated: false },
+        ];
+        let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None, Some(1)]);
+        let mut e = Engine::new(state, 2024);
+        e.state.spawn(UnitType::Infantry, 0, Pos::new(1, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(5, 6));
+
+        let mut rng = Rng::new(7);
+        for _ in 0..5000 {
+            if e.state.outcome() != Outcome::InProgress {
+                break;
+            }
+            let actions = e.legal_actions();
+            let pick = actions[rng.roll_inclusive(actions.len() as u32 - 1) as usize];
+            e.apply(pick).expect("enumerated actions must apply");
+        }
+    }
+
+    #[test]
+    fn preview_matches_the_rolled_range() {
+        let mut e = plains(5, 1);
+        let attacker = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Infantry, 1, Pos::new(1, 0));
+        let spread = e.preview_damage(attacker, Pos::new(1, 0)).unwrap();
+        assert!(spread.min <= spread.max);
+        let report = e
+            .apply(Action::Attack {
+                unit: attacker,
+                dest: Pos::new(0, 0),
+                target: Pos::new(1, 0),
+            })
+            .unwrap();
+        assert!((report.damage_dealt as i32) >= spread.min);
+        assert!((report.damage_dealt as i32) <= spread.max);
+    }
+}

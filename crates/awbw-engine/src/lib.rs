@@ -6,10 +6,20 @@
 //! and the terrain-id mapping from the AWBW DB dump (via RizeBot's generated
 //! table). See `tools/` at the workspace root.
 
+pub mod actions;
 pub mod combat;
 pub mod data;
+pub mod map;
+pub mod movement;
+pub mod rng;
+pub mod state;
 pub mod types;
 
+pub use actions::{Action, ActionError, ActionReport, Engine};
+pub use map::{Map, Pos};
+pub use movement::Reach;
+pub use rng::Rng;
+pub use state::{GameSettings, GameState, Outcome, Player, Unit, UnitId};
 pub use types::{MoveType, TerrainKind, UnitType, Weather};
 
 #[cfg(test)]

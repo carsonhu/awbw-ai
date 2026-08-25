@@ -92,6 +92,7 @@ struct Tally {
     /// AWBW says hidden, engine says visible: our sight is too generous.
     too_sharp: usize,
     samples: Vec<String>,
+    blind_samples: Vec<String>,
 }
 
 fn main() {
@@ -197,7 +198,7 @@ fn main() {
                     let Some(steps) = steps.as_array() else {
                         continue;
                     };
-                    for step in steps {
+                    for (index, step) in steps.iter().enumerate() {
                         let (Some(x), Some(y)) = (
                             step.get("x").and_then(|v| v.as_i64()),
                             step.get("y").and_then(|v| v.as_i64()),
@@ -210,7 +211,12 @@ fn main() {
                             .unwrap_or(true);
                         let pos = Pos::new(x as u8, y as u8);
 
-                        // Would this army see the mover standing here?
+                        // Concealment is tested per step, not just where the
+                        // unit stops: exempting the tiles it passes through was
+                        // tried and cost four points of agreement, so AWBW
+                        // really does re-hide a mover behind every cover tile
+                        // it crosses.
+                        let _ = index;
                         let terrain = state.map.terrain_at(pos);
                         let predicted = if !view.sees_tile(state, pos) {
                             false
@@ -227,10 +233,21 @@ fn main() {
                             tally.agree += 1;
                         } else if recorded {
                             tally.too_blind += 1;
-                            if tally.samples.len() < 6 {
-                                tally.samples.push(format!(
-                                    "game {} day {}: {} at {pos:?} on {terrain:?} seen by \
-                                     AWBW, hidden by engine",
+                            if tally.blind_samples.len() < 8 {
+                                let seat = seats[&awbw_id];
+                                let closest = state
+                                    .units()
+                                    .filter(|u| {
+                                        state.are_allied(seat, u.owner) && u.carried_by.is_none()
+                                    })
+                                    .map(|u| (u.pos.distance(pos), u.typ.stats().name))
+                                    .min_by_key(|t| t.0);
+                                let lit = view.sees_tile(state, pos);
+                                let pierced = view.pierces_tile(state, pos);
+                                tally.blind_samples.push(format!(
+                                    "game {} day {}: {} at {pos:?} on {terrain:?} (dived={hidden}) \
+                                     seen by AWBW; engine lit={lit} pierced={pierced}, nearest \
+                                     watcher {closest:?}",
                                     replay.game_id,
                                     turn.day,
                                     typ.stats().name
@@ -292,8 +309,19 @@ fn main() {
         println!("  skipped (unknown unit type):     {skipped_types}");
     }
     if verbose {
-        for s in &tally.samples {
-            println!("  e.g. {s}");
+        if !tally.blind_samples.is_empty() {
+            println!("
+cases the engine failed to see:");
+            for s in &tally.blind_samples {
+                println!("  {s}");
+            }
+        }
+        if !tally.samples.is_empty() {
+            println!("
+cases the engine saw but AWBW did not:");
+            for s in &tally.samples {
+                println!("  {s}");
+            }
         }
     }
 }

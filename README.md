@@ -158,9 +158,9 @@ no game in the corpus exercises them.
 Sight is Manhattan distance from each unit, extended by the terrain it stands
 on (mountains add three, and aircraft get nothing from the ground below).
 Adjacent tiles *pierce*: cover and concealment fail at arm's length. Further
-out, a surface unit in woods is hidden, as is a dived sub or a hidden stealth,
-while aircraft stay visible because they fly above cover. Owned properties
-watch their own tile.
+out, woods and reefs hide ground and sea units, as does diving a sub or hiding
+a stealth, while aircraft stay visible because they fly above cover. Owned
+properties watch their own tile.
 
 In play this means an enemy you cannot see does not block the route you plan —
 walking into one halts you on the tile before it (`ActionReport::ambushed`) —
@@ -174,20 +174,26 @@ opposing player's copy flags every step with whether they could see the unit
 standing there. That is a per-tile statement of what the defender's fog
 allowed.
 
-**99.44% agreement over 6,035 judged path steps**, with 3 cases where the
+**99.39% agreement over 6,035 judged path steps**, with 6 cases where the
 engine saw too little and 31 where it saw too much. Almost all of the latter
 fall on a single turn — the one where Drake fires Typhoon, which brings rain
-and shortens sight. Powers are unmodelled, so that is the expected cost.
+and shortens sight. Powers are unmodelled, so that is the expected cost. The
+6 remaining are unexplained, at 0.1% of judgements.
 
-Two rules the corpus settled that guessing would have got wrong:
+Two things the corpus settled, and one it got wrong:
 
 - A defender's sight **shrinks as its units die mid-turn**. Computing the view
   once from the opening snapshot made the engine look far too sharp; it was the
   checker at fault, not the engine.
-- **Reefs do not conceal.** DefendPeace treats them as cover, following the
-  cartridge, but every unit recorded on a reef was visible to an opponent that
-  cover should have blocked. The naval fog sample is small, so this is flagged
-  in the code for rechecking.
+- **Concealment is re-tested at every step of a move**, not only where the unit
+  stops. Exempting the tiles a unit merely passes through cost four points of
+  agreement, so AWBW really does re-hide a mover behind each cover tile it
+  crosses.
+- **Reefs do conceal**, per [the wiki](https://awbw.fandom.com/wiki/Reefs).
+  Six observations in this corpus pointed the other way and briefly talked the
+  engine out of the rule; the documented behaviour is authoritative and a
+  handful of unexplained samples is not. When the wiki and an inference from a
+  thin sample disagree, the wiki wins.
 
 ## Rules not yet implemented
 

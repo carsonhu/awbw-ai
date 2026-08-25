@@ -152,17 +152,14 @@ impl TerrainKind {
         data::TERRAIN_DEFENSE[self as usize]
     }
 
-    /// Terrain that conceals a surface unit from anything not adjacent.
+    /// Terrain that conceals a ground or sea unit from anything not adjacent.
     ///
-    /// Woods only. DefendPeace also treats reefs as cover, following the
-    /// cartridge, but AWBW does not appear to: in the recorded fog games every
-    /// unit sitting on a reef was visible to an opponent who should have been
-    /// blocked by cover, and treating reefs as concealing produced three wrong
-    /// predictions and no right ones. The naval fog sample is small, so this is
-    /// worth rechecking if more sea-heavy fog games are added.
+    /// "Woods and Reefs will always hide ground and sea units (but not air
+    /// units) from vision, unless an allied unit is directly adjacent to them."
+    /// — the AWBW wiki, which describes the live game.
     #[inline]
     pub fn provides_cover(self) -> bool {
-        matches!(self, TerrainKind::Wood)
+        matches!(self, TerrainKind::Wood | TerrainKind::Reef)
     }
 
     /// Extra sight range a surface unit gains from standing here.

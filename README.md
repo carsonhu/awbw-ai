@@ -51,19 +51,44 @@ turns that exercise it instead of poisoning a whole game. Combat luck (0-9%)
 can't be reproduced, so damage is checked as a *range* the record must fall
 inside, and HP is resynced from the record afterwards.
 
-**Current: 98.4% agreement** over 381 games / 10,386 turns / 905k assertions,
-with 80 games reproduced exactly.
+### Results
 
-### What the divergences say
+The headline number has to be split, because CO powers and fog are unmodelled
+**by design** — holding the engine to games that use them measures features that
+were deliberately left out, not correctness. `--no-fog` and `--no-powers` do
+the splitting.
 
-Ranked by count, and what they actually mean:
+| subset | games | exact | assertions | agreement |
+|---|---|---|---|---|
+| no powers, no fog | 127 | **108 (85%)** | 147k | **99.979%** |
+| powers used | 239 | 2 | 721k | 98.81% |
 
-| divergence | cause |
-|---|---|
-| `damage-range`, `move-over-budget`, `move-unreachable` | **CO powers**, which the engine does not model. A power changes attack, defence and movement for one turn — Max Force is the B-Copter moving 7 tiles on 6 movement. |
-| `unit-hp`, `unit-position` | Mostly downstream of the same. |
-| `capture-progress` off by one | Sami captures at 1.5x, which the CO table does not encode. |
-| `funds`, `build-illegal` | Residual power effects (Hachi's power halves unit cost) and repair spend. |
+The power figure is the cost of not modelling powers, and it is the only large
+divergence left. Everything else is down to 31 scattered cases across 1,916
+turns: 13 funds, 13 unit HP, and 5 stragglers.
+
+### Bugs this found
+
+Worth recording, because several were in the harness rather than the engine and
+would otherwise have read as engine faults:
+
+- **Fuel charged along the wrong path.** AWBW charges the route the player
+  clicked; the harness charged the engine's cheapest path, so every detour
+  looked like a fuel bug.
+- **Orders paired to snapshots by line index.** Some replays are truncated, so
+  one player's whole turn got attributed to their opponent. Now matched on
+  (player, day).
+- **Recycled unit slots.** The engine reuses a destroyed unit's slot, so a build
+  later in the same turn inherited a casualty's id and the casualty read as a
+  survivor: 8,311 phantom divergences from one stale mapping.
+- **Fog vision wrappers.** AWBW keys some payloads by player and gives the seat
+  that could not see the action an *empty string*, not null. Picking the first
+  non-null value selected the blind seat's blank and silently dropped the order.
+- **Display-HP resync.** Combat payloads report whole displayed HP, so a unit
+  attacked twice in one turn was re-simulated from a baseline up to a point too
+  high. Damage is now checked against the whole band the defender could be in.
+- **Repair rounded up to the display step** (engine): a unit at 5.5 HP repaired
+  to 8.0 instead of 7.5.
 
 Competitive AWBW almost never uses ability-free COs — Max alone is 209 of 762
 seats in the sample and Andy just 38, with no Andy-vs-Andy games at all — so
@@ -95,9 +120,10 @@ a 15x15 map, 30-day games, single core:
 2. ~~Game state, movement/pathfinding, core action set~~ (done: move, attack,
    capture, build, load/unload, join, supply, turn bookkeeping, win conditions)
 3. ~~Replay-differential verification harness~~ (done)
-4. ~~CO day-to-day abilities~~ (done: 98.4% agreement)
-5. CO powers, or explicitly excluding power-affected turns from strict checks
-6. Fog of war, missile silos, pipe seams
+4. ~~CO day-to-day abilities~~ (done: 99.98% agreement on power-free games)
+5. Fog of war — vision, hidden units, ambush-on-move. The corpus has more fog
+   games than standard ones (36.5k vs 27.7k), so this also unlocks most of it.
+6. CO powers, missile silos, pipe seams
 7. Baseline bots + internal Elo ladder
 8. PyO3 bindings, Gym-style env, PPO self-play
 
@@ -114,11 +140,19 @@ with powers off, so `CoData::VANILLA` is a constant and the CO layer is inert.
 COs exist to make the replay corpus usable as a correctness signal, and later
 so an agent facing a human can predict their damage correctly.
 
+Four abilities COs.json omits are hand-entered from
+[AWBW's own CO page](https://awbw.amarriner.com/co.php) (mirrored at
+`data/awbw-site/co.php.html`), which is the authoritative prose description:
+Sami's 1.5x capture and transport movement, Rachel's extra repair point, and
+Lash's per-terrain-star attack. Each was pinpointed by the harness first — the
+Sami capture bonus, for instance, showed up as every full-health infantry
+leaving 5 capture points instead of 10.
+
 Not modelled: **CO powers** (they change stats mid-turn, and the agent will
-never use them), Olaf's weather remap, Sonja's fog effects, Javier's
-defence-against-indirects, and Sami's capture rate. The luck-range COs (Nell,
-Flak, Jugger) *are* implemented but are **unverified** — they are banned in
-Global League play, so no game in the corpus exercises them.
+never use them), Olaf's weather remap, Sonja's fog effects, and Javier's
+defence-against-indirects. The luck-range COs (Nell, Flak, Jugger) *are*
+implemented but are **unverified** — they are banned in Global League play, so
+no game in the corpus exercises them.
 
 ## Rules not yet implemented
 

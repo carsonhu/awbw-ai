@@ -69,7 +69,11 @@ impl Reach {
         }
 
         let stats = unit.typ.stats();
-        let budget = stats.move_points.min(unit.fuel);
+        // Some COs extend movement for particular units (Sami's transports).
+        let move_points = (stats.move_points as i32
+            + state.co_of(unit.owner).move_delta[unit.typ as usize] as i32)
+            .clamp(0, 255) as u8;
+        let budget = move_points.min(unit.fuel);
         let move_type = stats.move_type;
         let weather = state.weather;
         let owner = unit.owner;

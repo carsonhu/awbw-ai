@@ -618,7 +618,9 @@ impl GameState {
             return;
         };
         let stats = unit.typ.stats();
-        let wanted = self.settings.repair_hp100.min(100 - unit.hp100);
+        // Rachel's units mend an extra point, and pay for it like any other.
+        let rate = self.settings.repair_hp100 + self.co_of(unit.owner).repair_bonus_hp100;
+        let wanted = rate.min(100 - unit.hp100);
 
         let funds = self.players[unit.owner as usize].funds;
         let per_display_hp = stats.cost / 10;

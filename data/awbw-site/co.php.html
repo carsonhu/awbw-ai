@@ -1,0 +1,665 @@
+<html>
+<head>
+<title>CO Chart - AWBW  
+</title>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=0.75">
+<link rel="stylesheet" href="css/awbw_minify.css?1787600923" type="text/css">
+<link rel="stylesheet" type="text/css" href="css/header.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/main.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/slideshow.css?1787600923">
+<link rel="stylesheet" type="text/css" href="css/game.css?1787600923">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css">
+      <link rel="stylesheet" href="css/calculator_new.css?1787600923">
+      <link rel="stylesheet" href="css/messages.css?1787600923">
+      <link rel="stylesheet" href="css/layout.css?1787600923">
+<link rel="shortcut icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<link rel="icon" href="https://awbw.amarriner.com/favicon.ico" type="image/x-icon">
+<script src="js/vue.min.js"></script>
+<script src="js/axios.js"></script>
+<script type="text/javascript">
+let mtDiffStart = "52018";let mtDiffEnd = "-51658";   function move_check(query, url) {
+      var reply = confirm(query);
+      if (reply) {
+         this.location.href = url;
+      }
+   }
+
+</script>
+<script src="js/lib/maintenance.js?1787600923"></script>
+</head>
+<body>
+<!-- Begin Page (1787693458) (17:30:58) -->
+<div id="overDiv" style="position:absolute; visibility:hidden; z-index:900;"></div>
+<script type="text/javascript" language="JavaScript" src="js/overlib_mini_minify.js?v=1.0"></script>
+
+<div id="fixed-header-wrapper">
+    <nav id="top-header-nav">
+        <div id="above-nav"></div>
+        <div id="logo-background2">
+            <a href="/" style="display: block;">
+                <img id="logo" height=78 width=170 src="terrain/awbwlogo11-highres_withnewarmies_andnewAB.png"></img>
+            </a>
+        </div>
+        
+        <ul id="nav-options" style="margin: auto;">
+
+                    <!-- <span style="position: absolute; top: -30px; left: 5px;">Signups for <a style="color: #009966; text-decoration: underline;" target="_blank" href="viewtournament.php?tournaments_id=768">Amarriner Cup 5</a> are open until Feb 2th, 5 PM ET</span> -->
+            <!-- <span style="position: absolute; top: -36px; left: 5px; color: red">Announcement text here.</span> -->
+
+        
+         
+            <li id="login-button" style="padding-left: 15px; padding-right: 15px;">
+                <label id="login-box-button" for="login-box-toggle">Login</label>
+                <input id="login-box-toggle" type="checkbox">
+
+                <!-- JS Code for login stuff is in footer.php -->
+                <div id="login-box">
+                    <div id="login-tab">
+                        <span id="login-err"></span>
+                                                <form class="login-form">
+                            Username <input class="login-input" type="text"><br>
+                            Password <input class="login-input" type="password" maxlength='100'>
+                            
+                            <span 
+                                class="small_text underline pointer login-forgot-password">
+                                Forgot Password?
+                            </span>
+    
+                            <input id="login" type="submit" value="LOG IN">
+                            <hr/>
+                        </form>
+    
+                        <p>Don't have an account?</p>
+                        <div id="register"><a href="register.php" style="display: block; width: 100%; height: 100%;"><span style="display:block; text-align: center; padding-top: 4px;">REGISTER</span></a></div>
+    
+                        <div class="login-box-arrow up-arrow"></div>
+
+                    </div>
+
+                    <!-- Forgot password tab -->
+                    <div id="forgot-password-tab" style="display: none">
+                        <i class="forgot-password-back fas fa-long-arrow-alt-left"></i>
+                        <div class="forgot-password-form login-form">
+                            <span class="forgot-password-desc small_text">Please enter your account name and email address. Instructions on how to reset your password will be sent.</span>
+
+                            Username
+                            <!-- Username field -->
+                            <input type="text" class="forgot-password-username login-input">
+
+                            Email
+                            <!-- Email field -->
+                            <input type="text" class="forgot-password-email login-input">
+                            <button class="forgot-password-submit">SEND</button>
+                        </div>
+                        <div class="forgot-password-res small_text" style="display: none"></div>
+                    </div>
+                </div>
+            </li>
+        
+            <li id="games-menu" onclick="void(0)">
+                Games
+                <ul id="games-dropdown" class="dropdown-menu">
+                    
+                    <li><a class="dropdown-menu-link" href="live_queue.php?rated=false&bnew=true">Live Queue</a></li>
+
+                    <div class="arrow up-arrow"></div>
+                    
+                    <li><a class="dropdown-menu-link" href="gamescurrent_all.php">View Active</a></li>
+                    <li><a class="dropdown-menu-link" href="gamescompleted.php">View Completed</a></li>
+                </ul>
+            </li>
+
+            <li id="competitions-menu" onclick="void(0)">
+                
+                Competitions
+                <ul id="competitions-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="newleague.php">Global League</a></li>
+                    <li><a class="dropdown-menu-link" href="live_queue.php">Live League</a> <span id="dropdown-alert"><img src="terrain/newicon.png"></span></li>
+                    <li>
+                        <a class="dropdown-menu-link" href="viewtournament.php">Tournaments</a>
+                                            
+                        <div class="arrow up-arrow"></div>
+                    </li>
+
+                    
+                                    </ul>
+            </li>
+
+            <li id="design-maps-menu" onclick="void(0)">
+                Design Maps
+                <ul id="design-maps-dropdown" class="dropdown-menu">
+                    <li><a class="dropdown-menu-link" href="searchmaps.php">Search Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="recentmaps.php">Recent Maps</a></li>
+                    <li><a class="dropdown-menu-link" href="categories.php">Categories</a></li>
+                                        <div class="arrow up-arrow"></div>
+                </ul>
+            </li>
+
+            <li id="right-side-menu">
+                <li id="community-menu" onclick="void(0)">
+                    Community
+                    <ul id="community-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="users.php"><img src="terrain/magnifying_glass.png" class="community-menu-img">Search Users</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.twitch.tv/directory/category/advance-wars-by-web" target="_blank"><img src="terrain/twitch-icon.png" class="community-menu-img">Twitch Livestreams</img></a></li>
+                        <li><a class="dropdown-menu-link" href="discord.php"><img src="terrain/discord-icon-upscale.png" class="community-menu-img">Discord Chat</img></a></li>
+                        <li><a class="dropdown-menu-link" href="https://www.reddit.com/r/AWBW/" target="_blank"><img src="terrain/reddit-icon-upscale.png" class="community-menu-img">Reddit (r/AWBW)</img></a></li>
+                        <li><a class="dropdown-menu-link" href="donate.php"><img src="terrain/patreon-icon-upscale.png" class="community-menu-img">Patreon</img></a></li>
+                        <li>
+                                <span class="main-text"><a class="dropdown-menu-link" style="padding-right: 0px;" href="https://isndev.forumotion.co.uk/c2-advance-wars-by-web/" target="_blank"><img src="terrain/forum.png" class="community-menu-img">Forum</img></a></span>
+                                <span class="bracket-text">&nbsp;<a class="dropdown-menu-link" style="padding-left: 0px;" href="http://www.amarriner.com/awbw_forum/">[Archive]</a></span>
+                        </li>
+                        <hr>
+                        <span class="dropdown-header">Contests</span>
+                        <li>
+                            <a class="dropdown-menu-link" href="custom_army_contest.php">
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/aainfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/uwinfantry.gif"></img></div>
+                                Custom Armies
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/scinfantry.gif"></img></div>
+                                <div class="community-menu-infantry-img"><img src="terrain/aw2/neinfantry.gif"></img></div>
+
+                            </a>
+                                                    </li>
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="tools-menu" onclick="void(0)">
+                    Tools
+                    <ul id="tools-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="moveplanner.php">Move Planner</a></li>
+                        <li><a class="dropdown-menu-link" href="calculator.php">Damage Calculator</a></li>
+                        
+                        
+                        <div class="arrow up-arrow"></div>
+                    </ul>
+                </li>
+                <li id="infos-menu" onclick="void(0)">
+                    
+                    Info
+                    <ul id="infos-dropdown" class="dropdown-menu">
+                        <li><a class="dropdown-menu-link" href="guide.php">FAQ</a></li>
+                        <li><a class="dropdown-menu-link" href="tutorials.php">Tutorials</a></li>
+                        <li id="changelog">
+
+                            <a class="dropdown-menu-link" href="changelog.php">Changelog</a>
+                            
+                        </li>
+                        <li><a class="dropdown-menu-link" href="chart.php">Charts</a></li>
+                        <li><a class="dropdown-menu-link" href="http://awbw.wikia.com/wiki/Advance_Wars_By_Web_Wiki">AWBW Wiki</a></li>
+                        <li><a class="dropdown-menu-link" href="https://warswiki.org/">Wars Wiki</a></li>
+                    </ul>
+                </li>
+
+                <li id="contact-menu">
+                    <a href="contact.php">Contact</a>
+                </li>
+
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<div id="outer">
+
+        <!-- <section id="main" style="overflow-x: scroll;"> -->
+    <section id="main">
+
+<!-- incoming server maintenance alert -->
+<div id="game-server-alert-div" class="flex container hv-center" style="border: solid 2px red; height: 30px; width: 380px; margin-bottom: 5px; display: none;">
+<span id="game-server-alert-text" class="error"><b>Warning! Daily server maintenance starts in 59s ...</b></span>
+</div>
+<table cellspacing=1 cellpadding=2 width=1100>
+<tr>
+<td class="bordertitle">
+<b>CO Info</b> 
+</td></tr>
+<tr><td class="borderwhite">
+<table cellspacing=0 cellpadding=2 width=100%>
+<tr>
+<td colspan="2" class="smallheader" style="border-bottom: solid 1px black;"><span class=yellowtext><b>CO</b></span></td>
+<td class="smallheader" style="border-bottom: solid 1px black;"><span class=yellowtext><b>Info</b></span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="andy"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/andy.png?v=1' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Andy</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>No day-to-day abilities.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Hyper Repair</b> -- All units gain +2 HP.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Hyper Upgrade</b> -- All units gain +5 HP, +10% attack, and +1 movement.<br>
+<img src="terrain/co_1.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="hachi"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/hachi.png?v=17' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Hachi</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units cost is reduced to 90% (10% cheaper).<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Barter</b> -- Units cost is reduced to 50%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Merchant Union</b> -- Units cost reduced to 50%, and ground units can deploy from cities.<br>
+<img src="terrain/co_17.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="jake"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/jake.png?v=22' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Jake</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units (even air units) gain +10% attack power on plains.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Beat Down</b> -- Land indirects gain +1 range, and plains bonus is increased to +20%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Block Rock</b> -- Land indirects gain +1 range, plains bonus is increased to +40%, and vehicles gain +2 movement.<br>
+<img src="terrain/co_22.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="max"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/max.png?v=7' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Max</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Direct units (except footsoldiers) gain +20% attack. Indirect units lose -10% attack and have -1 range.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Max Force</b> -- Direct units (except footsoldiers) gain +1 movement and their attack increases to +30%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Max Blast</b> -- Direct units (except footsoldiers) gain +2 movement and their attack increases to +50%.<br>
+<img src="terrain/co_7.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="nell"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/nell.png?v=24' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Nell</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Luck on attacks is +0 to +19%.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Lucky Star</b> --  Luck is improved to +0% to +59%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Lady Luck</b> -- Luck is improved to +0% to +99%.<br>
+<img src="terrain/co_24.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="rachel"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/rachel.png?v=28' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Rachel</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units repair +1 additional HP (note: liable for costs).<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Lucky Lass</b> -- Luck is improved to +0% to +39%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Covering Fire</b> -- Three 2-range missiles deal 3 HP damage each. The missiles target the opponents' greatest accumulation of footsoldier HP, unit value, and unit HP (in that order).<br>
+<img src="terrain/co_28.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="sami"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/sami.png?v=8' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Sami</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/oslogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Footsoldiers gain +30% attack and a 50% capture point bonus (rounded down). Other direct units lose -10% attack. Transports gain +1 movement.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Double Time</b> -- Footsoldiers gain +1 movement and their attack is increased to +50%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Victory March</b> -- Footsoldiers gain +2 movement and their attack is increased to +70%. Footsoldiers capture buildings instantly, regardless of their HP.<br>
+<img src="terrain/co_8.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="colin"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/colin.png?v=15' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Colin</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bmlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Unit cost is reduced to 80% (20% cheaper), but lose -10% attack.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Gold Rush</b> -- Funds are multiplied by 1.5x.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Power of Money</b> -- Unit attack percentage increases by (3 * Funds / 1000)%.<br>
+<img src="terrain/co_15.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="grit"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/grit.png?v=2' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Grit</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bmlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Indirect units have +1 range and gain +20% attack. Direct units (except footsoldiers) lose -20% attack.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Snipe Attack</b> -- Indirect units gain +1 range and their attack is increased to +40%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Super Snipe</b> -- Indirect units gain +2 range and their attack is increased to +40%.<br>
+<img src="terrain/co_2.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="olaf"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/olaf.png?v=9' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Olaf</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bmlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Unaffected by snow, but rain affects him the same as snow would for others.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Blizzard</b> -- Changes the weather to Snow for 1 day.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Winter Fury</b> -- Enemy units lose 2 HP (to a minimum of 0.1 HP), and the weather changes to snow for 1 day.<br>
+<img src="terrain/co_9.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="sasha"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/sasha.png?v=19' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Sasha</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bmlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Receives +100 funds per property that grants funds and she owns. (Note: labs, comtowers, and 0 Funds games do not get additional income).<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Market Crash</b> -- Reduces enemy power bar(s) by (10 * Funds / 5000)% of their maximum power bar.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>War Bonds</b> -- Receives funds equal to 50% of the damage dealt when attacking enemy units.<br>
+<img src="terrain/co_19.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="drake"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/drake.png?v=5' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Drake</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/gelogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Naval units gain +1 movement and +10 defense. Air units lose -30% attack. Unaffected by rain (except vision), and has a higher chance of Rain in random weather.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Tsunami</b> -- All enemy units lose 1 HP (to a minimum of 0.1 HP) and half their fuel.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Typhoon</b> -- All enemy units lose 2 HP (to a minimum of 0.1 HP) and half their fuel. Weather changes to rain for 1 day.<br>
+<img src="terrain/co_5.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="eagle"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/eagle.png?v=10' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Eagle</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/gelogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Air units gain +15% attack and +10% defense, and consume -2 fuel per day. Naval units lose -30% attack.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Lightning Drive</b> -- Air units attack and defense are increased to +20%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Lightning Strike</b> -- Air units attack and defense are increased to +20%. All non-footsoldier units may move and fire again, even if built this turn (use this power after moving!).<br>
+<img src="terrain/co_10.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="javier"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/javier.png?v=27' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Javier</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/gelogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +20% defense against indirect units. Each comtower grants all units an additional +10% defense.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Tower Shield</b> -- Indirect defense is increased to +40%. Comtower bonuses are doubled.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Tower of Power</b> -- Indirect defense is increased to +80%. Comtower bonuses are tripled.<br>
+<img src="terrain/co_27.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="jess"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/jess.png?v=14' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Jess</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/gelogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Vehicles gain +10% attack, but all other units (including footsoldiers) lose -10% attack.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Turbo Charge</b> -- Vehicles gain +1 movement and their attack is increased to +20%. All units resupply fuel and ammo.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Overdrive</b> -- Vehicles gain +2 movement and their attack is increased to +40%. All units resupply fuel and ammo.<br>
+<img src="terrain/co_14.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="grimm"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/grimm.png?v=20' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Grimm</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/yclogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +30% attack, but lose -20% defense.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Knuckleduster</b> -- All units' attack is increased to +50%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Haymaker</b> -- All units' attack is increased to +80%.<br>
+<img src="terrain/co_20.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="kanbei"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/kanbei.png?v=3' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Kanbei</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/yclogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units cost +20% more to build, but gain +30% attack and defense.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Morale Boost</b> -- All units' attack is increased to +40%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Samurai Spirit</b> -- All units' attack is increased to +40% and defense to +50%. Counterattacks do 1.5x more damage.<br>
+<img src="terrain/co_3.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="sensei"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/sensei.png?v=13' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Sensei</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/yclogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Copters gain +50% attack, footsoldiers gain +40% attack, but all other non-air units lose -10% attack. Transports gain +1 movement.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Copter Command</b> -- Copters' attack is increased to +65%. 9 HP unwaited infantry are placed on every owned, empty city.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Airborne Assault</b> -- Copters' attack is increased to +65%. 9 HP unwaited mechs are placed on every owned, empty city.<br>
+<img src="terrain/co_13.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="sonja"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/sonja.png?v=18' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Sonja</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/yclogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +1 vision in Fog of War, have hidden HP, and counterattacks do 1.5x more damage. Luck is reduced to -9% to +9%.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Enhanced Vision</b> -- All units gain +1 vision, and can see into forests and reefs.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Counter Break</b> -- All units gain +1 vision, and can see into forests and reefs. A unit being attacked will attack first (even if it would be destroyed by the attack).<br>
+<img src="terrain/co_18.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="adder"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/adder.png?v=11' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Adder</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>No day-to-day abilities.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Sideslip</b> -- All units gain +1 movement.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Sidewinder</b> -- All units gain +2 movement.<br>
+<img src="terrain/co_11.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="flak"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/flak.png?v=25' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Flak</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Luck on attacks is -9% to +24%.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Brute Force</b> -- Luck range is changed to -19% to +49%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Barbaric Blow</b> -- Luck range is changed to -39% to +89%.<br>
+<img src="terrain/co_25.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="hawke"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/hawke.png?v=12' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Hawke</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +10% attack.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Black Wave</b> -- All units gain +1 HP, and all enemy units lose -1 HP (to a minimum of 0.1 HP).<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Black Storm</b> -- All units gain +2 HP, and all enemy units lose -2 HP (to a minimum of 0.1 HP).<br>
+<img src="terrain/co_12.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="jugger"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/jugger.png?v=26' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Jugger</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Luck on attacks is -14% to +29%.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Overclock</b> -- Luck range is changed to -24% to +54%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>System Crash</b> -- Luck range is changed to -44% to +94%.<br>
+<img src="terrain/co_26.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="kindle"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/kindle.png?v=23' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Kindle</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units (even air units) gain +40% attack while on urban terrain. HQs, bases, airports, ports, cities, labs, and comtowers count as urban terrain.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Urban Blight</b> -- All enemy units lose -3 HP on urban terrain. Urban bonus is increased to +80%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>High Society</b> -- Urban bonus is increased to +130%, and attack for all units is increased by +3% for each of your owned urban terrain.<br>
+<img src="terrain/co_23.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="koal"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/koal.png?v=21' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Koal</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units (even air units) gain +10% attack power on roads.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Forced March</b> -- All units gain +1 movement, and the road bonus is increased to +20%.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Trail of Woe</b> -- All units gain +2 movement, and the road bonus is increased to +30%.<br>
+<img src="terrain/co_21.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="lash"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/lash.png?v=16' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Lash</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +10% attack for every terrain star (note: air units are unaffected by terrain).<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Terrain Tactics</b> -- Movement cost for all terrain is reduced to 1, except in Snow.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Prime Tactics</b> -- Terrain stars are doubled (attack and defense). Movement cost over all terrain is reduced to 1, except in Snow.<br>
+<img src="terrain/co_16.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="sturm"></a>
+<img class='co_portrait' src='terrain/co-portraits/aw2/sturm.png?v=29' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Sturm</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Movement cost over all terrain is reduced to 1, except in Snow. Units lose -20% attack and gain +20% defense.<br><img src="terrain/aw1/redstar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Meteor Strike</b> -- A 2-range missile deals 4 HP damage. The missile targets an enemy unit located at the greatest accumulation of unit value.<br>
+<img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Meteor Strike II</b> -- A 2-range missile deals 8 HP damage. The missile targets an enemy unit located at the greatest accumulation of unit value.<br>
+<img src="terrain/co_29.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+<tr>
+<td  style="border-right: 0px; border-left: 1px solid #AAAAAA; border-color: black; background-color: #FFFFFF;" class=small valign=top>
+<a class="anchor" name="vonbolt"></a>
+<img class='co_portrait' src='terrain/co-portraits/ds/vonbolt.png?v=30' border=1 style="background-color: #FFFFFF;">
+</td>
+<td  class=small valign=top align=center style="border-color: black; background-color: #FFFFFF;"><a class=norm2 style="color: black;"><b>Von Bolt</b></a><br><img style="padding-top: 3px;" src=terrain/aw1/bhlogo.gif></td>
+<td style="text-align:left; white-space:normal; word-wrap: break-word; border-color: black; background-color: #FFFFFF;" class=small valign=top align=left><span class=small_text>Units gain +10% attack and +10% defense.<br><img src="terrain/aw1/bluestar.gif" style="vertical-align: middle; padding-top: 2px; padding-right: 2px;"><B>Ex Machina</b> -- A 2-range missile deals 3 HP damage and prevents all affected units from acting next turn. The missile targets the opponents' greatest accumulation of unit value.<br>
+<img src="terrain/co_30.gif" style="image-rendering: pixelated;">
+</span></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<br><span><i>Note: All CO's get an additional +10% attack and defense boost on COP and SCOP</i></span><br>
+<span><br><br><br></span>
+<span class=small_text_11>
+Advance Wars is (c) 1990-2001 <a href="http://www.nintendo.com">Nintendo</a> and (c) 2001 <a href="http://www.intsys.co.jp/">Intelligent Systems</a>. All images are copyright their respective owners.<br><br>
+<!-- End Page (1787693458) (0) (17:30:58) -->
+</span>
+</section>
+</div>
+
+      <!-- <script src="js/jquery-3.3.1.min.js"></script> -->
+      <script src="js/axios.min.js"></script>
+      <!-- Script for the login box -->
+      <script>
+            var login = document.getElementById("login"),
+                  formElements = [].slice.call(document.getElementsByClassName("login-input")),
+                  loginForm = document.querySelector(".login-form"),
+                  errSpan = document.getElementById("login-err"),
+                  usernameInput = formElements[0],
+                  passwordInput = formElements[1];
+            var errMsg;
+
+            var loginBox = document.querySelector("#login-tab");
+            var forgotPassword = document.querySelector(".login-forgot-password");
+            var forgotPasswordTab = document.querySelector("#forgot-password-tab");
+            var forgotPasswordForm = document.querySelector(".forgot-password-form");
+
+            var forgotPasswordSubmit = document.querySelector(".forgot-password-submit");
+            var forgotPasswordRes = document.querySelector(".forgot-password-res");
+            
+            forgotPassword.onclick = function() {
+                  toggleDisplays([
+                        { el: loginBox, display: "none" }, 
+                        { el: forgotPasswordTab, display: "block"}
+                  ]);
+
+                  var forgotPasswordBack = document.querySelector(".forgot-password-back");
+                  forgotPasswordBack.onclick = function() {
+                        //Reset to initial state
+                        toggleDisplays([
+                              { el: loginBox, display: "block" },
+                              { el: forgotPasswordTab, display: "none" },
+                              { el: forgotPasswordForm, display: "flex" },
+                              { el: forgotPasswordRes, display: "none" }
+                        ]);
+                  }
+            }
+
+            forgotPasswordSubmit.onclick = function() {
+                  var forgotPasswordUsername = document.querySelector(".forgot-password-username");
+                  var forgotPasswordEmail = document.querySelector(".forgot-password-email");
+
+                  axios.post("api/forgot_password.php", { 
+                        username: forgotPasswordUsername.value,
+                        email: forgotPasswordEmail.value 
+                  })
+                  .then(function(res) {
+
+                        forgotPasswordRes.textContent = res.data.message;
+
+                        toggleDisplays([
+                              { el: forgotPasswordForm, display: "none" },
+                              { el: forgotPasswordRes, display: "block" }
+                        ]);
+                  })
+            }
+
+            //Used for the login box's tabs
+            function toggleDisplays(tabs) {
+                  tabs.forEach(function(tab) { tab.el.style.display = tab.display });
+            }
+            
+            login.onclick = function(e) {
+                  e.preventDefault();
+                  const uc = verifyEmpty(usernameInput),
+                        pc = verifyEmpty(passwordInput);
+                  if(uc && pc) {
+                        formElements.forEach(function(el) {
+                              el.style.background = "";
+                        })
+                        verifyLogin().done(function(match) { 
+                              if(match == 1) { loginForm.submit(); loadCurrPage(); }
+                              else { showErr(match); }
+                        })
+                  }
+            }   
+            function verifyEmpty(el) {
+                  if(el.value.length === 0) {
+                        showErr()
+                        return false;
+                  }
+                  else return true;
+            } 
+            function verifyLogin() {
+                  const post = $.post("logincheck.php", {username: usernameInput.value, password: passwordInput.value});
+                  return post;
+            }
+            function showErr(error) {
+                  if (!error) {
+                        var errMsg = "Username or Password is incorrect";
+                        errSpan.textContent = errMsg;
+                  } else { 
+                        errSpan.innerHTML = error;
+                  }    
+            }
+            function loadCurrPage() {
+                  window.location = 'co.php';
+                  return false;
+            }
+      </script>
+
+      <script>
+            const fixedHeader = document.getElementById("fixed-header-wrapper");
+            let smallHeader = false;
+            if(window.pageYOffset !== 0) {
+                  fixedHeader.classList.add("header-small")
+            }
+            document.body.onscroll = function() {
+                  if(window.pageYOffset !== 0 && smallHeader === false) {
+                        // console.log("?");
+                        smallHeader = true;
+                        fixedHeader.classList.add("header-small");
+                  } else if(window.pageYOffset === 0) {
+                        smallHeader = false;
+                        fixedHeader.classList.remove("header-small");
+                  }
+            }
+            
+
+      </script>
+<script src="js/jquery-3.3.1.min.js"></script>
+</body>
+</html>

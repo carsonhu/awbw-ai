@@ -152,6 +152,13 @@ struct Loaded {
     /// reverse map the casualty looks alive, because its stale forward mapping
     /// still resolves to an occupied slot.
     awbw_of: HashMap<UnitId, i64>,
+    /// Units whose HP came from a mid-turn combat record rather than a turn
+    /// snapshot, and is therefore only known to the displayed point.
+    ///
+    /// AWBW stores HP to a tenth but reports whole displayed points in combat
+    /// payloads, so a unit reported at 5 HP is really anywhere in 4.1..=5.0.
+    /// A second attack on the same unit has to allow for that whole band.
+    approximate_hp: std::collections::HashSet<UnitId>,
 }
 
 impl Loaded {
@@ -282,6 +289,7 @@ impl<'a> Verifier<'a> {
             engine: Engine::new(state, 0x5EED),
             ids,
             awbw_of,
+            approximate_hp: std::collections::HashSet::new(),
         })
     }
 
@@ -518,7 +526,10 @@ impl<'a> Verifier<'a> {
             return;
         }
 
-        let budget = actor.typ.stats().move_points.min(actor.fuel) as u32;
+        let co_move = state.co_of(actor.owner).move_delta[actor.typ as usize] as i32;
+        let move_points =
+            (actor.typ.stats().move_points as i32 + co_move).clamp(0, 255) as u8;
+        let budget = move_points.min(actor.fuel) as u32;
         if cost > budget {
             report.divergences.push(Divergence {
                 turn_index,
@@ -633,19 +644,35 @@ impl<'a> Verifier<'a> {
             .building_at(pos)
             .map(|b| b.capture_remaining)
             .unwrap_or(CAPTURE_FULL);
-        let hp = loaded.engine.state.unit(id).map(|u| u.display_hp()).unwrap_or(0);
+        let captor_co = loaded
+            .engine
+            .state
+            .unit(id)
+            .map(|u| loaded.engine.state.co_of(u.owner))
+            .unwrap_or(&awbw_engine::co_data::CoData::VANILLA);
+        let hp = loaded
+            .engine
+            .state
+            .unit(id)
+            .map(|u| (u.display_hp() as u32 * captor_co.capture_multiplier_pct / 100) as u8)
+            .unwrap_or(0);
         let expected = before.saturating_sub(hp);
         if let Some(recorded) = recorded {
             // Once a property flips, AWBW reports the counter reset to 20.
             let agrees = expected as i64 == recorded
                 || (expected == 0 && recorded == CAPTURE_FULL as i64);
             if !agrees {
+                let u = loaded.engine.state.unit(id);
                 report.divergences.push(Divergence {
                     turn_index,
                     day,
                     kind: "capture-progress",
                     detail: format!(
-                        "{pos:?}: {before} - {hp} HP = engine {expected} left, AWBW {recorded}"
+                        "{pos:?}: {before} - {hp} display HP = engine {expected} left, AWBW                          {recorded} (captor {} hp100={} owner={:?} building owner={:?})",
+                        u.map(|u| u.typ.stats().name).unwrap_or("?"),
+                        u.map(|u| u.hp100).unwrap_or(0),
+                        u.map(|u| u.owner),
+                        loaded.engine.state.building_at(pos).and_then(|b| b.owner),
                     ),
                 });
             }
@@ -713,10 +740,19 @@ impl<'a> Verifier<'a> {
             if let Some(def_pos) = def_pos {
                 report.checks += 1;
                 let before = loaded.engine.state.unit(def_id).map(|u| u.hp100).unwrap_or(0) as i32;
-                if let Some(spread) = loaded.engine.preview_damage(att_id, def_pos) {
+                // If this defender was already hit this turn we only know its HP
+                // to the displayed point, so admit the whole band it could be in.
+                let before_low = if loaded.approximate_hp.contains(&def_id) {
+                    (before - 9).max(1)
+                } else {
+                    before
+                };
+                let spread_high = loaded.engine.preview_damage(att_id, def_pos);
+                let spread_low = loaded.engine.preview_damage_at(att_id, def_pos, before_low);
+                if let (Some(spread), Some(low)) = (spread_high, spread_low) {
                     // AWBW reports displayed HP here, so compare display bands.
                     let hi = combat::display_hp((before - spread.min).max(0));
-                    let lo = combat::display_hp((before - spread.max).max(0));
+                    let lo = combat::display_hp((before_low - low.max).max(0));
                     if def_hp as i32 > hi || (def_hp as i32) < lo {
                         let att = loaded.engine.state.unit(att_id);
                         let def = loaded.engine.state.unit(def_id);
@@ -732,7 +768,7 @@ impl<'a> Verifier<'a> {
                                 att.map(|u| u.hp100).unwrap_or(0),
                                 att.map(|u| u.ammo).unwrap_or(0),
                                 def.map(|u| u.typ.stats().name).unwrap_or("?"),
-                                spread.min,
+                                low.max,
                                 spread.max
                             ),
                         });
@@ -763,6 +799,7 @@ impl<'a> Verifier<'a> {
                 }
                 u.moved = true;
             }
+            loaded.approximate_hp.insert(id);
         }
         // A defender absent from combatInfo was destroyed outright.
         if defender.is_none() {

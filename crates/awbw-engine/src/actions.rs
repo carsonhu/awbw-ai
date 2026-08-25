@@ -487,7 +487,10 @@ impl Engine {
     fn resolve_capture(&mut self, unit_id: UnitId, pos: Pos) -> bool {
         let unit = *self.state.unit(unit_id).unwrap();
         let owner = unit.owner;
-        let progress = unit.display_hp();
+        // Capture advances by displayed HP, scaled by the CO: Sami takes
+        // properties half again as fast.
+        let rate = self.state.co_of(owner).capture_multiplier_pct;
+        let progress = (unit.display_hp() as u32 * rate / 100).min(255) as u8;
 
         let Some(building) = self.state.building_at_mut(pos) else {
             return false;
@@ -772,10 +775,22 @@ impl Engine {
     }
 
     /// Expected-damage preview for a candidate attack, without rolling.
-    pub fn preview_damage(
+    pub fn preview_damage(&self, attacker_id: UnitId, target: Pos) -> Option<DamageSpread> {
+        let defender_hp = self.state.unit_at(target)?.hp100 as i32;
+        self.preview_damage_at(attacker_id, target, defender_hp)
+    }
+
+    /// As [`Engine::preview_damage`], but for a hypothetical defender HP.
+    ///
+    /// Terrain cover scales with the defender's displayed HP, so a wounded
+    /// defender takes more damage than a healthy one on the same tile; callers
+    /// reasoning about a unit whose exact HP they do not know need to ask about
+    /// both ends of the range.
+    pub fn preview_damage_at(
         &self,
         attacker_id: UnitId,
         target: Pos,
+        defender_hp100: i32,
     ) -> Option<DamageSpread> {
         let attacker = self.state.unit(attacker_id)?;
         let defender = self.state.unit_at(target)?;
@@ -787,7 +802,7 @@ impl Engine {
         Some(combat::damage_spread(
             pct,
             attacker.hp100 as i32,
-            defender.hp100 as i32,
+            defender_hp100,
             combat::effective_terrain_defense(defender.move_type(), terrain),
             combat::co_modifiers(attacker_co, attacker.typ, attacker_terrain),
             combat::co_modifiers(defender_co, defender.typ, terrain),

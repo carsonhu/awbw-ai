@@ -39,6 +39,12 @@ pub struct CoData {
     pub property_fund_bonus: u32,
     /// Fuel per turn air units save (Eagle).
     pub air_fuel_decrease: u8,
+    /// Capture speed as a percentage of displayed HP (Sami captures at 150).
+    pub capture_multiplier_pct: u32,
+    /// Movement points added per unit type (Sami's transports gain one).
+    pub move_delta: [i8; NUM_UNIT_TYPES],
+    /// Extra HP repaired per turn, on the 0..=100 scale (Rachel).
+    pub repair_bonus_hp100: u8,
 }
 
 impl CoData {
@@ -56,6 +62,9 @@ impl CoData {
         luck_good_max: 9,
         property_fund_bonus: 0,
         air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0; NUM_UNIT_TYPES],
+        repair_bonus_hp100: 0,
     };
 }
 
@@ -69,6 +78,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Grit", awbw_id: 2, price_multiplier_pct: 100,
@@ -79,6 +91,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Kanbei", awbw_id: 3, price_multiplier_pct: 120,
@@ -89,6 +104,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Drake", awbw_id: 5, price_multiplier_pct: 100,
@@ -99,6 +117,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Max", awbw_id: 7, price_multiplier_pct: 100,
@@ -109,6 +130,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Sami", awbw_id: 8, price_multiplier_pct: 100,
@@ -119,6 +143,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 150,
+        move_delta: [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Olaf", awbw_id: 9, price_multiplier_pct: 100,
@@ -129,6 +156,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Eagle", awbw_id: 10, price_multiplier_pct: 100,
@@ -139,6 +169,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 2,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Adder", awbw_id: 11, price_multiplier_pct: 100,
@@ -149,6 +182,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Hawke", awbw_id: 12, price_multiplier_pct: 100,
@@ -159,6 +195,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Sensei", awbw_id: 13, price_multiplier_pct: 100,
@@ -169,6 +208,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Jess", awbw_id: 14, price_multiplier_pct: 100,
@@ -179,6 +221,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Colin", awbw_id: 15, price_multiplier_pct: 80,
@@ -189,6 +234,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Lash", awbw_id: 16, price_multiplier_pct: 100,
@@ -199,6 +247,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::PerTerrainStar,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Hachi", awbw_id: 17, price_multiplier_pct: 90,
@@ -209,6 +260,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Sonja", awbw_id: 18, price_multiplier_pct: 100,
@@ -219,6 +273,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 9, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Sasha", awbw_id: 19, price_multiplier_pct: 100,
@@ -229,6 +286,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 100, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Grimm", awbw_id: 20, price_multiplier_pct: 100,
@@ -239,6 +299,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Koal", awbw_id: 21, price_multiplier_pct: 100,
@@ -249,6 +312,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::RoadOnly,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Jake", awbw_id: 22, price_multiplier_pct: 100,
@@ -259,6 +325,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::PlainOnly,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Kindle", awbw_id: 23, price_multiplier_pct: 100,
@@ -269,6 +338,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::UrbanOnly,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Nell", awbw_id: 24, price_multiplier_pct: 100,
@@ -279,6 +351,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 19,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Flak", awbw_id: 25, price_multiplier_pct: 100,
@@ -289,6 +364,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 9, luck_good_max: 24,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Jugger", awbw_id: 26, price_multiplier_pct: 100,
@@ -299,6 +377,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 14, luck_good_max: 29,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Javier", awbw_id: 27, price_multiplier_pct: 100,
@@ -309,6 +390,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Rachel", awbw_id: 28, price_multiplier_pct: 100,
@@ -319,6 +403,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 10,
     },
     CoData {
         name: "Sturm", awbw_id: 29, price_multiplier_pct: 100,
@@ -329,6 +416,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "Von Bolt", awbw_id: 30, price_multiplier_pct: 100,
@@ -339,6 +429,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
     CoData {
         name: "No CO", awbw_id: 31, price_multiplier_pct: 100,
@@ -349,6 +442,9 @@ pub static COS: [CoData; 29] = [
         condition: AttackCondition::Always,
         luck_bad_max: 0, luck_good_max: 9,
         property_fund_bonus: 0, air_fuel_decrease: 0,
+        capture_multiplier_pct: 100,
+        move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        repair_bonus_hp100: 0,
     },
 ];
 

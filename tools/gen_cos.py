@@ -24,11 +24,19 @@ UNIT_ORDER = [
 INDEX = {name: i for i, name in enumerate(UNIT_ORDER)}
 N = len(UNIT_ORDER)
 
-# Abilities COs.json leaves empty but which are well documented; without these,
-# two commonly played COs would silently verify as vanilla.
+# Abilities COs.json leaves empty. The wording below is AWBW's own, from
+# https://awbw.amarriner.com/co.php (mirrored at data/awbw-site/co.php.html),
+# which is the authoritative prose description of every CO.
 MANUAL = {
     # Lash: +10% attack per terrain star the attacker stands on.
     "Lash": {"condition": "PerTerrainStar", "conditional_attack_all": 10},
+    # Sami: footsoldiers capture at 1.5x. COs.json records her attack bonus but
+    # not this, and it is the sole cause of capture divergence in her games.
+    # Sami: "Footsoldiers gain ... a 50% capture point bonus (rounded down) ...
+    # Transports gain +1 movement."
+    "Sami": {"capture_pct": 150, "move_delta_transports": 1},
+    # Rachel: "Units repair +1 additional HP (note: liable for costs)."
+    "Rachel": {"repair_bonus_hp100": 10},
     # Adder, Rachel, Javier and Andy have no day-to-day combat effect we model.
     # (Javier's +20% defence against indirects is conditional on the *attacker*
     # being indirect, which the current per-unit table cannot express.)
@@ -73,8 +81,15 @@ def build(co):
                 "Plain": "PlainOnly",
             }.get(terrain, "Always")
 
+    # Units that carry cargo, for COs that speed up transports.
+    TRANSPORTS = ["APC", "T-Copter", "Lander", "Black Boat", "Cruiser", "Carrier"]
+    move_delta = [0] * N
+
     manual = MANUAL.get(co["Name"])
     if manual:
+        if manual.get("move_delta_transports"):
+            for name in TRANSPORTS:
+                move_delta[INDEX[name]] = manual["move_delta_transports"]
         condition = manual.get("condition", condition)
         bonus = manual.get("conditional_attack_all")
         if bonus is not None:
@@ -101,6 +116,9 @@ def build(co):
         "luck_good": luck_good,
         "fund_bonus": int(d2d.get("PropertyFundIncrease", 0)),
         "air_fuel": int(d2d.get("AirFuelUsageDecrease", 0)),
+        "capture_pct": (manual or {}).get("capture_pct", 100),
+        "move_delta": move_delta,
+        "repair_bonus": (manual or {}).get("repair_bonus_hp100", 0),
     }
 
 
@@ -158,6 +176,12 @@ def main():
     w("    pub property_fund_bonus: u32,")
     w("    /// Fuel per turn air units save (Eagle).")
     w("    pub air_fuel_decrease: u8,")
+    w("    /// Capture speed as a percentage of displayed HP (Sami captures at 150).")
+    w("    pub capture_multiplier_pct: u32,")
+    w("    /// Movement points added per unit type (Sami's transports gain one).")
+    w("    pub move_delta: [i8; NUM_UNIT_TYPES],")
+    w("    /// Extra HP repaired per turn, on the 0..=100 scale (Rachel).")
+    w("    pub repair_bonus_hp100: u8,")
     w("}")
     w("")
     w("impl CoData {")
@@ -175,6 +199,9 @@ def main():
     w("        luck_good_max: 9,")
     w("        property_fund_bonus: 0,")
     w("        air_fuel_decrease: 0,")
+    w("        capture_multiplier_pct: 100,")
+    w("        move_delta: [0; NUM_UNIT_TYPES],")
+    w("        repair_bonus_hp100: 0,")
     w("    };")
     w("}")
     w("")
@@ -190,6 +217,9 @@ def main():
         w(f'        condition: AttackCondition::{c["condition"]},')
         w(f'        luck_bad_max: {c["luck_bad"]}, luck_good_max: {c["luck_good"]},')
         w(f'        property_fund_bonus: {c["fund_bonus"]}, air_fuel_decrease: {c["air_fuel"]},')
+        w(f'        capture_multiplier_pct: {c["capture_pct"]},')
+        w(f'        move_delta: {arr(c["move_delta"], "i8")},')
+        w(f'        repair_bonus_hp100: {c["repair_bonus"]},')
         w("    },")
     w("];")
     w("")
@@ -219,6 +249,12 @@ def main():
             effects.append(f"funds +{c['fund_bonus']}/property")
         if c["air_fuel"]:
             effects.append(f"air fuel -{c['air_fuel']}")
+        if c["capture_pct"] != 100:
+            effects.append(f"capture {c['capture_pct']}%")
+        if any(c["move_delta"]):
+            effects.append("transports +1 move")
+        if c["repair_bonus"]:
+            effects.append(f"repair +{c['repair_bonus']//10} HP")
         if not effects:
             effects.append("none modelled")
         print(f"  {c['name']:12} {', '.join(effects)}")

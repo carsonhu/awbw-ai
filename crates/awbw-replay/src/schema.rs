@@ -88,10 +88,25 @@ pub struct BuildingRec {
 
 /// AWBW wraps many action payloads in a visibility map keyed by `"global"` (no
 /// fog) or by player id (fog). Unwraps to the single meaningful value.
+///
+/// In fog games the player who could not see the action gets an entry too, but
+/// it is an empty string rather than null, so "first non-null" picks the blind
+/// seat's blank and loses the payload. Only a populated object or a non-empty
+/// array counts as the real view.
 pub fn unwrap_vision(value: &serde_json::Value) -> Option<&serde_json::Value> {
+    fn is_meaningful(v: &serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Object(map) => !map.is_empty(),
+            serde_json::Value::Array(items) => !items.is_empty(),
+            serde_json::Value::Null => false,
+            serde_json::Value::String(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+
     let obj = value.as_object()?;
-    if let Some(global) = obj.get("global") {
+    if let Some(global) = obj.get("global").filter(|v| is_meaningful(v)) {
         return Some(global);
     }
-    obj.values().find(|v| !v.is_null())
+    obj.values().find(|v| is_meaningful(v))
 }

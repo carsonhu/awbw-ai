@@ -1,0 +1,118 @@
+{
+ "1": {
+  "name": "Andy",
+  "day_to_day": false
+ },
+ "17": {
+  "name": "Hachi",
+  "day_to_day": true
+ },
+ "22": {
+  "name": "Jake",
+  "day_to_day": true
+ },
+ "7": {
+  "name": "Max",
+  "day_to_day": true
+ },
+ "24": {
+  "name": "Nell",
+  "day_to_day": true
+ },
+ "28": {
+  "name": "Rachel",
+  "day_to_day": false
+ },
+ "8": {
+  "name": "Sami",
+  "day_to_day": true
+ },
+ "15": {
+  "name": "Colin",
+  "day_to_day": true
+ },
+ "2": {
+  "name": "Grit",
+  "day_to_day": true
+ },
+ "9": {
+  "name": "Olaf",
+  "day_to_day": true
+ },
+ "19": {
+  "name": "Sasha",
+  "day_to_day": true
+ },
+ "5": {
+  "name": "Drake",
+  "day_to_day": true
+ },
+ "10": {
+  "name": "Eagle",
+  "day_to_day": true
+ },
+ "27": {
+  "name": "Javier",
+  "day_to_day": false
+ },
+ "14": {
+  "name": "Jess",
+  "day_to_day": true
+ },
+ "20": {
+  "name": "Grimm",
+  "day_to_day": true
+ },
+ "31": {
+  "name": "No CO",
+  "day_to_day": false
+ },
+ "3": {
+  "name": "Kanbei",
+  "day_to_day": true
+ },
+ "13": {
+  "name": "Sensei",
+  "day_to_day": true
+ },
+ "18": {
+  "name": "Sonja",
+  "day_to_day": true
+ },
+ "11": {
+  "name": "Adder",
+  "day_to_day": false
+ },
+ "25": {
+  "name": "Flak",
+  "day_to_day": true
+ },
+ "12": {
+  "name": "Hawke",
+  "day_to_day": true
+ },
+ "26": {
+  "name": "Jugger",
+  "day_to_day": true
+ },
+ "23": {
+  "name": "Kindle",
+  "day_to_day": true
+ },
+ "21": {
+  "name": "Koal",
+  "day_to_day": true
+ },
+ "16": {
+  "name": "Lash",
+  "day_to_day": false
+ },
+ "29": {
+  "name": "Sturm",
+  "day_to_day": true
+ },
+ "30": {
+  "name": "Von Bolt",
+  "day_to_day": true
+ }
+}

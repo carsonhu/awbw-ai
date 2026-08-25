@@ -318,19 +318,43 @@ impl GameState {
         self.units_of(player).count() as u16
     }
 
-    /// Places a new unit on the board and returns its id.
-    pub fn spawn(&mut self, typ: UnitType, owner: PlayerId, pos: Pos) -> UnitId {
-        let id = match self.units.iter().position(|u| u.is_none()) {
+    fn alloc_slot(&mut self) -> UnitId {
+        match self.units.iter().position(|u| u.is_none()) {
             Some(slot) => slot as UnitId,
             None => {
                 self.units.push(None);
                 (self.units.len() - 1) as UnitId
             }
-        };
+        }
+    }
+
+    /// Places a new unit on the board and returns its id.
+    pub fn spawn(&mut self, typ: UnitType, owner: PlayerId, pos: Pos) -> UnitId {
+        let id = self.alloc_slot();
         let unit = Unit::new(id, typ, owner, pos);
         self.units[id as usize] = Some(unit);
         self.occupancy[self.map.index(pos)] = id;
         id
+    }
+
+    /// Creates a unit that starts inside a transport, off the board.
+    ///
+    /// Loading an existing unit would need it to stand somewhere first, which a
+    /// state being reconstructed from a saved snapshot has no room for.
+    pub fn spawn_into(
+        &mut self,
+        typ: UnitType,
+        owner: PlayerId,
+        transport_id: UnitId,
+    ) -> Option<UnitId> {
+        let transport = self.unit(transport_id).copied()?;
+        let slot = transport.cargo.iter().position(|&c| c == NO_UNIT)?;
+        let id = self.alloc_slot();
+        let mut unit = Unit::new(id, typ, owner, transport.pos);
+        unit.carried_by = Some(transport_id);
+        self.units[id as usize] = Some(unit);
+        self.unit_mut(transport_id).unwrap().cargo[slot] = id;
+        Some(id)
     }
 
     /// Removes a unit and everything it was carrying.
@@ -361,7 +385,7 @@ impl GameState {
     }
 
     /// Moves a unit between tiles, keeping occupancy in step.
-    pub(crate) fn relocate(&mut self, id: UnitId, to: Pos) {
+    pub fn relocate(&mut self, id: UnitId, to: Pos) {
         let Some(unit) = self.unit(id).copied() else {
             return;
         };
@@ -380,7 +404,7 @@ impl GameState {
     }
 
     /// Loads `unit` into `transport`, taking it off the board.
-    pub(crate) fn load_into(&mut self, unit_id: UnitId, transport_id: UnitId) -> bool {
+    pub fn load_into(&mut self, unit_id: UnitId, transport_id: UnitId) -> bool {
         let Some(unit) = self.unit(unit_id).copied() else {
             return false;
         };
@@ -407,7 +431,7 @@ impl GameState {
     }
 
     /// Puts a carried unit back on the board at `to`.
-    pub(crate) fn unload_to(&mut self, transport_id: UnitId, cargo_id: UnitId, to: Pos) -> bool {
+    pub fn unload_to(&mut self, transport_id: UnitId, cargo_id: UnitId, to: Pos) -> bool {
         let Some(transport) = self.unit(transport_id).copied() else {
             return false;
         };
@@ -559,34 +583,33 @@ impl GameState {
         }
     }
 
-    /// Heals up to `repair_hp100`, charging funds for the displayed HP gained,
-    /// and tops off fuel and ammo.
+    /// Heals up to `repair_hp100` and tops off fuel and ammo.
+    ///
+    /// Healing is charged per displayed HP gained, and a player who cannot
+    /// afford the full amount heals as much as they can pay for. Both the
+    /// truncating division and the raw (not display-rounded) HP addition match
+    /// DefendPeace's `HealUnitEvent.healAtCost`, so a unit at 5.5 HP repairs to
+    /// 7.5, not to 8. Resupply is free regardless of funds.
     fn repair_and_resupply(&mut self, id: UnitId) {
         let Some(unit) = self.unit(id).copied() else {
             return;
         };
         let stats = unit.typ.stats();
-        let before = unit.display_hp() as u32;
-        let target = (unit.hp100 as u16 + self.settings.repair_hp100 as u16).min(100) as u8;
-        let after = ((target + 9) / 10) as u32;
+        let wanted = self.settings.repair_hp100.min(100 - unit.hp100);
 
         let funds = self.players[unit.owner as usize].funds;
-        let per_hp = stats.cost / 10;
-        let affordable_hp = if per_hp == 0 {
-            after - before
+        let per_display_hp = stats.cost / 10;
+        let healed = if per_display_hp == 0 {
+            wanted
         } else {
-            (funds / per_hp).min(after - before)
+            // Funds buy whole displayed HP, i.e. multiples of 10 on this scale.
+            (((funds / per_display_hp) * 10) as u16).min(wanted as u16) as u8
         };
-        let new_display = before + affordable_hp;
-        let new_hp100 = if affordable_hp == 0 {
-            unit.hp100
-        } else {
-            (new_display as u8 * 10).min(100).max(unit.hp100)
-        };
-        self.players[unit.owner as usize].funds -= affordable_hp * per_hp;
+        // A fractional remainder below one displayed HP costs nothing.
+        self.players[unit.owner as usize].funds -= (healed as u32 / 10) * per_display_hp;
 
         let u = self.unit_mut(id).unwrap();
-        u.hp100 = new_hp100;
+        u.hp100 += healed;
         u.fuel = stats.max_fuel;
         u.ammo = stats.max_ammo;
     }
@@ -803,9 +826,69 @@ mod tests {
         let mut state = two_player_state();
         let id = state.spawn(UnitType::Infantry, 0, Pos::new(0, 0)); // OS base
         state.unit_mut(id).unwrap().hp100 = 50;
+        state.players[0].funds = 5000;
         state.current = 0;
         state.begin_turn();
         assert_eq!(state.unit(id).unwrap().hp100, 70);
+        // 2 HP of infantry at 100 funds each, on top of 1000 income.
+        assert_eq!(state.player(0).funds, 5000 + 1000 - 200);
+    }
+
+    #[test]
+    fn repair_adds_raw_hp_without_rounding_to_the_display_step() {
+        let mut state = two_player_state();
+        let id = state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        state.unit_mut(id).unwrap().hp100 = 55; // displays as 6
+        state.current = 0;
+        state.begin_turn();
+        assert_eq!(state.unit(id).unwrap().hp100, 75); // not 80
+    }
+
+    #[test]
+    fn a_player_who_cannot_pay_heals_partially() {
+        let mut state = two_player_state();
+        let id = state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        state.unit_mut(id).unwrap().hp100 = 50;
+        // Tank costs 7000, so 700 per displayed HP. Income is 1000, so give
+        // them nothing up front: they can afford exactly one HP.
+        state.players[0].funds = 0;
+        state.current = 0;
+        state.begin_turn();
+        assert_eq!(state.unit(id).unwrap().hp100, 60);
+        assert_eq!(state.player(0).funds, 1000 - 700);
+    }
+
+    #[test]
+    fn repair_caps_at_full_health_and_the_remainder_is_free() {
+        let mut state = two_player_state();
+        let id = state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        state.unit_mut(id).unwrap().hp100 = 95;
+        state.players[0].funds = 5000;
+        state.current = 0;
+        state.begin_turn();
+        assert_eq!(state.unit(id).unwrap().hp100, 100);
+        // Half a displayed HP rounds down to no charge.
+        assert_eq!(state.player(0).funds, 5000 + 1000);
+    }
+
+    #[test]
+    fn resupply_happens_even_with_no_funds() {
+        let mut state = two_player_state();
+        let id = state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        {
+            let u = state.unit_mut(id).unwrap();
+            u.hp100 = 50;
+            u.ammo = 0;
+            u.fuel = 3;
+        }
+        state.players[0].funds = 0;
+        state.settings.funds_per_property = 0;
+        state.current = 0;
+        state.begin_turn();
+        let unit = state.unit(id).unwrap();
+        assert_eq!(unit.hp100, 50, "no funds, no healing");
+        assert_eq!(unit.ammo, UnitType::Tank.stats().max_ammo);
+        assert_eq!(unit.fuel, UnitType::Tank.stats().max_fuel);
     }
 
     #[test]

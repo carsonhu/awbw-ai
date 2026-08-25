@@ -29,13 +29,46 @@ is computed to one decimal then truncated, air units and pipe seams get zero
 terrain stars, displayed HP `ceil(hp/10)` feeds both attack scaling and terrain
 stars.
 
-## Verification plan
+## Verification against real games
 
-`F:\awbw\awbw-replay-parser\awbw replays` holds ~300k replay zips (each: a
-gzipped PHP-serialized per-turn state file + a gzipped action log). The engine
-will be validated by replaying recorded actions and diffing predicted state
-against recorded state, turn by turn. ~28k are filename-tagged standard 1v1
-("GL STD"); FOG/HF variants tagged likewise; the rest need content inspection.
+`F:\awbw\awbw-replay-parser\awbw replays` holds ~300k replay zips. Each is two
+gzip members: a PHP-serialized game state per *turn*, and the matching orders
+for that turn. `state[i]` is the board before `state[i]`'s orders, so
+`state[i+1]` is ground truth for replaying them.
+
+`tools/prepare_replay.py` normalizes a replay (plus its map, fetched from
+AWBW's `api/map/map_info.php` and cached in `data/maps/`) into flat JSON, and
+`verify-replays` replays it:
+
+```
+python tools/prepare_replay.py --glob '<...>\*\*STD*.zip' --limit 400
+cargo run --release -p awbw-replay -- data/prepared
+```
+
+Each turn is an independent test case — load the snapshot, apply the recorded
+orders, diff against the next snapshot — so one wrong rule shows up only on the
+turns that exercise it instead of poisoning a whole game. Combat luck (0-9%)
+can't be reproduced, so damage is checked as a *range* the record must fall
+inside, and HP is resynced from the record afterwards.
+
+**Current: 97.2% agreement** over 381 games / 10,386 turns / 913k assertions,
+with 39 games fully clean.
+
+### What the divergences say
+
+Ranked by count, and what they actually mean:
+
+| divergence | cause |
+|---|---|
+| `damage-range`, `move-over-budget`, `funds` | **CO day-to-day abilities**, unimplemented. Confirmed by hand: Hawke's flat +10% attack accounts exactly for the damage gap in sampled games. |
+| `unit-extra`, `unit-hp`, `unit-position` | Mostly downstream of the same thing plus unhandled `Power` actions. |
+| `capture-progress` off by one | Capture uses displayed HP; worth re-deriving against a Sami game (she captures at 1.5x). |
+| `build-illegal: NotEnoughFunds` | CO cost multipliers (Colin 0.8x, Hachi 0.9x, Kanbei 1.2x). |
+
+Competitive AWBW almost never uses ability-free COs — Max alone is 209 of 762
+seats in the sample and Andy just 38, with no Andy-vs-Andy games at all — so
+there is no "vanilla CO" subset to hide behind. Implementing COs is the next
+correctness milestone, and the harness above is how it gets measured.
 
 ## Action space
 
@@ -61,11 +94,12 @@ a 15x15 map, 30-day games, single core:
 1. ~~Data capture + combat formula~~ (done)
 2. ~~Game state, movement/pathfinding, core action set~~ (done: move, attack,
    capture, build, load/unload, join, supply, turn bookkeeping, win conditions)
-3. Fog of war, CO powers, missile silos, pipe seams
-4. Replay-differential verification harness
-5. Baseline bots + internal Elo ladder
-6. PyO3 bindings, Gym-style env, PPO self-play (restricted ruleset first:
-   1v1, no fog, no COs)
+3. ~~Replay-differential verification harness~~ (done: 97.2% agreement)
+4. CO day-to-day abilities and powers — the harness says this is the single
+   biggest source of remaining divergence
+5. Fog of war, missile silos, pipe seams
+6. Baseline bots + internal Elo ladder
+7. PyO3 bindings, Gym-style env, PPO self-play
 
 ## Rules not yet implemented
 

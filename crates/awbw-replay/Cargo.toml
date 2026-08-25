@@ -1,0 +1,15 @@
+[package]
+name = "awbw-replay"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Differential verification of the AWBW engine against recorded games"
+
+[dependencies]
+awbw-engine = { path = "../awbw-engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "verify-replays"
+path = "src/main.rs"

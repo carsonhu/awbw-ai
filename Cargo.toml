@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/awbw-engine"]
+members = ["crates/awbw-engine", "crates/awbw-replay"]
 
 [workspace.package]
 edition = "2021"

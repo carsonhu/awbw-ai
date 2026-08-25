@@ -71,6 +71,13 @@ board, so they cannot test visibility. The per-player *move paths* can, and do.
 opponent's view once from the opening snapshot makes the engine look far too
 sharp.
 
+**Games need a ~60-day cap, not 30.** Measured with the `decisiveness` example:
+random self-play reaches a real win *0 times in 40 games even at 120 days*, and
+greedy mirrors 0/40 at a 30-day cap but 27/40 at 60. So a win/loss reward is not
+merely sparse for an untrained policy, it is absent — which is why training has
+to start from imitation rather than from scratch, and why shaped reward carries
+the early signal.
+
 **Orders are matched to snapshots by (player, day), not line index.** Some
 replays are truncated, and index pairing silently attributed one player's whole
 turn to their opponent.

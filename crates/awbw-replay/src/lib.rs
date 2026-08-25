@@ -12,6 +12,7 @@
 //! the record are attributed to luck and reported separately from real bugs.
 
 pub mod fog;
+pub mod imitate;
 pub mod schema;
 
 use std::collections::HashMap;

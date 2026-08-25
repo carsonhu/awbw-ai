@@ -46,6 +46,18 @@ Drake fires Typhoon — and 6 are unexplained.
 Residual in the clean subset is 31 divergences over 1,916 turns: 13 funds, 13
 unit HP, 5 stragglers. No common cause found; diminishing returns.
 
+## Imitation data
+
+`bc-stats` reports how much usable training data the replays yield:
+
+```
+cargo run --release -p awbw-replay --bin bc-stats -- data/prepared
+```
+
+Across 366 non-fog games: **128k labelled orders, 350 per game, 94.5% legal**,
+91.3% usable once power-affected orders are dropped. Humans spend 57% of orders
+moving, 17% building, 15% attacking, 10% capturing.
+
 ## Bugs it has caught
 
 Worth knowing, because more than half were in the *harness* and would otherwise

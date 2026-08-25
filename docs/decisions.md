@@ -86,6 +86,17 @@ Grimm's +30% sit next to each other, and no single CO needs its own data.
 training map use one, but only 7.4% of *turns* and 10.9% of *orders* happen while
 one is active, so those orders can simply be dropped from an imitation loss.
 
+**Imitation labels check themselves.** Every translated human order is put
+through `Engine::check` in the position it was played in before being offered as
+a label. 94.5% pass across 366 non-fog games and 128k orders, which is the
+strongest available evidence that the translation and the engine agree. The
+failures are counted, not hidden, and the flag lets a trainer drop them.
+
+**Move-then-unload is recorded as two orders and modelled as one.** AWBW logs a
+transport's move and its unload separately; `Action::Unload` bundles them and so
+requires an unmoved transport. Essentially every recorded unload therefore reads
+as illegal. It is 0.3% of orders, so it is documented rather than fixed.
+
 ## Verification
 
 **Each recorded turn is an independent test case.** Load the snapshot, replay

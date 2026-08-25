@@ -5,7 +5,7 @@
 //! is what makes the game tractable as an RL environment — each env step picks
 //! one order from a masked, enumerable set rather than composing a whole turn.
 
-use crate::combat::{self, CoModifiers, DamageSpread, VANILLA_CO, VANILLA_GOOD_LUCK_MAX};
+use crate::combat::{self, DamageSpread};
 use crate::map::Pos;
 use crate::movement::Reach;
 use crate::rng::Rng;
@@ -106,9 +106,16 @@ impl Engine {
         }
     }
 
-    /// CO modifiers for a player. Vanilla for now; real COs plug in here.
-    fn co_of(&self, _player: PlayerId) -> CoModifiers {
-        VANILLA_CO
+    /// What a unit costs this player, after their CO's price multiplier
+    /// (Colin builds at 80%, Kanbei at 120%).
+    pub fn unit_cost(&self, player: PlayerId, typ: UnitType) -> u32 {
+        let co = self.state.co_of(player);
+        typ.stats().cost * co.price_multiplier_pct / 100
+    }
+
+    /// A unit's firing range for its owner's CO.
+    fn range_of(&self, player: PlayerId, typ: UnitType) -> (u32, u32) {
+        combat::effective_range(self.state.co_of(player), typ)
     }
 
     // --- legality ----------------------------------------------------------
@@ -167,8 +174,9 @@ impl Engine {
         if unit.typ.is_indirect() && dest != unit.pos {
             return Err(ActionError::OutOfRange);
         }
+        let (min_range, max_range) = self.range_of(unit.owner, unit.typ);
         let distance = dest.distance(target);
-        if distance < stats.range_min.max(1) as u32 || distance > stats.range_max.max(1) as u32 {
+        if distance < min_range || distance > max_range {
             return Err(ActionError::OutOfRange);
         }
 
@@ -216,7 +224,7 @@ impl Engine {
         if self.state.unit_id_at(at).is_some() {
             return Err(ActionError::Occupied);
         }
-        if self.state.player(player).funds < typ.stats().cost {
+        if self.state.player(player).funds < self.unit_cost(player, typ) {
             return Err(ActionError::NotEnoughFunds);
         }
         if self.state.unit_count(player) >= self.state.settings.unit_limit {
@@ -336,7 +344,8 @@ impl Engine {
             }
             Action::Build { at, typ } => {
                 let player = self.state.current;
-                self.state.players[player as usize].funds -= typ.stats().cost;
+                let cost = self.unit_cost(player, typ);
+                self.state.players[player as usize].funds -= cost;
                 let id = self.state.spawn(typ, player, at);
                 // Fresh units cannot act on the turn they are built.
                 self.state.unit_mut(id).unwrap().moved = true;
@@ -450,17 +459,27 @@ impl Engine {
     ) -> i32 {
         let terrain = self.state.map.terrain_at(defender_pos);
         let terrain_defense = combat::effective_terrain_defense(defender.move_type(), terrain);
-        let good_luck = self.rng.roll_inclusive(VANILLA_GOOD_LUCK_MAX as u32) as i32;
+        let attacker_co = self.state.co_of(attacker.owner);
+        let defender_co = self.state.co_of(defender.owner);
+        let attacker_terrain = self.state.map.terrain_at(attacker.pos);
+
+        // Luck is the attacking CO's range. Note the wide-luck COs (Nell, Flak,
+        // Jugger) are banned from Global League play, so no recorded game in the
+        // corpus exercises this path -- it is implemented from the CO table but
+        // unverified.
+        let good_luck = self.rng.roll_inclusive(attacker_co.luck_good_max.max(0) as u32) as i32;
+        let bad_luck = self.rng.roll_inclusive(attacker_co.luck_bad_max.max(0) as u32) as i32;
+
         combat::damage_roll(
             pct,
             attacker.hp100 as i32,
             defender.hp100 as i32,
             terrain_defense,
-            self.co_of(attacker.owner),
-            self.co_of(defender.owner),
+            combat::co_modifiers(attacker_co, attacker.typ, attacker_terrain),
+            combat::co_modifiers(defender_co, defender.typ, terrain),
             self.state.com_tower_bonus(attacker.owner),
             good_luck,
-            0,
+            bad_luck,
         )
     }
 
@@ -676,12 +695,11 @@ impl Engine {
     /// unit looks at 4 tiles instead of the whole army, and this runs once per
     /// reachable tile per unit per step.
     fn push_attacks(&self, out: &mut Vec<Action>, unit_id: UnitId, unit: crate::state::Unit, dest: Pos) {
-        let stats = unit.typ.stats();
         if unit.typ.is_indirect() && dest != unit.pos {
             return;
         }
-        let min = stats.range_min.max(1) as i32;
-        let max = stats.range_max.max(1) as i32;
+        let (min_range, max_range) = self.range_of(unit.owner, unit.typ);
+        let (min, max) = (min_range as i32, max_range as i32);
         for dy in -max..=max {
             let span = max - dy.abs();
             for dx in -span..=span {
@@ -763,16 +781,19 @@ impl Engine {
         let defender = self.state.unit_at(target)?;
         let (pct, _) = combat::base_percentage(attacker.typ, defender.typ, attacker.ammo)?;
         let terrain = self.state.map.terrain_at(target);
+        let attacker_co = self.state.co_of(attacker.owner);
+        let defender_co = self.state.co_of(defender.owner);
+        let attacker_terrain = self.state.map.terrain_at(attacker.pos);
         Some(combat::damage_spread(
             pct,
             attacker.hp100 as i32,
             defender.hp100 as i32,
             combat::effective_terrain_defense(defender.move_type(), terrain),
-            self.co_of(attacker.owner),
-            self.co_of(defender.owner),
+            combat::co_modifiers(attacker_co, attacker.typ, attacker_terrain),
+            combat::co_modifiers(defender_co, defender.typ, terrain),
             self.state.com_tower_bonus(attacker.owner),
-            VANILLA_GOOD_LUCK_MAX,
-            0,
+            attacker_co.luck_good_max,
+            attacker_co.luck_bad_max,
         ))
     }
 }
@@ -789,8 +810,8 @@ mod tests {
         let map = Arc::new(Map::from_kinds(width, height, kinds).unwrap());
         let props = map.properties().len();
         let players = vec![
-            Player { funds: 10_000, team: 1, eliminated: false },
-            Player { funds: 10_000, team: 2, eliminated: false },
+            Player::new(10_000, 1),
+            Player::new(10_000, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &vec![None; props]);
         Engine::new(state, 12345)
@@ -952,8 +973,8 @@ mod tests {
         kinds[1] = TerrainKind::Hq;
         let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
         let players = vec![
-            Player { funds: 0, team: 1, eliminated: false },
-            Player { funds: 0, team: 2, eliminated: false },
+            Player::new(0, 1),
+            Player::new(0, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(1)]);
         let mut e = Engine::new(state, 1);
@@ -976,8 +997,8 @@ mod tests {
         kinds[0] = TerrainKind::Base;
         let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
         let players = vec![
-            Player { funds: 8000, team: 1, eliminated: false },
-            Player { funds: 0, team: 2, eliminated: false },
+            Player::new(8000, 1),
+            Player::new(0, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(0)]);
         let mut e = Engine::new(state, 1);
@@ -1000,8 +1021,8 @@ mod tests {
         kinds[0] = TerrainKind::Base;
         let map = Arc::new(Map::from_kinds(3, 1, kinds).unwrap());
         let players = vec![
-            Player { funds: 99_000, team: 1, eliminated: false },
-            Player { funds: 0, team: 2, eliminated: false },
+            Player::new(99_000, 1),
+            Player::new(0, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(0)]);
         let mut e = Engine::new(state, 1);
@@ -1088,8 +1109,8 @@ mod tests {
         kinds[12] = TerrainKind::City;
         let map = Arc::new(Map::from_kinds(5, 5, kinds).unwrap());
         let players = vec![
-            Player { funds: 20_000, team: 1, eliminated: false },
-            Player { funds: 20_000, team: 2, eliminated: false },
+            Player::new(20_000, 1),
+            Player::new(20_000, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None]);
         let mut e = Engine::new(state, 99);
@@ -1116,8 +1137,8 @@ mod tests {
         kinds[12] = TerrainKind::City;
         let map = Arc::new(Map::from_kinds(5, 5, kinds).unwrap());
         let players = vec![
-            Player { funds: 20_000, team: 1, eliminated: false },
-            Player { funds: 20_000, team: 2, eliminated: false },
+            Player::new(20_000, 1),
+            Player::new(20_000, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None]);
         let mut e = Engine::new(state, 5);
@@ -1156,8 +1177,8 @@ mod tests {
         kinds[48] = TerrainKind::Base;
         let map = Arc::new(Map::from_kinds(7, 7, kinds).unwrap());
         let players = vec![
-            Player { funds: 10_000, team: 1, eliminated: false },
-            Player { funds: 10_000, team: 2, eliminated: false },
+            Player::new(10_000, 1),
+            Player::new(10_000, 2),
         ];
         let state = GameState::new(map, GameSettings::default(), players, &[Some(0), None, Some(1)]);
         let mut e = Engine::new(state, 2024);

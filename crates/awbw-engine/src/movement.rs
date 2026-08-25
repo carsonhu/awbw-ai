@@ -181,8 +181,8 @@ mod tests {
     fn plain_state(w: u8, h: u8) -> GameState {
         let map = Arc::new(Map::from_kinds(w, h, vec![TerrainKind::Plain; (w as usize) * (h as usize)]).unwrap());
         let players = vec![
-            Player { funds: 0, team: 1, eliminated: false },
-            Player { funds: 0, team: 2, eliminated: false },
+            Player::new(0, 1),
+            Player::new(0, 2),
         ];
         GameState::new(map, GameSettings::default(), players, &[])
     }
@@ -215,8 +215,8 @@ mod tests {
         kinds[2] = TerrainKind::Mountain;
         let map = Arc::new(Map::from_kinds(5, 1, kinds).unwrap());
         let players = vec![
-            Player { funds: 0, team: 1, eliminated: false },
-            Player { funds: 0, team: 2, eliminated: false },
+            Player::new(0, 1),
+            Player::new(0, 2),
         ];
         let mut state = GameState::new(map, GameSettings::default(), players, &[]);
 

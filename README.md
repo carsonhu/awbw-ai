@@ -51,8 +51,8 @@ turns that exercise it instead of poisoning a whole game. Combat luck (0-9%)
 can't be reproduced, so damage is checked as a *range* the record must fall
 inside, and HP is resynced from the record afterwards.
 
-**Current: 97.2% agreement** over 381 games / 10,386 turns / 913k assertions,
-with 39 games fully clean.
+**Current: 98.4% agreement** over 381 games / 10,386 turns / 905k assertions,
+with 80 games reproduced exactly.
 
 ### What the divergences say
 
@@ -60,15 +60,15 @@ Ranked by count, and what they actually mean:
 
 | divergence | cause |
 |---|---|
-| `damage-range`, `move-over-budget`, `funds` | **CO day-to-day abilities**, unimplemented. Confirmed by hand: Hawke's flat +10% attack accounts exactly for the damage gap in sampled games. |
-| `unit-extra`, `unit-hp`, `unit-position` | Mostly downstream of the same thing plus unhandled `Power` actions. |
-| `capture-progress` off by one | Capture uses displayed HP; worth re-deriving against a Sami game (she captures at 1.5x). |
-| `build-illegal: NotEnoughFunds` | CO cost multipliers (Colin 0.8x, Hachi 0.9x, Kanbei 1.2x). |
+| `damage-range`, `move-over-budget`, `move-unreachable` | **CO powers**, which the engine does not model. A power changes attack, defence and movement for one turn — Max Force is the B-Copter moving 7 tiles on 6 movement. |
+| `unit-hp`, `unit-position` | Mostly downstream of the same. |
+| `capture-progress` off by one | Sami captures at 1.5x, which the CO table does not encode. |
+| `funds`, `build-illegal` | Residual power effects (Hachi's power halves unit cost) and repair spend. |
 
 Competitive AWBW almost never uses ability-free COs — Max alone is 209 of 762
 seats in the sample and Andy just 38, with no Andy-vs-Andy games at all — so
-there is no "vanilla CO" subset to hide behind. Implementing COs is the next
-correctness milestone, and the harness above is how it gets measured.
+there is no "vanilla CO" subset to hide behind, and day-to-day abilities had to
+be modelled before the corpus could say anything about combat.
 
 ## Action space
 
@@ -94,12 +94,31 @@ a 15x15 map, 30-day games, single core:
 1. ~~Data capture + combat formula~~ (done)
 2. ~~Game state, movement/pathfinding, core action set~~ (done: move, attack,
    capture, build, load/unload, join, supply, turn bookkeeping, win conditions)
-3. ~~Replay-differential verification harness~~ (done: 97.2% agreement)
-4. CO day-to-day abilities and powers — the harness says this is the single
-   biggest source of remaining divergence
-5. Fog of war, missile silos, pipe seams
-6. Baseline bots + internal Elo ladder
-7. PyO3 bindings, Gym-style env, PPO self-play
+3. ~~Replay-differential verification harness~~ (done)
+4. ~~CO day-to-day abilities~~ (done: 98.4% agreement)
+5. CO powers, or explicitly excluding power-affected turns from strict checks
+6. Fog of war, missile silos, pipe seams
+7. Baseline bots + internal Elo ladder
+8. PyO3 bindings, Gym-style env, PPO self-play
+
+## COs
+
+Day-to-day abilities are generated from the AWBW-Replay-Player's `COs.json` by
+`tools/gen_cos.py` into `co_data.rs`: per-unit attack, defence and range
+deltas, build-cost multipliers, terrain-conditional bonuses (Kindle on
+properties, Koal on roads, Jake on plains, Lash per terrain star), Sasha's
+property income and Eagle's air fuel saving.
+
+**The agent does not use any of this.** Self-play runs on the ability-free CO
+with powers off, so `CoData::VANILLA` is a constant and the CO layer is inert.
+COs exist to make the replay corpus usable as a correctness signal, and later
+so an agent facing a human can predict their damage correctly.
+
+Not modelled: **CO powers** (they change stats mid-turn, and the agent will
+never use them), Olaf's weather remap, Sonja's fog effects, Javier's
+defence-against-indirects, and Sami's capture rate. The luck-range COs (Nell,
+Flak, Jugger) *are* implemented but are **unverified** — they are banned in
+Global League play, so no game in the corpus exercises them.
 
 ## Rules not yet implemented
 

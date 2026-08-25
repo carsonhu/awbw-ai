@@ -70,8 +70,8 @@ fn build_map(width: u8, height: u8) -> (Arc<Map>, Vec<Option<u8>>) {
 fn new_engine(seed: u64) -> Engine {
     let (map, owners) = build_map(15, 15);
     let players = vec![
-        Player { funds: 10_000, team: 1, eliminated: false },
-        Player { funds: 10_000, team: 2, eliminated: false },
+        Player::new(10_000, 1),
+        Player::new(10_000, 2),
     ];
     let state = GameState::new(map, GameSettings::default(), players, &owners);
     let mut engine = Engine::new(state, seed);

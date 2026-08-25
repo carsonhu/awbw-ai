@@ -17,6 +17,7 @@
 //! value is `ceil(hp100 / 10)`. Terrain defence is zero for air units and on
 //! pipe seams. Default luck is bad 0, good 0..=9 inclusive.
 
+use crate::co_data::{AttackCondition, CoData};
 use crate::data;
 use crate::types::{MoveType, TerrainKind, UnitType};
 
@@ -43,6 +44,60 @@ pub const VANILLA_CO: CoModifiers = CoModifiers {
 
 /// Vanilla luck: no bad luck, 0..=9 good luck (inclusive).
 pub const VANILLA_GOOD_LUCK_MAX: i32 = 9;
+
+/// Turns a CO's day-to-day ability into the modifiers the formula wants.
+///
+/// `terrain` is the tile the *attacker* stands on, which is what the
+/// terrain-conditional COs key off: Kindle on properties, Koal on roads, Jake
+/// on plains, and Lash scaling with the tile's own defence stars. It has no
+/// bearing on the defence half, so passing the defender's tile is harmless.
+pub fn co_modifiers(co: &CoData, unit: UnitType, terrain: TerrainKind) -> CoModifiers {
+    let index = unit as usize;
+    let conditional = match co.condition {
+        AttackCondition::Always => 0,
+        AttackCondition::UrbanOnly => {
+            if terrain.is_capturable() {
+                co.conditional_attack[index] as i32
+            } else {
+                0
+            }
+        }
+        AttackCondition::RoadOnly => {
+            if matches!(terrain, TerrainKind::Road | TerrainKind::Bridge) {
+                co.conditional_attack[index] as i32
+            } else {
+                0
+            }
+        }
+        AttackCondition::PlainOnly => {
+            if terrain == TerrainKind::Plain {
+                co.conditional_attack[index] as i32
+            } else {
+                0
+            }
+        }
+        AttackCondition::PerTerrainStar => {
+            co.conditional_attack[index] as i32 * terrain.defense() as i32
+        }
+    };
+
+    CoModifiers {
+        attack: 100 + co.attack[index] as i32 + conditional,
+        defense: 100 + co.defense[index] as i32,
+        // Powers are not modelled; they stay neutral.
+        attack_power: 100,
+        defense_power: 100,
+    }
+}
+
+/// A unit's firing range after its CO's day-to-day modifier (Grit reaches one
+/// tile further, Max's indirects one tile less).
+pub fn effective_range(co: &CoData, unit: UnitType) -> (u32, u32) {
+    let stats = unit.stats();
+    let min = stats.range_min.max(1) as i32;
+    let max = stats.range_max.max(1) as i32 + co.range_delta[unit as usize] as i32;
+    (min.max(1) as u32, max.max(min) as u32)
+}
 
 /// Displayed HP (1..=10) from internal hp100.
 #[inline]

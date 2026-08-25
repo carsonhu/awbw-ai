@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::co_data::CoData;
 use crate::map::{Map, Pos};
 use crate::types::{MoveType, TerrainKind, UnitType, Weather};
 
@@ -173,11 +174,25 @@ impl Building {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct Player {
     pub funds: u32,
     pub team: u8,
     pub eliminated: bool,
+    /// Day-to-day ability. Defaults to the ability-free CO, which is what
+    /// self-play uses; the replay harness sets the real one.
+    pub co: &'static CoData,
+}
+
+impl Player {
+    pub fn new(funds: u32, team: u8) -> Self {
+        Player { funds, team, eliminated: false, co: &CoData::VANILLA }
+    }
+
+    pub fn with_co(mut self, co: &'static CoData) -> Self {
+        self.co = co;
+        self
+    }
 }
 
 /// Per-game settings that vary between AWBW game types.
@@ -489,7 +504,15 @@ impl GameState {
     }
 
     pub fn income(&self, player: PlayerId) -> u32 {
-        self.property_count(player) as u32 * self.settings.funds_per_property
+        let per_property =
+            self.settings.funds_per_property + self.players[player as usize].co.property_fund_bonus;
+        self.property_count(player) as u32 * per_property
+    }
+
+    /// The day-to-day ability of a player's CO.
+    #[inline]
+    pub fn co_of(&self, player: PlayerId) -> &'static CoData {
+        self.players[player as usize].co
     }
 
     /// +10% attack per Com Tower the player owns, applied in the damage formula.
@@ -642,12 +665,17 @@ impl GameState {
     }
 
     fn apply_fuel_upkeep(&mut self, player: PlayerId) {
+        let co = self.co_of(player);
         let mut crashed = Vec::new();
         for unit in self.units.iter_mut().flatten() {
             if unit.owner != player {
                 continue;
             }
-            let upkeep = unit.fuel_upkeep();
+            let mut upkeep = unit.fuel_upkeep();
+            // Eagle's air units burn less fuel per day.
+            if unit.move_type() == MoveType::Air {
+                upkeep = upkeep.saturating_sub(co.air_fuel_decrease);
+            }
             unit.fuel = unit.fuel.saturating_sub(upkeep);
             if unit.fuel == 0 && unit.crashes_without_fuel() {
                 crashed.push(unit.id);
@@ -727,8 +755,8 @@ mod tests {
             Map::from_awbw_ids(5, 1, &[39, 1, 34, 1, 44]).unwrap(),
         );
         let players = vec![
-            Player { funds: 5000, team: 1, eliminated: false },
-            Player { funds: 5000, team: 2, eliminated: false },
+            Player::new(5000, 1),
+            Player::new(5000, 2),
         ];
         // properties() is in row-major order: OS base, city, BM base.
         GameState::new(map, GameSettings::default(), players, &[Some(0), None, Some(1)])

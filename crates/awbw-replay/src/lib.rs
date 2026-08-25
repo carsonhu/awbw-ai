@@ -28,6 +28,20 @@ use awbw_engine::data;
 
 use schema::{unwrap_vision, BuildingRec, Replay, Turn, UnitRec};
 
+/// Reads a number that AWBW may have encoded as an integer, a float, or a
+/// string. Its JSON is inconsistent about this even within one payload, and a
+/// strict `as_i64` silently drops the string cases.
+fn as_num(value: Option<&serde_json::Value>) -> Option<i64> {
+    let value = value?;
+    if let Some(n) = value.as_i64() {
+        return Some(n);
+    }
+    if let Some(f) = value.as_f64() {
+        return Some(f.round() as i64);
+    }
+    value.as_str()?.trim().parse::<f64>().ok().map(|f| f.round() as i64)
+}
+
 /// One thing the engine got wrong, or could not check.
 #[derive(Debug, Clone)]
 pub struct Divergence {
@@ -131,6 +145,27 @@ struct Loaded {
     engine: Engine,
     /// AWBW unit id -> engine unit id.
     ids: HashMap<i64, UnitId>,
+    /// Engine unit id -> AWBW unit id.
+    ///
+    /// The engine recycles the slot of a destroyed unit, so a build later in
+    /// the same turn can land on the id a casualty used to hold. Without this
+    /// reverse map the casualty looks alive, because its stale forward mapping
+    /// still resolves to an occupied slot.
+    awbw_of: HashMap<UnitId, i64>,
+}
+
+impl Loaded {
+    fn bind(&mut self, awbw_id: i64, unit: UnitId) {
+        self.ids.insert(awbw_id, unit);
+        self.awbw_of.insert(unit, awbw_id);
+    }
+
+    /// The engine unit currently holding this AWBW id, if the slot has not
+    /// since been handed to someone else.
+    fn live(&self, awbw_id: i64) -> Option<UnitId> {
+        let unit = *self.ids.get(&awbw_id)?;
+        (self.awbw_of.get(&unit) == Some(&awbw_id)).then_some(unit)
+    }
 }
 
 pub struct Verifier<'a> {
@@ -178,14 +213,20 @@ impl<'a> Verifier<'a> {
             .replay
             .players
             .iter()
-            .map(|p| Player {
-                funds: turn.funds.get(&p.id.to_string()).copied().unwrap_or(0).max(0) as u32,
-                team: p.team.bytes().fold(0u8, |a, b| a.wrapping_add(b)),
-                eliminated: turn
+            .map(|p| {
+                let mut player = Player::new(
+                    turn.funds.get(&p.id.to_string()).copied().unwrap_or(0).max(0) as u32,
+                    p.team.bytes().fold(0u8, |a, b| a.wrapping_add(b)),
+                );
+                player.eliminated = turn
                     .eliminated
                     .get(&p.id.to_string())
                     .copied()
-                    .unwrap_or(false),
+                    .unwrap_or(false);
+                if let Some(co) = awbw_engine::co_data::co_by_name(&p.co_name) {
+                    player.co = co;
+                }
+                player
             })
             .collect();
 
@@ -236,9 +277,11 @@ impl<'a> Verifier<'a> {
             ids.insert(rec.id, id);
         }
 
+        let awbw_of = ids.iter().map(|(&awbw, &unit)| (unit, awbw)).collect();
         Ok(Loaded {
             engine: Engine::new(state, 0x5EED),
             ids,
+            awbw_of,
         })
     }
 
@@ -357,17 +400,17 @@ impl<'a> Verifier<'a> {
         let Some(typ) = unit_type_by_name(name) else {
             return ActionOutcome::Unsupported(format!("Build/{name}"));
         };
-        let x = rec.get("units_x").and_then(|v| v.as_i64()).unwrap_or(-1) as u8;
-        let y = rec.get("units_y").and_then(|v| v.as_i64()).unwrap_or(-1) as u8;
+        let x = as_num(rec.get("units_x")).unwrap_or(-1) as u8;
+        let y = as_num(rec.get("units_y")).unwrap_or(-1) as u8;
         let at = Pos::new(x, y);
-        let awbw_id = rec.get("units_id").and_then(|v| v.as_i64()).unwrap_or(0);
+        let awbw_id = as_num(rec.get("units_id")).unwrap_or(0);
 
         report.checks += 1;
         let build = Action::Build { at, typ };
         match loaded.engine.apply(build) {
             Ok(out) => {
                 if let Some(id) = out.unit_built {
-                    loaded.ids.insert(awbw_id, id);
+                    loaded.bind(awbw_id, id);
                 }
             }
             Err(e) => {
@@ -386,7 +429,7 @@ impl<'a> Verifier<'a> {
                 let cost = typ.stats().cost;
                 let funds = &mut loaded.engine.state.players[owner as usize].funds;
                 *funds = funds.saturating_sub(cost);
-                loaded.ids.insert(awbw_id, id);
+                loaded.bind(awbw_id, id);
             }
         }
         ActionOutcome::Applied
@@ -400,8 +443,8 @@ impl<'a> Verifier<'a> {
         move_action: &serde_json::Value,
     ) -> Option<(UnitId, Vec<Pos>)> {
         let unit = move_action.get("unit").and_then(unwrap_vision)?;
-        let awbw_id = unit.get("units_id").and_then(|v| v.as_i64())?;
-        let id = loaded.ids.get(&awbw_id).copied()?;
+        let awbw_id = as_num(unit.get("units_id"))?;
+        let id = loaded.live(awbw_id)?;
         let path = move_action.get("paths").and_then(unwrap_vision)?.as_array()?;
         let route: Vec<Pos> = path
             .iter()
@@ -654,10 +697,10 @@ impl<'a> Verifier<'a> {
 
         let read = |key: &str| -> Option<(UnitId, i64, i64)> {
             let side = info.get(key)?;
-            let awbw_id = side.get("units_id").and_then(|v| v.as_i64())?;
-            let id = loaded.ids.get(&awbw_id).copied()?;
-            let hp = side.get("units_hit_points").and_then(|v| v.as_i64())?;
-            let ammo = side.get("units_ammo").and_then(|v| v.as_i64()).unwrap_or(-1);
+            let awbw_id = as_num(side.get("units_id"))?;
+            let id = loaded.live(awbw_id)?;
+            let hp = as_num(side.get("units_hit_points"))?;
+            let ammo = as_num(side.get("units_ammo")).unwrap_or(-1);
             Some((id, hp, ammo))
         };
 
@@ -813,15 +856,15 @@ impl<'a> Verifier<'a> {
         let Some(rec) = action.get("unit").and_then(unwrap_vision) else {
             return ActionOutcome::Unsupported("Unload/unit".into());
         };
-        let awbw_id = rec.get("units_id").and_then(|v| v.as_i64()).unwrap_or(0);
-        let Some(&cargo) = loaded.ids.get(&awbw_id) else {
+        let awbw_id = as_num(rec.get("units_id")).unwrap_or(0);
+        let Some(cargo) = loaded.live(awbw_id) else {
             return ActionOutcome::Unsupported("Unload/unknown-unit".into());
         };
-        let x = rec.get("units_x").and_then(|v| v.as_i64()).unwrap_or(0) as u8;
-        let y = rec.get("units_y").and_then(|v| v.as_i64()).unwrap_or(0) as u8;
-        let transport_awbw = action.get("transportID").and_then(|v| v.as_i64()).unwrap_or(0);
+        let x = as_num(rec.get("units_x")).unwrap_or(0) as u8;
+        let y = as_num(rec.get("units_y")).unwrap_or(0) as u8;
+        let transport_awbw = as_num(action.get("transportID")).unwrap_or(0);
         report.checks += 1;
-        if let Some(&transport) = loaded.ids.get(&transport_awbw) {
+        if let Some(transport) = loaded.live(transport_awbw) {
             loaded.engine.state.unload_to(transport, cargo, Pos::new(x, y));
         }
         ActionOutcome::Applied
@@ -831,16 +874,13 @@ impl<'a> Verifier<'a> {
     fn acting_unit(&self, loaded: &Loaded, action: &serde_json::Value) -> Option<UnitId> {
         for key in ["unit", "Unit"] {
             if let Some(rec) = action.get(key).and_then(unwrap_vision) {
-                if let Some(awbw_id) = rec.get("units_id").and_then(|v| v.as_i64()) {
-                    return loaded.ids.get(&awbw_id).copied();
+                if let Some(awbw_id) = as_num(rec.get("units_id")) {
+                    return loaded.live(awbw_id);
                 }
             }
         }
-        action
-            .get("unitId")
-            .or_else(|| action.get("unitID"))
-            .and_then(|v| v.as_i64())
-            .and_then(|id| loaded.ids.get(&id).copied())
+        as_num(action.get("unitId").or_else(|| action.get("unitID")))
+            .and_then(|id| loaded.live(id))
     }
 
     /// APC resupply and Black Boat repair: both top up neighbours in place.
@@ -934,7 +974,7 @@ impl<'a> Verifier<'a> {
         }
 
         for (awbw_id, rec) in &recorded_by_id {
-            let Some(&id) = loaded.ids.get(awbw_id) else {
+            let Some(id) = loaded.live(*awbw_id) else {
                 // Units built this turn are registered; anything else is new to
                 // us, which is itself worth reporting only if it is not a build.
                 continue;
@@ -978,8 +1018,9 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        // Units we think survived but AWBW says are gone.
-        for (awbw_id, &id) in &loaded.ids {
+        // Units we think survived but AWBW says are gone. Driven by the reverse
+        // map so a recycled slot is credited to whoever holds it now.
+        for (&id, awbw_id) in &loaded.awbw_of {
             if recorded_by_id.contains_key(awbw_id) {
                 continue;
             }

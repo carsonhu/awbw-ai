@@ -7,6 +7,7 @@
 //! table). See `tools/` at the workspace root.
 
 pub mod actions;
+pub mod co_data;
 pub mod combat;
 pub mod data;
 pub mod map;
@@ -16,6 +17,7 @@ pub mod state;
 pub mod types;
 
 pub use actions::{Action, ActionError, ActionReport, Engine};
+pub use co_data::{co_by_awbw_id, co_by_name, CoData};
 pub use map::{Map, Pos};
 pub use movement::Reach;
 pub use rng::Rng;

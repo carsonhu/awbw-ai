@@ -22,6 +22,9 @@ const CAPTURE_COMPLETE: f32 = 12_000.0;
 const HQ_BONUS: f32 = 100_000.0;
 /// Per tile of progress toward whatever a unit should be heading for.
 const APPROACH: f32 = 120.0;
+/// The cheapest build still outranks the best plain move, so income always
+/// turns into units rather than sitting in the bank.
+const BUILD_FLOOR: f32 = 1_400.0;
 /// Ending the turn scores zero, so anything worth doing must beat this.
 const IDLE: f32 = 0.0;
 
@@ -104,14 +107,23 @@ fn objective(engine: &Engine, unit: &Unit) -> Option<Pos> {
 
 /// What to build with the funds available.
 ///
-/// Infantry until there are enough of them to take ground, then the most
-/// expensive thing affordable, which is a crude but serviceable proxy for the
-/// strongest thing affordable.
+/// Two pieces of Advance Wars orthodoxy drive this, both of which the first
+/// version got wrong:
 ///
-/// Scores sit in their own band below `CAPTURE_STEP`. Production and unit
-/// orders come from different tiles, so the bot does both in a turn regardless
-/// of their order, but keeping the bands apart stops "build another infantry"
-/// from outranking taking the property the infantry is standing on.
+/// *A base should almost never sit idle.* Income only converts into an army
+/// through production, so a turn spent holding funds is a turn thrown away.
+/// Every build therefore outscores anything a unit could do short of capturing,
+/// which guarantees the bot spends before it shuffles.
+///
+/// *Infantry are the engine of the game, because properties are.* They cost a
+/// third of a mech and capture exactly as fast, so while there are properties
+/// left to take, infantry is the efficient build almost regardless of what else
+/// is affordable. Scoring purely by cost — the first version's proxy for
+/// "strongest affordable" — produced 45% mechs against 15% infantry, which is
+/// the same capture rate for three times the money.
+///
+/// Scores sit in their own band below `CAPTURE_STEP`, so production never
+/// outranks taking the property a unit is already standing on.
 fn build_score(engine: &Engine, typ: UnitType, player: PlayerId) -> f32 {
     // The bot has no transport plan, so it declines to fund one.
     if matches!(
@@ -123,16 +135,37 @@ fn build_score(engine: &Engine, typ: UnitType, player: PlayerId) -> f32 {
 
     let state = &engine.state;
     let cost = engine.unit_cost(player, typ) as f32;
-    let mut score = 500.0 + 2_500.0 * (cost / 28_000.0).min(1.0);
 
-    let infantry = state
-        .units_of(player)
-        .filter(|u| is_capturer(u.typ))
+    // The floor sits above anything a plain move can score, so an affordable
+    // base is never left empty while units reposition.
+    let mut score = BUILD_FLOOR + 1_600.0 * (cost / 28_000.0).min(1.0);
+
+    // Once the bank is full the scarce resource is base-turns, not money: a
+    // side with two bases can only spend two thousand a turn on infantry while
+    // earning nine, so a rich player should convert funds into the strongest
+    // thing a base can make. The capper preference fades as the bank fills.
+    let funds = state.player(player).funds as f32;
+    let poor = (1.0 - funds / 20_000.0).clamp(0.0, 1.0);
+
+    let cappers = state.units_of(player).filter(|u| is_capturer(u.typ)).count();
+    let takeable = state
+        .buildings()
+        .iter()
+        .filter(|b| b.owner != Some(player))
         .count();
-    let properties = state.property_count(player).max(1) as usize;
-    if is_capturer(typ) && infantry < properties {
-        // Bodies to take ground come first; without them nothing else matters.
-        score += 1_500.0;
+    // One body per property still worth taking, up to a sane cap.
+    let wanted = takeable.min(state.property_count(player) as usize + 4);
+
+    if cappers < wanted {
+        score += poor
+            * match typ {
+                UnitType::Infantry => 1_800.0,
+                // A mech caps at the same rate for three times the price, so it
+                // is only worth building as a capper when infantry is not the
+                // answer.
+                UnitType::Mech => 300.0,
+                _ => 0.0,
+            };
     }
     score
 }

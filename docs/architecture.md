@@ -33,10 +33,10 @@ build; see `workflow.md`.
 
 ## State
 
-`GameState` is cheap to clone: the map is an `Arc`, everything else is flat
-vectors of `Copy` records. Units live in a slot vector and **slots are
-recycled** when a unit dies — anything holding an external id must track which
-slot it currently owns, or a build silently inherits a casualty's identity.
+`GameState` is cheap to clone: the map is an `Arc`, everything else flat vectors
+of `Copy` records. Units live in a slot vector and **slots are recycled** when a
+unit dies — anything holding an external id must track which slot it owns now,
+or a build silently inherits a casualty's identity.
 
 ## Action space
 

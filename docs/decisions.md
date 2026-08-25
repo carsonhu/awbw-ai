@@ -60,6 +60,13 @@ alone among the popular maps — no terrain the engine leaves unimplemented. A
 real map also removes the mismatch between the training environment and the
 replay corpus: same board, same rules, same opening.
 
+**Bots must break ties at random.** The action list is built row-major, so
+resolving equal-scoring options by enumeration order is a geographic bias in
+disguise. On this map it turned a greedy mirror match into 15/85; randomising
+ties restored it to 40/60. Verified against a random-vs-random control, which
+sat at 43% throughout and proved the board and engine were never at fault. Any
+scripted teacher used for imitation needs this, or the bias is cloned with it.
+
 **Its starting units are deliberately asymmetric.** Blue Moon gets an infantry
 Orange Star has no counterpart for, on top of the mirrored Black Boats. That is
 a property of the map, not a loading bug, and it means the seats are *not*

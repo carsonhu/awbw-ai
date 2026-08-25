@@ -27,6 +27,15 @@ const IDLE: f32 = 0.0;
 
 pub struct GreedyBot {
     buffer: Vec<Action>,
+    /// Ties are broken at random rather than by enumeration order.
+    ///
+    /// Order-based tie-breaking is a geographic bias in disguise: the action
+    /// list is built row-major, so equal-scoring options resolve towards one
+    /// corner of the board. On a symmetric map with identical bots that turned
+    /// a mirror match into 15/85, and it would have been baked into any policy
+    /// cloned from this teacher.
+    rng: awbw_engine::rng::Rng,
+    ties: Vec<Action>,
     name: String,
     /// When false the bot never attacks, only expands. A deliberately weaker
     /// rung: it plays the economy correctly and the fight not at all, so a
@@ -44,6 +53,8 @@ impl GreedyBot {
     pub fn new() -> Self {
         GreedyBot {
             buffer: Vec::new(),
+            rng: awbw_engine::rng::Rng::new(0x9E37_79B9),
+            ties: Vec::new(),
             name: "greedy".to_string(),
             fights: true,
         }
@@ -53,6 +64,8 @@ impl GreedyBot {
     pub fn capture_only() -> Self {
         GreedyBot {
             buffer: Vec::new(),
+            rng: awbw_engine::rng::Rng::new(0x2545_F491),
+            ties: Vec::new(),
             name: "capturer".to_string(),
             fights: false,
         }
@@ -233,21 +246,36 @@ impl Bot for GreedyBot {
         &self.name
     }
 
+    fn reset(&mut self, seed: u64) {
+        self.rng = awbw_engine::rng::Rng::new(seed ^ 0x5DEE_CE66);
+    }
+
     fn choose(&mut self, engine: &mut Engine) -> Action {
         let mut orders = std::mem::take(&mut self.buffer);
+        let mut ties = std::mem::take(&mut self.ties);
         engine.legal_actions_into(&mut orders);
 
-        let mut best = Action::EndTurn;
+        // Scores are funds-valued, so anything inside a few funds of the best
+        // is the same decision as far as the heuristic is concerned.
+        const EPSILON: f32 = 1.0;
         let mut best_score = IDLE;
+        ties.clear();
+        ties.push(Action::EndTurn);
         for &action in orders.iter() {
             let score = self.score(engine, action);
-            if score > best_score {
+            if score > best_score + EPSILON {
                 best_score = score;
-                best = action;
+                ties.clear();
+                ties.push(action);
+            } else if (score - best_score).abs() <= EPSILON && score > IDLE {
+                ties.push(action);
             }
         }
+        let pick = ties[self.rng.roll_inclusive(ties.len() as u32 - 1) as usize];
+
         self.buffer = orders;
-        best
+        self.ties = ties;
+        pick
     }
 }
 

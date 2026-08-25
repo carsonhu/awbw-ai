@@ -20,12 +20,14 @@
 
 use awbw_engine::actions::{Action, Engine};
 use awbw_engine::encoding::{
-    decode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
+    decode, encode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
     ActionMasks,
 };
 use awbw_engine::state::{GameState, Outcome, PlayerId};
 use awbw_bots::arena::Board;
 use awbw_bots::awbw_map::{AwbwMap, RIVER_SUPREME};
+use awbw_bots::greedy::GreedyBot;
+use awbw_bots::{Bot, RandomBot};
 
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadwriteArray2};
@@ -437,9 +439,179 @@ impl VecEnv {
     }
 }
 
+/// A batch of games played by a scripted teacher, for behaviour cloning.
+///
+/// No dataset files. An observation is 19k floats, so a million samples would
+/// be seventy-odd gigabytes on disk, while the engine regenerates them at tens
+/// of thousands a second -- storing them would cost more than making them. The
+/// teacher plays continuously and hands back what it did, so the data is
+/// unlimited and never repeats.
+///
+/// ```text
+///   env.observe_into(obs)   # the positions the teacher is about to act on
+///   targets = env.act()     # what it chose, applied; (num_envs, 4) codes
+/// ```
+#[pyclass]
+pub struct TeacherEnv {
+    inner: VecEnv,
+    teachers: Vec<Box<dyn Bot + Send + Sync>>,
+    /// Games finished since construction, and how many the first seat won.
+    finished: u64,
+    seat_zero_wins: u64,
+}
+
+fn make_teacher(name: &str, seed: u64) -> PyResult<Box<dyn Bot + Send + Sync>> {
+    Ok(match name {
+        "greedy" => Box::new(GreedyBot::new()),
+        "capturer" => Box::new(GreedyBot::capture_only()),
+        "random" => Box::new(RandomBot::new(seed)),
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown teacher {other:?}; expected greedy, capturer or random"
+            )))
+        }
+    })
+}
+
+#[pymethods]
+impl TeacherEnv {
+    #[new]
+    #[pyo3(signature = (num_envs, teacher="greedy", seed=0, max_day=60, fog=false, map_path=None))]
+    fn new(
+        num_envs: usize,
+        teacher: &str,
+        seed: u64,
+        max_day: u16,
+        fog: bool,
+        map_path: Option<String>,
+    ) -> PyResult<Self> {
+        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path)?;
+        let teachers = (0..num_envs)
+            .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(TeacherEnv {
+            inner,
+            teachers,
+            finished: 0,
+            seat_zero_wins: 0,
+        })
+    }
+
+    #[getter]
+    fn num_envs(&self) -> usize {
+        self.inner.games.len()
+    }
+
+    #[getter]
+    fn observation_size(&self) -> usize {
+        self.inner.obs_len()
+    }
+
+    #[getter]
+    fn action_sizes(&self) -> [usize; 4] {
+        self.inner.action_sizes()
+    }
+
+    #[getter]
+    fn board_shape(&self) -> (u8, u8) {
+        self.inner.board_shape()
+    }
+
+    #[getter]
+    fn map_name(&self) -> String {
+        self.inner.map_name()
+    }
+
+    /// Games completed so far, and the fraction the first seat won. A teacher
+    /// mirror-matched against itself should sit near half, and a number far
+    /// from it means the map or the seating is lopsided.
+    #[getter]
+    fn stats(&self) -> (u64, f64) {
+        let rate = if self.finished == 0 {
+            0.5
+        } else {
+            self.seat_zero_wins as f64 / self.finished as f64
+        };
+        (self.finished, rate)
+    }
+
+    fn observe_into(&self, out: PyReadwriteArray2<f32>) -> PyResult<()> {
+        self.inner.observe_into(out)
+    }
+
+    fn observe<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f32>> {
+        self.inner.observe(py)
+    }
+
+    /// Which seat is to move in each game, so a trainer can tell the two sides
+    /// of a self-play game apart.
+    fn current_player<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        self.inner.current_player(py)
+    }
+
+    /// Lets the teacher move once in every game, and returns what it chose as
+    /// `(num_envs, 4)` action codes — the labels to clone.
+    fn act<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+        let mut codes = vec![0u32; self.inner.games.len() * 4];
+        let mut restarts = Vec::new();
+
+        for i in 0..self.inner.games.len() {
+            let game = &mut self.inner.games[i];
+            let actor = game.engine.state.current;
+            let action = self.teachers[i].choose(&mut game.engine);
+
+            // Record before applying: the label belongs to the position the
+            // observation was taken from.
+            let code = encode(&game.engine.state, action).unwrap_or(ActionCode {
+                source: end_turn_source(&game.engine.state),
+                dest: 0,
+                kind: 0,
+                param: 0,
+            });
+            codes[i * 4] = code.source;
+            codes[i * 4 + 1] = code.dest;
+            codes[i * 4 + 2] = code.kind as u32;
+            codes[i * 4 + 3] = code.param;
+
+            if game.engine.apply(action).is_err() {
+                let _ = game.engine.apply(Action::EndTurn);
+            }
+
+            if VecEnv::is_finished(&game.engine.state, self.inner.max_day) {
+                self.finished += 1;
+                if let Outcome::Winner(0) = game.engine.state.outcome() {
+                    self.seat_zero_wins += 1;
+                }
+                let _ = actor;
+                restarts.push(i);
+            }
+        }
+
+        self.inner.episodes += 1;
+        for i in restarts {
+            self.inner.games[i] = self.inner.new_game(i, self.inner.episodes);
+            self.teachers[i].reset(self.inner.seed.wrapping_add(self.inner.episodes));
+        }
+
+        Array2::from_shape_vec((self.inner.games.len(), 4), codes)
+            .expect("code buffer is rectangular")
+            .into_pyarray(py)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TeacherEnv(num_envs={}, map={:?}, games_finished={})",
+            self.inner.games.len(),
+            self.inner.board.name(),
+            self.finished
+        )
+    }
+}
+
 #[pymodule]
 fn awbw(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VecEnv>()?;
+    m.add_class::<TeacherEnv>()?;
     m.add("__doc__", "Batched Advance Wars by Web environment.")?;
     Ok(())
 }

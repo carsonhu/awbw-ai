@@ -71,8 +71,7 @@ orders, so they cannot drift from the rules; tests pin the staged path to
 exactly the orders flat enumeration finds, and every masked path to something
 `check` accepts.
 
-Random self-play, 15x15 map, 30-day games, single core
-(`cargo run --release --example selfplay_bench`):
+Random self-play, 15x15, 30-day games, one core (`--example selfplay_bench`):
 
 | path | branching | micro-steps/sec |
 |---|---|---|

@@ -16,6 +16,8 @@ use awbw_engine::movement::Reach;
 use awbw_engine::state::{GameState, Outcome, PlayerId, UnitId};
 use awbw_engine::map::Pos;
 
+use std::collections::HashMap;
+
 use serde_json::{json, Value};
 
 /// One game's log, built as it is played.
@@ -29,20 +31,46 @@ pub struct Recorder {
     snapshot: Option<Value>,
     /// Set once the game ends, and taken by `finished`.
     done: Option<Value>,
+    /// Engine unit slot -> an id unique to the unit that currently holds it.
+    ///
+    /// `UnitId` is a *slot* and the engine reuses it once its occupant dies, so
+    /// a unit built later can inherit a dead one's id. AWBW ids are unique for
+    /// the life of a game, and a reader handed the same id twice sees one unit
+    /// jump across the map -- which is what a replay of a long game looked
+    /// like, worsening as the losses piled up.
+    live: HashMap<UnitId, u64>,
+    next_id: u64,
 }
 
-fn unit_json(state: &GameState, id: UnitId) -> Value {
+impl Recorder {
+    /// Reconciles slots with the board: retires the dead, numbers the new.
+    fn sync(&mut self, state: &GameState) {
+        self.live.retain(|&slot, _| state.unit(slot).is_some());
+        for unit in state.units() {
+            if !self.live.contains_key(&unit.id) {
+                self.next_id += 1;
+                self.live.insert(unit.id, self.next_id);
+            }
+        }
+    }
+
+    fn unit_json(&self, state: &GameState, id: UnitId) -> Value {
+        unit_json(&self.live, state, id)
+    }
+}
+
+fn unit_json(live: &HashMap<UnitId, u64>, state: &GameState, id: UnitId) -> Value {
     let Some(unit) = state.unit(id) else {
         return Value::Null;
     };
-    let cargo: Vec<i64> = unit
+    let cargo: Vec<u64> = unit
         .cargo
         .iter()
         .filter(|&&c| state.unit(c).is_some())
-        .map(|&c| c as i64)
+        .filter_map(|c| live.get(c).copied())
         .collect();
     json!({
-        "id": unit.id,
+        "id": live.get(&id).copied().unwrap_or(0),
         "type": format!("{:?}", unit.typ),
         "player": unit.owner,
         "x": unit.pos.x,
@@ -66,7 +94,7 @@ impl Recorder {
         self.close_turn();
         self.open = Some(key);
 
-        let units: Vec<Value> = state.units().map(|u| unit_json(state, u.id)).collect();
+        let units: Vec<Value> = state.units().map(|u| self.unit_json(state, u.id)).collect();
         let buildings: Vec<Value> = state
             .buildings()
             .iter()
@@ -105,12 +133,16 @@ impl Recorder {
     /// afterwards, while the HP left after a fight and the id of a unit just
     /// built do not exist until then.
     pub fn begin(&mut self, state: &GameState, action: Action) -> Value {
+        self.sync(state);
         self.open_turn(state);
         self.before(state, action)
     }
 
     /// Completes the order `begin` opened, now that it has been applied.
     pub fn end(&mut self, engine: &Engine, action: Action, before: Value) {
+        // Before reading the result: a unit built by this order needs an id,
+        // and one destroyed by it has already been replaced in `before`.
+        self.sync(&engine.state);
         if let Some(order) = self.after(&engine.state, action, before) {
             self.orders.push(order);
         }
@@ -122,10 +154,10 @@ impl Recorder {
     /// AWBW reports a destroyed unit rather than omitting it, and the defender's
     /// record is the only place its tile appears -- so a null there loses what
     /// was attacked, and a reader silently drops the whole order.
-    fn survivor(state: &GameState, id: Option<UnitId>, before: Option<&Value>) -> Value {
+    fn survivor(&self, state: &GameState, id: Option<UnitId>, before: Option<&Value>) -> Value {
         if let Some(id) = id {
             if state.unit(id).is_some() {
-                return unit_json(state, id);
+                return self.unit_json(state, id);
             }
         }
         let mut dead = before.cloned().unwrap_or(Value::Null);
@@ -159,7 +191,7 @@ impl Recorder {
                 // The mover is consumed by the merge, so its record has to be
                 // kept from before it: AWBW reports the join as the *mover*
                 // arriving at the tile, and names the survivor separately.
-                "mover": unit_json(state, unit),
+                "mover": self.unit_json(state, unit),
             }),
             Action::Attack { unit, dest, target } => json!({
                 "path": Self::path(state, unit, dest),
@@ -168,8 +200,8 @@ impl Recorder {
                 // still reports it -- at zero HP, not as a null. Dropping the
                 // defender would take the target tile with it, and a reader
                 // then cannot tell what was attacked.
-                "attacker": unit_json(state, unit),
-                "defender": state.unit_id_at(target).map(|d| unit_json(state, d)),
+                "attacker": self.unit_json(state, unit),
+                "defender": state.unit_id_at(target).map(|d| self.unit_json(state, d)),
             }),
             Action::Build { .. } => json!({}),
             Action::Unload { .. } => json!({}),
@@ -182,14 +214,14 @@ impl Recorder {
         let path = before.get("path").cloned().unwrap_or(Value::Null);
         Some(match action {
             Action::Move { unit, .. } => json!({
-                "kind": "Move", "path": path, "unit": unit_json(state, unit),
+                "kind": "Move", "path": path, "unit": self.unit_json(state, unit),
             }),
             Action::Capture { unit, dest } => {
                 let building = state.building_at(dest);
                 json!({
                     "kind": "Capt",
                     "path": path,
-                    "unit": unit_json(state, unit),
+                    "unit": self.unit_json(state, unit),
                     "x": dest.x,
                     "y": dest.y,
                     // AWBW reports what is left to capture, and zero means the
@@ -200,26 +232,26 @@ impl Recorder {
             Action::Attack { unit, target, .. } => json!({
                 "kind": "Fire",
                 "path": path,
-                "unit": Self::survivor(state, Some(unit), before.get("attacker")),
-                "defender": Self::survivor(
+                "unit": self.survivor(state, Some(unit), before.get("attacker")),
+                "defender": self.survivor(
                     state, state.unit_id_at(target), before.get("defender")),
                 "target_x": target.x,
                 "target_y": target.y,
             }),
             Action::Build { at, .. } => {
                 let built = state.unit_id_at(at)?;
-                json!({"kind": "Build", "unit": unit_json(state, built)})
+                json!({"kind": "Build", "unit": self.unit_json(state, built)})
             }
             Action::Load { unit, dest } => json!({
                 "kind": "Load",
                 "path": path,
-                "unit": unit_json(state, unit),
+                "unit": self.unit_json(state, unit),
                 "transport": state.unit_id_at(dest),
             }),
             Action::Unload { transport, cargo, drop_at } => json!({
                 "kind": "Unload",
                 "transport": transport,
-                "unit": unit_json(state, cargo),
+                "unit": self.unit_json(state, cargo),
                 "x": drop_at.x,
                 "y": drop_at.y,
             }),
@@ -235,11 +267,11 @@ impl Recorder {
                     "kind": "Join",
                     "path": path,
                     "unit": mover,
-                    "into": state.unit_id_at(dest).map(|j| unit_json(state, j)),
+                    "into": state.unit_id_at(dest).map(|j| self.unit_json(state, j)),
                 })
             }
             Action::Supply { unit, .. } => json!({
-                "kind": "Supply", "path": path, "unit": unit_json(state, unit),
+                "kind": "Supply", "path": path, "unit": self.unit_json(state, unit),
             }),
             Action::EndTurn => json!({
                 "kind": "End",

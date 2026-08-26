@@ -51,6 +51,9 @@ def main() -> int:
     # site, so synthetic ids come up blank however they are labelled here.
     parser.add_argument("--name", default=None,
                         help="game title; defaults to '<policy> vs <opponent>'")
+    parser.add_argument("--users", default=None,
+                        help="comma-separated AWBW users_id, one per seat; "
+                             "a viewer resolves player names from these")
     parser.add_argument("--game-id", type=int, default=990000,
                         help="first id; each game takes the next one")
     args = parser.parse_args()
@@ -90,6 +93,7 @@ def main() -> int:
             game_id = args.game_id + len(written)
             path = write_replay.Writer(
                 game, game_id, args.map_id, args.name or f"{label} vs {against}",
+                [int(u) for u in args.users.split(",")] if args.users else None,
             ).write(args.out)
             winner = game["outcome"]["winner"]
             seat = int(env.agent_seat()[slot])

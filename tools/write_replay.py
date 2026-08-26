@@ -32,6 +32,12 @@ TERRAIN = json.loads((ROOT / "data" / "terrain_ids.json").read_text())
 # AWBW numbers players by a global id, not a seat. Any distinct pair works for a
 # replay nobody will upload; these are picked to be obviously synthetic.
 BASE_PLAYER_ID = 900_000
+
+# `users_id` is the exception: it has to be a real account. A replay stores no
+# username at all -- AWBW Replay Player scrapes `profile.php?users_id=N` for
+# one -- so an invented id resolves to nothing and the viewer reports that it
+# could not download usernames. These are the project owner's own accounts.
+DEFAULT_USERS = [117993, 117993]  # DarthNoob7
 BASE_UNIT_ID = 800_000
 BASE_BUILDING_ID = 700_000
 
@@ -141,8 +147,9 @@ def player_id(seat):
 class Writer:
     """Builds one replay's two files from a recorded game."""
 
-    def __init__(self, log, game_id, map_id, name):
+    def __init__(self, log, game_id, map_id, name, users=None):
         self.log = log
+        self.users = list(users or DEFAULT_USERS)
         self.game_id = game_id
         self.map_id = map_id
         self.name = name
@@ -154,6 +161,10 @@ class Writer:
             (b["x"], b["y"]): BASE_BUILDING_ID + i
             for i, b in enumerate(first["buildings"])
         }
+
+    def user(self, seat):
+        """The AWBW account a seat is attributed to."""
+        return self.users[seat % len(self.users)]
 
     # ── records ──────────────────────────────────────────────────────────────
 
@@ -391,7 +402,7 @@ class Writer:
     def player(self, seat, turn):
         return {
             "id": player_id(seat),
-            "users_id": player_id(seat),
+            "users_id": self.user(seat),
             "games_id": self.game_id,
             "countries_id": COUNTRY_ID[COUNTRIES[seat]],
             "co_id": 1,
@@ -428,7 +439,7 @@ class Writer:
             "id": self.game_id,
             "name": self.name,
             "password": None,
-            "creator": player_id(0),
+            "creator": self.user(0),
             "start_date": STAMP,
             "end_date": None,
             "activity_date": STAMP,
@@ -515,10 +526,13 @@ def main() -> int:
     parser.add_argument("--game-id", type=int, default=999001)
     parser.add_argument("--map-id", type=int, default=119544)
     parser.add_argument("--name", default="awbw-ai")
+    parser.add_argument("--users", default=None,
+                        help="comma-separated AWBW users_id, one per seat")
     args = parser.parse_args()
 
     log = json.loads(Path(args.log).read_text())
-    path = Writer(log, args.game_id, args.map_id, args.name).write(args.out)
+    users = [int(u) for u in args.users.split(',')] if args.users else None
+    path = Writer(log, args.game_id, args.map_id, args.name, users).write(args.out)
     print(f"wrote {path} ({len(log['turns'])} turns)")
     return 0
 

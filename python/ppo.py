@@ -110,6 +110,7 @@ class Trainer:
         # how the first run against `greedy` came apart.
         self.frozen = None
         self.refreshes = 0
+        self.recalibrating = 0
         if args.selfplay:
             self.frozen = copy.deepcopy(self.policy).eval()
             self.frozen.requires_grad_(False)
@@ -365,11 +366,21 @@ class Trainer:
         return out
 
     def promote(self):
-        """Makes the current policy the opponent to beat."""
+        """Makes the current policy the opponent to beat.
+
+        And re-fits the critic afterwards. Promotion moves the opponent's
+        strength in one step, so every return the critic learned to predict
+        shifts at once and it is stale in exactly the way the opening warm-up
+        exists to fix -- advantages become mostly its own error, which
+        normalising rescales to unit size. Running that warm-up only once, at
+        the start, cost the first self-play run everything it had gained: it
+        promoted at 78%, then fell to 20% against the weights it had just been.
+        """
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
         self.refreshes += 1
+        self.recalibrating = self.args.refresh_warmup
 
     def save(self, path):
         path = ROOT / path
@@ -401,6 +412,8 @@ def main() -> int:
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,
                         help="games that window needs before it may promote")
+    parser.add_argument("--refresh-warmup", type=int, default=10,
+                        help="critic-only iterations after each promotion")
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--envs", type=int, default=32)
     parser.add_argument("--steps", type=int, default=64)
@@ -457,7 +470,11 @@ def main() -> int:
         # Advantages are then mostly the critic's own error, and normalising
         # them rescales that noise to unit size, which diffuses the cloned
         # policy toward uniform. Fit the critic first, policy frozen.
-        warming = iteration <= args.value_warmup
+        # A promotion moves the opponent, so the critic is re-fitted after one
+        # exactly as it is at the start -- see Trainer.promote.
+        warming = iteration <= args.value_warmup or trainer.recalibrating > 0
+        if trainer.recalibrating > 0:
+            trainer.recalibrating -= 1
         stats = trainer.update(adv, returns, critic_only=warming)
 
         if warming and iteration == args.value_warmup:

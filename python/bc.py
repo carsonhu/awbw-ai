@@ -248,10 +248,13 @@ def main() -> int:
     parser.add_argument("--map-name", default="A River Supreme")
     parser.add_argument("--max-day", type=int, default=60)
     # How much of the source head's loss asks "a unit that still has something
-    # to do" rather than "the unit the human moved next". Measured with
-    # order_diag.py: the exact label is right 44.7% of the time while the set is
-    # right 95.2%, against 68.2% for a uniform pick — most of that head's error
-    # is which order the human happened to use, which nothing can learn.
+    # to do" rather than "the unit the human moved next".
+    #
+    # Off, having been tried. Most of that head's error really is the human's
+    # arbitrary ordering — 44.7% exact against 95.2% in-turn, 68.2% by chance —
+    # but relieving it changed play by 19.0% to 19.8% (+-2.0), because 95.2% had
+    # almost no headroom above it. Kept because the measurement is worth
+    # repeating if the encoding or the head design changes.
     parser.add_argument("--source-set", type=float, default=0.0,
                         help="0 exact label, 1 the whole turn's set")
     parser.add_argument("--out", default="checkpoints/bc.pt")

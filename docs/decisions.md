@@ -164,9 +164,9 @@ policy provably frozen, because a midgame position holds more units and more rea
 choices than an opening. It tracks where the games are, not what the policy is
 becoming — read `kl` and `clip`.
 
-**Most of the source head's error is ordering, not judgement.** Its top pick is
-the unit the human moved *next* 44.7% of the time, but a unit they moved
-somewhere in the same turn 95.2% — against 68.2% for a uniform pick under the
-same mask. A turn's fourteen orders are largely interchangeable, so top-1 marks
-a correct choice wrong whenever the human happened to move something else first.
-`order_diag.py` measures it; the fix is an order-invariant source target.
+**Most of the source head's error is ordering, not judgement — and fixing that
+bought nothing.** Its top pick is the unit the human moved *next* 44.7% of the
+time but a unit they moved somewhere in the turn 95.2%, against 68.2% for a
+uniform pick (`order_diag.py`). Training against the whole turn's set instead
+(`--source-set`) moved in-turn 95.2%→95.7% and play 19.0%→19.8% ±2.0 — the
+mechanism worked, there was simply no headroom. That head is not the bottleneck.

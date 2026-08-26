@@ -531,6 +531,259 @@ mod tests {
     }
 
     #[test]
+    fn recon_beside_an_infantry_shoots_it() {
+        // DefendPeace takes `findBestAttack`'s answer outright; here an attack
+        // competes on score with everything else the unit could do, so the
+        // bands have to leave a plain attack on top of a plain walk.
+        let mut engine = engine();
+        let recon = engine.state.spawn(UnitType::Recon, 0, Pos::new(6, 6));
+        engine.state.spawn(UnitType::Infantry, 1, Pos::new(7, 6));
+        engine.state.current = 0;
+
+        let mut bot = JakeManBot::new(1);
+        bot.survey(&engine);
+
+        let mut actions = Vec::new();
+        engine.legal_actions_into(&mut actions);
+        let mut best = None;
+        let mut best_score = f32::MIN;
+        for &a in &actions {
+            let owner = match a {
+                Action::Attack { unit, .. }
+                | Action::Move { unit, .. }
+                | Action::Capture { unit, .. }
+                | Action::Join { unit, .. } => Some(unit),
+                _ => None,
+            };
+            if owner != Some(recon) {
+                continue;
+            }
+            let s = bot.score(&engine, a);
+            if matches!(a, Action::Attack { .. } | Action::Move { .. }) {
+                println!("{s:>8.1}  {a:?}");
+            }
+            if s > best_score {
+                best_score = s;
+                best = Some(a);
+            }
+        }
+        println!("recon's own best: {best:?} at {best_score}");
+        assert!(
+            matches!(best, Some(Action::Attack { .. })),
+            "recon beside an infantry chose {best:?} at {best_score}"
+        );
+    }
+
+    #[test]
+    #[ignore = "measurement, not a check; cargo test -- --ignored --nocapture"]
+    fn probe_declined_attacks() {
+        // Over a whole game, how often does a unit with a legal attack in front
+        // of it get ordered to walk instead? The bot picks one action at a time,
+        // so a build outscoring an attack is fine -- the attack comes later. A
+        // *move* by the same unit is not: moving ends that unit's turn, and the
+        // attack is gone.
+        let mut engine = engine();
+        let mut bot = JakeManBot::new(1);
+        let mut declined = 0;
+        let mut walked = 0;
+        let mut worst: f32 = 0.0;
+        let mut actions = Vec::new();
+        for _ in 0..4_000 {
+            if engine.state.outcome() != Outcome::InProgress {
+                break;
+            }
+            let chosen = bot.choose(&mut engine);
+            if let Action::Move { unit, .. } = chosen {
+                walked += 1;
+                engine.legal_actions_into(&mut actions);
+                let best_attack = actions
+                    .iter()
+                    .filter(|a| matches!(a, Action::Attack { unit: u, .. } if *u == unit))
+                    .map(|a| bot.score(&engine, *a))
+                    .fold(f32::MIN, f32::max);
+                let move_score = bot.score(&engine, chosen);
+                if best_attack > f32::MIN && best_attack > 0.0 {
+                    declined += 1;
+                    worst = worst.max(best_attack - move_score);
+                }
+            }
+            engine.apply(chosen).expect("apply");
+        }
+        println!(
+            "moves {walked}, of which {declined} had a positive attack available; \
+             largest attack-minus-move gap {worst:.1}"
+        );
+    }
+
+    /// The board and opening the policy actually trains against, so a probe
+    /// here sees what a recorded game shows rather than a 13x13 with a bank.
+    fn river_supreme() -> Option<Engine> {
+        let map = crate::awbw_map::AwbwMap::load(
+            std::path::Path::new("../../").join(crate::awbw_map::RIVER_SUPREME),
+        )
+        .ok()?;
+        let state = map.new_game(awbw_engine::state::GameSettings::default(), 0);
+        Some(Engine::new(state, 1))
+    }
+
+    #[test]
+    #[ignore = "measurement, not a check; cargo test -- --ignored --nocapture"]
+    fn probe_build_mix_river() {
+        let Some(mut engine) = river_supreme() else {
+            println!("map not cached; skipped");
+            return;
+        };
+        let mut bots: Vec<Box<dyn Bot>> =
+            vec![Box::new(JakeManBot::new(1)), Box::new(JakeManBot::new(2))];
+        let mut builds: [HashMap<UnitType, u32>; 2] = Default::default();
+        let mut early: [HashMap<UnitType, u32>; 2] = Default::default();
+        for _ in 0..20_000 {
+            if engine.state.outcome() != Outcome::InProgress || engine.state.day > 30 {
+                break;
+            }
+            let seat = engine.state.current as usize;
+            let chosen = bots[seat].choose(&mut engine);
+            if let Action::Build { typ, .. } = chosen {
+                *builds[seat].entry(typ).or_default() += 1;
+                if engine.state.day <= 5 {
+                    *early[seat].entry(typ).or_default() += 1;
+                }
+            }
+            engine.apply(chosen).expect("apply");
+        }
+        for seat in 0..2 {
+            let mut all: Vec<_> = builds[seat].iter().collect();
+            all.sort_by_key(|(_, n)| std::cmp::Reverse(**n));
+            let mut e: Vec<_> = early[seat].iter().collect();
+            e.sort_by_key(|(_, n)| std::cmp::Reverse(**n));
+            println!("P{} all {:?}", seat + 1, all);
+            println!("P{} d1-5 {:?}", seat + 1, e);
+        }
+        println!(
+            "day {} props P1 {} P2 {}",
+            engine.state.day,
+            engine.state.property_count(0),
+            engine.state.property_count(1)
+        );
+    }
+
+    #[test]
+    #[ignore = "measurement, not a check; cargo test -- --ignored --nocapture"]
+    fn probe_declined_attacks_river() {
+        // DefendPeace takes `findBestAttack`'s answer outright and only travels
+        // with units that did not act; here the two compete on score, and a
+        // move worth APPROACH-per-tile can outbid an attack worth a few
+        // hundred. This counts how often that actually happens on the board the
+        // policy trains on.
+        let Some(mut engine) = river_supreme() else {
+            println!("map not cached; skipped");
+            return;
+        };
+        // Concrete instances, not `dyn Bot`: the scores have to come from the
+        // same object that made the decision, or they are read off a threat map
+        // built at a different point in the turn -- the map is cached per turn,
+        // so a second instance surveying mid-turn sees a different board.
+        let mut bots = [JakeManBot::new(1), JakeManBot::new(2)];
+        let (mut walked, mut declined) = (0u32, 0u32);
+        let mut worst: f32 = 0.0;
+        let mut actions = Vec::new();
+        for _ in 0..40_000 {
+            if engine.state.outcome() != Outcome::InProgress || engine.state.day > 40 {
+                break;
+            }
+            let seat = engine.state.current as usize;
+            let chosen = bots[seat].choose(&mut engine);
+            if let Action::Move { unit, .. } = chosen {
+                walked += 1;
+                engine.legal_actions_into(&mut actions);
+                let best_attack = actions
+                    .iter()
+                    .filter(|a| matches!(a, Action::Attack { unit: u, .. } if *u == unit))
+                    .map(|a| bots[seat].score(&engine, *a))
+                    .fold(f32::MIN, f32::max);
+                if best_attack > 0.0 {
+                    declined += 1;
+                    let m = bots[seat].score(&engine, chosen);
+                    worst = worst.max(best_attack - m);
+                }
+            }
+            engine.apply(chosen).expect("apply");
+        }
+        println!(
+            "river: {walked} moves, {declined} with a positive attack going \
+             unused, largest attack-minus-move {worst:.1}"
+        );
+    }
+
+    #[test]
+    #[ignore = "measurement, not a check; cargo test -- --ignored --nocapture"]
+    fn probe_seat_balance() {
+        // A mirror: the same bot on both seats, differing only in seed. Whatever
+        // it scores is the board's, not the player's.
+        let mut wins = [0u32; 2];
+        let mut draws = 0;
+        let games = 40;
+        for game in 0..games {
+            let Some(mut engine) = river_supreme() else {
+                println!("map not cached; skipped");
+                return;
+            };
+            let mut bots: Vec<Box<dyn Bot>> = vec![
+                Box::new(JakeManBot::new(game * 2 + 1)),
+                Box::new(JakeManBot::new(game * 2 + 2)),
+            ];
+            for _ in 0..40_000 {
+                if engine.state.outcome() != Outcome::InProgress || engine.state.day > 60 {
+                    break;
+                }
+                let seat = engine.state.current as usize;
+                let chosen = bots[seat].choose(&mut engine);
+                engine.apply(chosen).expect("apply");
+            }
+            match engine.state.outcome() {
+                Outcome::Winner(p) => wins[p as usize] += 1,
+                _ => draws += 1,
+            }
+        }
+        println!(
+            "jakeman mirror over {games}: P1 {}, P2 {}, draws {draws}",
+            wins[0], wins[1]
+        );
+    }
+
+    #[test]
+    #[ignore = "measurement, not a check; cargo test -- --ignored --nocapture"]
+    fn probe_build_mix() {
+        // What it actually spends money on, and when. Counter-building is worth
+        // up to 9,000 and the capture-economy bonus at most 4,000, so a unit
+        // that beats what the enemy fields outbids the infantry that takes the
+        // properties -- which is the opening the economy is decided in.
+        let mut engine = engine();
+        let mut bot = JakeManBot::new(1);
+        let mut builds: HashMap<UnitType, u32> = HashMap::new();
+        let mut early: HashMap<UnitType, u32> = HashMap::new();
+        for _ in 0..4_000 {
+            if engine.state.outcome() != Outcome::InProgress {
+                break;
+            }
+            let chosen = bot.choose(&mut engine);
+            if let Action::Build { typ, .. } = chosen {
+                *builds.entry(typ).or_default() += 1;
+                if engine.state.day <= 5 {
+                    *early.entry(typ).or_default() += 1;
+                }
+            }
+            engine.apply(chosen).expect("apply");
+        }
+        let mut all: Vec<_> = builds.iter().collect();
+        all.sort_by_key(|(_, n)| std::cmp::Reverse(**n));
+        println!("whole game: {all:?}");
+        let mut e: Vec<_> = early.iter().collect();
+        e.sort_by_key(|(_, n)| std::cmp::Reverse(**n));
+        println!("days 1-5:   {e:?}");
+    }
+
+    #[test]
     fn a_threatened_tile_reads_as_threatened() {
         // Infantry is threatened by a tank; a tank is not much threatened back.
         assert!(threatened_by(UnitType::Infantry, UnitType::Tank));

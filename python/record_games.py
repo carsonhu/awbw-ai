@@ -92,24 +92,27 @@ def main() -> int:
             game = json.loads(log)
             game_id = args.game_id + len(written)
             winner = game["outcome"]["winner"]
+            # Seats alternate across the batch, so which side the policy held
+            # depends on the slot the game came from. Both seats are written
+            # under one users_id, so a viewer shows the same name twice and
+            # nothing on screen says which player is ours -- an outcome read
+            # off the board then contradicts the filename for no reason. Say
+            # the seat in both the name and the title.
             seat = int(env.agent_seat()[slot])
             outcome = ("draw" if winner is None
                        else "win" if winner == seat else "loss")
             # Named for what it is, not for its id: a directory of numbers tells
             # you nothing about which replay is the one you wanted.
-            stem = (f"{label}-vs-{against}-{outcome}"
+            stem = (f"{label}-p{seat + 1}-vs-{against}-{outcome}"
                     f"-d{game['days']}-{game_id}")
+            title = args.name or f"{label} vs {against}"
             path = write_replay.Writer(
-                game, game_id, args.map_id, args.name or f"{label} vs {against}",
+                game, game_id, args.map_id, f"{title} [{label} is P{seat + 1}]",
                 [int(u) for u in args.users.split(",")] if args.users else None,
             ).write(args.out, stem)
-            winner = game["outcome"]["winner"]
-            seat = int(env.agent_seat()[slot])
-            outcome = ("draw" if winner is None
-                       else "win" if winner == seat else "loss")
             written.append((game, outcome))
             print(f"  {path}  {game['days']} days, "
-                  f"{len(game['turns'])} turns, {outcome}")
+                  f"{len(game['turns'])} turns, {outcome} as P{seat + 1}")
 
     print(f"\n{len(written)} replays in {Path(args.out).resolve()}")
     print("Open them in AWBW Replay Player, or upload to awbw.amarriner.com.")

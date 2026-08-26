@@ -142,8 +142,8 @@ def main() -> int:
                         help="what plays the agent's seat")
     parser.add_argument("--opponent", default="greedy",
                         choices=["greedy", "capturer", "random"])
-    parser.add_argument("--games", type=int, default=64)
-    parser.add_argument("--envs", type=int, default=32)
+    parser.add_argument("--games", type=int, default=200)
+    parser.add_argument("--envs", type=int, default=50)
     parser.add_argument("--max-day", type=int, default=60)
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="0 for the best order every time")
@@ -200,9 +200,16 @@ def main() -> int:
     print(f"  won   {won:>4}  ({won / played:.1%})")
     print(f"  drawn {drawn:>4}  ({drawn / played:.1%})   -- almost all the day cap")
     print(f"  lost  {lost:>4}  ({lost / played:.1%})")
+
     # Draws count half, which is the usual convention and stops a policy that
     # only stalls from looking like one that only loses.
-    print(f"  score {(won + 0.5 * drawn) / played:.1%}")
+    score = (won + 0.5 * drawn) / played
+    # Games are independent, so the score is a mean of independent draws and its
+    # error falls as 1/sqrt(n). Printed because the differences worth chasing
+    # here are a few points wide, and a hundred games cannot resolve those --
+    # without this the next run's noise reads as progress.
+    error = (score * (1 - score) / played) ** 0.5
+    print(f"  score {score:.1%} +- {error:.1%}  ({played} games)")
     return 0
 
 

@@ -3,9 +3,17 @@
 Python owns the messy part (zip + gzip + PHP serialization + the AWBW map API);
 the Rust side only ever sees a flat, documented schema.
 
+The archive holds ~300k zips and a full parse is ~40ms each, so anything that
+sweeps all of it has to decide what to keep *cheaply*. The map id, the fog flag
+and the game id all live in the first snapshot line, which streams out of the
+gzip member without decompressing the rest — so a replay on the wrong map costs
+a read and nothing else. Filenames are not a substitute: some games named `STD`
+are fog games.
+
 Usage:
   python tools/prepare_replay.py <replay.zip> [-o out.json]
-  python tools/prepare_replay.py --glob '<pattern>' --out-dir data/prepared [--limit N]
+  python tools/prepare_replay.py --glob '<pattern>' [--map-id 119544]
+                                 [--exclude-fog] [--workers 8] [--limit N]
 
 Map terrain is fetched from AWBW's map API and cached under data/maps/.
 """
@@ -15,6 +23,7 @@ import glob as globlib
 import gzip
 import io
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -54,9 +63,30 @@ def fetch_map(maps_id):
         return json.loads(cached.read_text())
     with urllib.request.urlopen(MAP_API.format(maps_id), timeout=30) as r:
         data = json.loads(r.read().decode("utf-8"))
-    cached.write_text(json.dumps(data))
+    # Written through a temporary file: several workers can want the same map at
+    # once, and a half-written cache entry poisons every later run.
+    scratch = cached.with_suffix(f".{os.getpid()}.tmp")
+    scratch.write_text(json.dumps(data))
+    os.replace(scratch, cached)
     time.sleep(0.3)  # be polite to the site
     return data
+
+
+def peek(path):
+    """The game header, read from the first snapshot line alone.
+
+    Enough to decide whether a replay is worth parsing — map, fog and game id —
+    for about a tenth of what parsing the whole thing costs.
+    """
+    with zipfile.ZipFile(path) as z:
+        names = sorted(z.namelist(), key=len)
+        raw = z.read(names[0])
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as gz:
+            line = gz.readline().decode("latin-1")
+    except Exception:
+        line = decompress(raw).split("\n", 1)[0]
+    return PHP(line).parse()
 
 
 def load_replay(path):
@@ -184,6 +214,97 @@ def normalize(path):
     }
 
 
+# Set once per worker so the pool does not have to ship them with every task.
+JOB = {}
+
+
+def configure(out_dir, map_id, exclude_fog, skip_existing):
+    JOB.update(out_dir=Path(out_dir), map_id=map_id,
+               exclude_fog=exclude_fog, skip_existing=skip_existing)
+
+
+def prepare_one(path):
+    """Returns why a replay was skipped, or `None` having written it out.
+
+    Duplicates take care of themselves: the archive holds the same game under
+    several names, and every copy writes to `<game_id>.json`.
+    """
+    try:
+        head = peek(path)
+    except Exception as exc:
+        return f"unreadable ({type(exc).__name__})"
+
+    if JOB["map_id"] and head.get("maps_id") != JOB["map_id"]:
+        return "other map"
+    if JOB["exclude_fog"] and head.get("fog") == "Y":
+        return "fog"
+    dest = JOB["out_dir"] / f"{head.get('id')}.json"
+    if JOB["skip_existing"] and dest.exists():
+        return "already prepared"
+
+    try:
+        data = normalize(path)
+    except Exception as exc:
+        return f"failed ({type(exc).__name__}: {exc})"
+    dest.write_text(json.dumps(data))
+    return None
+
+
+def sweep(args):
+    out_dir = Path(args.out_dir or ROOT / "data" / "prepared")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"globbing {args.glob} ...", flush=True)
+    paths = sorted(globlib.glob(args.glob, recursive=True))
+    if args.limit:
+        paths = paths[: args.limit]
+    print(f"{len(paths)} candidate zips", flush=True)
+
+    # Fetched here rather than in the workers, so the one network call happens
+    # once and every worker finds it cached.
+    if args.map_id:
+        name = fetch_map(args.map_id).get("Name")
+        print(f"keeping map {args.map_id} ({name!r})", flush=True)
+
+    reasons = {}
+    kept = 0
+    start = time.perf_counter()
+    settings = (str(out_dir), args.map_id, args.exclude_fog,
+                not args.redo)
+
+    if args.workers > 1:
+        import multiprocessing as mp
+        pool = mp.Pool(args.workers, initializer=configure, initargs=settings)
+        results = pool.imap_unordered(prepare_one, paths, chunksize=32)
+    else:
+        configure(*settings)
+        pool = None
+        results = map(prepare_one, paths)
+
+    for i, reason in enumerate(results, 1):
+        if reason is None:
+            kept += 1
+        else:
+            # Bucket by cause, not by message: one line per failing replay over
+            # three hundred thousand of them is not a report.
+            reasons[reason.split(" (")[0]] = reasons.get(
+                reason.split(" (")[0], 0) + 1
+        if i % 5000 == 0:
+            rate = i / (time.perf_counter() - start)
+            left = (len(paths) - i) / rate / 60
+            print(f"  {i}/{len(paths)}  kept {kept}  "
+                  f"{rate:.0f}/s  ~{left:.0f} min left", flush=True)
+    if pool:
+        pool.close()
+        pool.join()
+
+    elapsed = time.perf_counter() - start
+    print(f"\nprepared {kept} of {len(paths)} in {elapsed/60:.1f} min "
+          f"-> {out_dir}")
+    for reason, n in sorted(reasons.items(), key=lambda kv: -kv[1]):
+        print(f"  {reason:<20} {n}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("replay", nargs="?")
@@ -191,26 +312,16 @@ def main():
     ap.add_argument("-o", "--out")
     ap.add_argument("--out-dir")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--map-id", type=int, default=0,
+                    help="keep only replays on this AWBW map")
+    ap.add_argument("--exclude-fog", action="store_true")
+    ap.add_argument("--workers", type=int, default=1)
+    ap.add_argument("--redo", action="store_true",
+                    help="re-prepare games already in the output directory")
     args = ap.parse_args()
 
     if args.glob:
-        out_dir = Path(args.out_dir or ROOT / "data" / "prepared")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        paths = sorted(globlib.glob(args.glob, recursive=True))
-        if args.limit:
-            paths = paths[: args.limit]
-        ok = failed = 0
-        for path in paths:
-            try:
-                data = normalize(path)
-            except Exception as exc:
-                failed += 1
-                print(f"SKIP {Path(path).name}: {type(exc).__name__}: {exc}")
-                continue
-            dest = out_dir / f"{data['game_id']}.json"
-            dest.write_text(json.dumps(data))
-            ok += 1
-        print(f"prepared {ok}, skipped {failed} -> {out_dir}")
+        sweep(args)
         return
 
     data = normalize(args.replay)

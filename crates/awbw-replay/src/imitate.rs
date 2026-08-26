@@ -26,7 +26,7 @@ use awbw_engine::state::{GameState, PlayerId, UnitId};
 use awbw_engine::types::UnitType;
 use awbw_engine::vision::Vision;
 
-use crate::schema::{unwrap_vision, Replay};
+use crate::schema::{unwrap_vision, Replay, Turn};
 use crate::{Loaded, Verifier};
 
 /// One imitation sample: the order, and whether it can be trusted as a label.
@@ -205,14 +205,36 @@ pub struct Cursor {
     /// A power fired earlier in this turn, so the rest of it is off-model.
     power_active: bool,
     vision: Vision,
+    /// The source tile of every order in the current turn, filled ahead of
+    /// serving them. `u32::MAX` where an order carries no source.
+    ///
+    /// Which unit a player moves *next* is largely arbitrary — the orders in a
+    /// turn are mostly interchangeable — so a label naming one of them punishes
+    /// a policy for choosing a different but equally good sequence. Knowing the
+    /// whole turn lets the loss ask the answerable question instead: is this a
+    /// unit that still has something to do?
+    turn_sources: Vec<u32>,
+    lookahead: bool,
 }
+
+/// A source that no order names.
+pub const NO_SOURCE: u32 = u32::MAX;
 
 impl Cursor {
     pub fn new(verifier: Verifier) -> Cursor {
+        Cursor::with_lookahead(verifier, false)
+    }
+
+    /// With `lookahead`, each turn is walked once before it is served so the
+    /// sources it will use are known in advance. That costs a second load and
+    /// replay of every turn, so it is off unless asked for.
+    pub fn with_lookahead(verifier: Verifier, lookahead: bool) -> Cursor {
         let replay = verifier.replay().clone();
         let mut cursor = Cursor {
             verifier,
             replay,
+            turn_sources: Vec::new(),
+            lookahead,
             turn: 0,
             order: 0,
             loaded: None,
@@ -224,11 +246,18 @@ impl Cursor {
     }
 
     fn open_turn(&mut self) {
-        while self.turn < self.replay.turns.len() {
-            let turn = &self.replay.turns[self.turn];
+        let replay = self.replay.clone();
+        while self.turn < replay.turns.len() {
+            let turn = &replay.turns[self.turn];
             // A snapshot with no orders is one whose action record was lost.
             if !turn.actions.is_empty() {
                 if let Ok(loaded) = self.verifier.load_turn_public(turn) {
+                    let planned = if self.lookahead {
+                        self.plan_turn(turn)
+                    } else {
+                        Vec::new()
+                    };
+                    self.turn_sources = planned;
                     self.loaded = Some(loaded);
                     self.order = 0;
                     self.power_active = false;
@@ -238,6 +267,38 @@ impl Cursor {
             self.turn += 1;
         }
         self.loaded = None;
+        self.turn_sources.clear();
+    }
+
+    /// Walks a turn on a throwaway board to learn which tile each of its orders
+    /// acts from. Separate from the real walk because the answer is needed
+    /// before the first of those orders is served.
+    fn plan_turn(&self, turn: &Turn) -> Vec<u32> {
+        let Ok(mut loaded) = self.verifier.load_turn_public(turn) else {
+            return Vec::new();
+        };
+        let mut sources = Vec::with_capacity(turn.actions.len());
+        for raw in &turn.actions {
+            let Some(action) = translate(&loaded, raw) else {
+                sources.push(NO_SOURCE);
+                continue;
+            };
+            sources.push(
+                encode(loaded.state(), action).map_or(NO_SOURCE, |code| code.source),
+            );
+            if loaded.engine_mut().apply(action).is_err() {
+                force(&mut loaded, action);
+            }
+        }
+        sources
+    }
+
+    /// The tiles the rest of this turn acts from, the next order's first.
+    ///
+    /// Empty unless the cursor was built with lookahead.
+    pub fn remaining_sources(&self) -> &[u32] {
+        let at = self.order.min(self.turn_sources.len());
+        &self.turn_sources[at..]
     }
 
     /// The replay this cursor walks.

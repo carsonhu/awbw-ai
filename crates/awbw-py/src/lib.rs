@@ -796,6 +796,9 @@ pub struct ReplayTeacher {
     map_name: String,
     skip_powers: bool,
     skip_illegal: bool,
+    /// Read each turn ahead so `source_targets` can answer. Costs a second load
+    /// and replay of every turn, so it is off unless a trainer asks.
+    lookahead: bool,
     served: u64,
     skipped_power: u64,
     skipped_illegal: u64,
@@ -849,7 +852,7 @@ impl ReplayTeacher {
                 self.shape = (h, w);
                 self.map_name = name;
             }
-            return Some(Cursor::new(verifier));
+            return Some(Cursor::with_lookahead(verifier, self.lookahead));
         }
         None
     }
@@ -922,6 +925,7 @@ impl ReplayTeacher {
         skip_illegal=true,
         holdout=0.0,
         validation=false,
+        lookahead=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -933,6 +937,7 @@ impl ReplayTeacher {
         skip_illegal: bool,
         holdout: f64,
         validation: bool,
+        lookahead: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -995,6 +1000,7 @@ impl ReplayTeacher {
             map_name: String::new(),
             skip_powers,
             skip_illegal,
+            lookahead,
             served: 0,
             skipped_power: 0,
             skipped_illegal: 0,
@@ -1121,6 +1127,38 @@ impl ReplayTeacher {
         }
         Array2::from_shape_vec((self.slots.len(), width), data)
             .expect("mask buffer is rectangular")
+            .into_pyarray(py)
+    }
+
+    /// Which tiles the human still acts from this turn — an order-invariant
+    /// target for the source head.
+    ///
+    /// Ending the turn is excluded unless the human ended here. It is the last
+    /// thing every turn does, so leaving it in would put it in every target
+    /// set, and a policy could satisfy the loss by ending every turn at once.
+    fn source_targets<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
+        let width = self.shape.0 as usize * self.shape.1 as usize + 1;
+        let end = self.end_turn;
+        let mut data = vec![false; self.slots.len() * width];
+        for (i, slot) in self.slots.iter().enumerate() {
+            let Some(cursor) = slot.as_ref() else { continue };
+            let remaining = cursor.remaining_sources();
+            let row = &mut data[i * width..(i + 1) * width];
+            match remaining.first() {
+                // The human ends the turn here, so that is the only answer.
+                Some(&first) if first == end => row[end as usize] = true,
+                Some(_) => {
+                    for &source in remaining {
+                        if source != end && (source as usize) < width {
+                            row[source as usize] = true;
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        Array2::from_shape_vec((self.slots.len(), width), data)
+            .expect("target buffer is rectangular")
             .into_pyarray(py)
     }
 

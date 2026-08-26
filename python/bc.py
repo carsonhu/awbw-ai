@@ -49,8 +49,9 @@ class Source:
     have to care which it is talking to.
     """
 
-    def __init__(self, env, batch: int):
+    def __init__(self, env, batch: int, source_set: bool = False):
         self.env = env
+        self.source_set = source_set
         # Pinned, and handed to Rust as a numpy view of the same memory. An
         # observation batch is ten megabytes; copying that from pageable memory
         # every step cost more than the engine did.
@@ -64,6 +65,8 @@ class Source:
 
     def next(self, device):
         self.env.observe_into(self.obs)
+        # Read before `act`, which advances past the position it describes.
+        targets = self.env.source_targets() if self.source_set else None
         result = self.env.act()
         codes, valid = result if self.human else (result, None)
         obs = self.staging.to(device, non_blocking=True)
@@ -72,11 +75,16 @@ class Source:
             keep = torch.ones(codes.shape[0], dtype=torch.bool, device=device)
         else:
             keep = torch.from_numpy(valid).to(device, non_blocking=True)
-        return obs, codes, keep
+        if targets is not None:
+            targets = torch.from_numpy(targets).to(device, non_blocking=True)
+        return obs, codes, keep, targets
 
 
 def make_source(args, batch: int, validation: bool) -> Source:
     if args.teacher == "human":
+        # Lookahead costs a second pass over every turn, so only the training
+        # stream pays for it; validation always scores the exact label.
+        wants_set = args.source_set > 0 and not validation
         env = awbw.ReplayTeacher(
             replay_dir=str(ROOT / "data" / "prepared"),
             num_envs=batch,
@@ -84,7 +92,9 @@ def make_source(args, batch: int, validation: bool) -> Source:
             seed=args.seed + (1 if validation else 0),
             holdout=args.holdout,
             validation=validation,
+            lookahead=wants_set,
         )
+        return Source(env, batch, source_set=wants_set)
     else:
         env = awbw.TeacherEnv(
             num_envs=batch,
@@ -95,7 +105,31 @@ def make_source(args, batch: int, validation: bool) -> Source:
     return Source(env, batch)
 
 
-def losses(policy, obs, codes, keep, end_turn_index: int):
+def source_loss(logits, target, targets_set, mask, weight: float):
+    """Cross-entropy against the exact unit, blended with the turn's whole set.
+
+    The set term is `-log` of the probability the policy puts *anywhere* in the
+    set — "name a unit that still has something to do" rather than "name the one
+    the human happened to move next". It is a relaxation, not a replacement: the
+    exact label is always a member, and order is not always free (a blocker has
+    to move before the unit it blocks), so the exact term keeps a share.
+    """
+    exact = F.cross_entropy(logits[mask], target[mask])
+    if targets_set is None or weight <= 0:
+        return exact
+    logp = torch.log_softmax(logits[mask], dim=1)
+    allowed = targets_set[mask]
+    # A row with an empty set has nothing to say; fall back to the exact label.
+    covered = allowed.any(dim=1)
+    if not covered.any():
+        return exact
+    inside = torch.logsumexp(
+        logp[covered].masked_fill(~allowed[covered], float("-inf")), dim=1)
+    return (1 - weight) * exact + weight * (-inside.mean())
+
+
+def losses(policy, obs, codes, keep, end_turn_index: int,
+           targets_set=None, set_weight: float = 0.0):
     """Cross-entropy per head, over the rows where that head means anything.
 
     Ending the turn names no destination, and most orders carry no parameter.
@@ -122,7 +156,11 @@ def losses(policy, obs, codes, keep, end_turn_index: int):
     for i, (logit, target, mask) in enumerate(zip(logits, targets, masks)):
         hit = (logit.argmax(dim=1) == target) & mask
         if mask.any():
-            total = total + F.cross_entropy(logit[mask], target[mask])
+            if i == 0:
+                total = total + source_loss(logit, target, targets_set, mask,
+                                            set_weight)
+            else:
+                total = total + F.cross_entropy(logit[mask], target[mask])
         tally[2 * i] = hit.sum()
         tally[2 * i + 1] = mask.sum()
         # A head that does not apply to this order cannot make it wrong.
@@ -157,11 +195,40 @@ def validate(policy, source: Source, batches: int, device, end_turn_index: int):
         source.env.reset()
     total = None
     for _ in range(batches):
-        obs, codes, keep = source.next(device)
+        obs, codes, keep, _ = source.next(device)
+        # Scored on the exact label always: the set target changes what the
+        # policy is taught, and a metric that moved with it could not say
+        # whether that helped.
         _, tally = losses(policy, obs, codes, keep, end_turn_index)
         total = tally if total is None else total + tally
     policy.train()
     return unpack(total)
+
+
+def save(policy, args, map_name):
+    """Weights plus the shape they were built to, so a checkpoint can be
+    reloaded without being told how it was configured — and so an architecture
+    change is a loud shape error rather than a quiet half-load."""
+    out = ROOT / args.out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "policy": policy.state_dict(),
+            "config": {
+                "planes": policy.planes,
+                "globals": policy.globals_,
+                "height": policy.height,
+                "width": policy.width,
+                "head_sizes": policy.head_sizes,
+                "channels": args.channels,
+                "blocks": args.blocks,
+            },
+            "teacher": args.teacher,
+            "source_set": args.source_set,
+            "map_name": map_name,
+        },
+        out,
+    )
 
 
 def main() -> int:
@@ -180,6 +247,13 @@ def main() -> int:
     parser.add_argument("--val-every", type=int, default=500)
     parser.add_argument("--map-name", default="A River Supreme")
     parser.add_argument("--max-day", type=int, default=60)
+    # How much of the source head's loss asks "a unit that still has something
+    # to do" rather than "the unit the human moved next". Measured with
+    # order_diag.py: the exact label is right 44.7% of the time while the set is
+    # right 95.2%, against 68.2% for a uniform pick — most of that head's error
+    # is which order the human happened to use, which nothing can learn.
+    parser.add_argument("--source-set", type=float, default=0.0,
+                        help="0 exact label, 1 the whole turn's set")
     parser.add_argument("--out", default="checkpoints/bc.pt")
     parser.add_argument("--init", default=None,
                         help="checkpoint to start from, for staged training")
@@ -227,13 +301,14 @@ def main() -> int:
 
     for step in range(1, args.steps + 1):
         mark = time.perf_counter()
-        obs, codes, keep = train.next(device)
+        obs, codes, keep, targets_set = train.next(device)
         data_time += time.perf_counter() - mark
         if not keep.any():
             continue
 
         with torch.amp.autocast("cuda", enabled=amp):
-            loss, tally = losses(policy, obs, codes, keep, end_turn_index)
+            loss, tally = losses(policy, obs, codes, keep, end_turn_index,
+                                 targets_set, args.source_set)
 
         optimizer.zero_grad(set_to_none=True)
         scaler.scale(loss).backward()
@@ -260,6 +335,9 @@ def main() -> int:
 
         if step % args.val_every == 0 or step == args.steps:
             scores = validate(policy, val, args.val_batches, device, end_turn_index)
+            # Written at every validation, not only at the end: half an hour of
+            # training should not be lost to a crash in its last minute.
+            save(policy, args, train.env.map_name)
             label = "held-out" if args.teacher == "human" else "fresh games"
             print(
                 f"      {label}: order {scores['order']:.3f}  "
@@ -270,26 +348,8 @@ def main() -> int:
     print(f"\n{args.steps * args.batch:,} orders in {elapsed:.0f}s "
           f"({data_time / elapsed:.0%} of it waiting on data)")
 
-    out = ROOT / args.out
-    out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "policy": policy.state_dict(),
-            "config": {
-                "planes": policy.planes,
-                "globals": policy.globals_,
-                "height": policy.height,
-                "width": policy.width,
-                "head_sizes": policy.head_sizes,
-                "channels": args.channels,
-                "blocks": args.blocks,
-            },
-            "teacher": args.teacher,
-            "map_name": train.env.map_name,
-        },
-        out,
-    )
-    print(f"saved {out}")
+    save(policy, args, train.env.map_name)
+    print(f"saved {ROOT / args.out}")
     return 0
 
 

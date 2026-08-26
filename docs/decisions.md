@@ -67,35 +67,32 @@ the board was never at fault. Any scripted teacher used for imitation needs
 this, or the bias is cloned with it.
 
 **Its starting units are deliberately asymmetric.** Blue Moon gets an infantry
-Orange Star has no counterpart for, on top of the mirrored Black Boats. That is
-a property of the map, not a loading bug, and it means the seats are *not*
-interchangeable — evaluation has to swap them, which the arena does.
+Orange Star has no counterpart for, on top of the mirrored Black Boats — a
+property of the map, not a loading bug. So the seats are *not* interchangeable,
+and evaluation has to swap them.
 
 **The observation carries CO information, because imitation needs it.** A policy
-is only learnable if the input holds what the demonstrator conditioned on.
-Kanbei attacks at +30% and Colin at -10%, a swing that flips which trades are
-correct, so identical-looking boards carried contradictory labels. Attack and
-defence ride as *planes*, applying exactly where they act; cost, capture, income
-and power charge as globals. Encoding the modifiers rather than a one-hot CO
-identity shares strength — Max's +20% sits next to Grimm's +30%.
+is learnable only if the input holds what the demonstrator conditioned on: Kanbei
+attacks at +30% and Colin at -10%, so identical-looking boards carried
+contradictory labels. Attack and defence ride as *planes*, applying where they
+act; cost, capture, income and power charge as globals. Encoding modifiers rather
+than a one-hot identity shares strength — Max's +20% sits by Grimm's +30%.
 
 **Powers cost far less data than they look like they will.** 69% of games on the
 training map use one, but only 9% of *orders* happen while one is active, so
 those can simply be dropped from an imitation loss.
 
-**Imitation labels check themselves**, twice. Every translated human order is put
-through `Engine::check` in the position it was played in, and its action code is
-decoded back to confirm it is one a masked policy could emit. 98.0% of 154k
-orders pass the first and all of them the second. Failures are counted, not
-hidden, and the flag lets a trainer drop them.
+**Imitation labels check themselves**, twice: every translated order goes through
+`Engine::check` in the position it was played in, and its code is decoded back to
+confirm a masked policy could emit it. 98% pass the first, all pass the second,
+and the failures are counted rather than hidden.
 
 **Unloading is a free action, and not part of a move.** AWBW departs from the
 cartridge: "transports may unload at any point in their turn, even if they have
 already moved, and doing so does not end the unit's turn either" (the wiki). So
-`Action::Unload` carries no destination — the transport unloads from where it
-stands, moving is a separate order, and a transport that has already moved is
-still a legal source. Bundling the two, as the cartridge does, made essentially
-every recorded unload read as illegal.
+`Action::Unload` carries no destination, moving is a separate order, and a
+transport that has already moved is still a legal source. Bundling the two, as
+the cartridge does, made essentially every recorded unload read as illegal.
 
 **A rejected order must still be forced onto the board.** The imitation cursor
 used to fall back to ending the turn, handing play to the opponent mid-turn and
@@ -145,6 +142,31 @@ attack in eight. The cloned policy started captures, never finished one, and sat
 at three properties for sixty days. A missing label is not just less data when
 a whole kind of decision is the thing missing.
 
-**A policy is rated by playing, not by predicting.** Held-out accuracy says
-whether it guesses what a human did, not whether it can play. At 44% it beats
-`random` and `capturer` 40/40 and loses to `greedy` 38/40.
+**A policy is rated by playing, not by predicting**, and the two barely track
+each other. Scaling the clone moved held-out accuracy 0.450 to 0.464 — a point
+and a half — while its score against `greedy` went 6.2% to 16.5%, error bars
+nowhere near touching. Judge with `evaluate.py`; accuracy is for spotting a
+*broken* run, not a better one.
+
+**Batch norm must stay in eval mode during a PPO update.** Updating in train mode
+while rolling out in eval mode makes the same weights give different logits on
+the same observation — up to 24 apart, argmax flipped on half the rows — so every
+importance ratio compares two policies. Gradients flow fine in eval mode.
+
+**PPO inherits a random critic, so fit it first.** Cloning's loss is four
+cross-entropies and touches no value head, so advantages start as mostly the
+critic's own error, which normalising rescales to unit size. The warm-up steps a
+*separate* optimizer over the value head: it shares the trunk, so fitting it
+through the full one drags the policy along.
+
+**Reported entropy is not a health check.** It rises through a rollout with the
+policy provably frozen, because a midgame position holds more units and more real
+choices than an opening. It tracks where the games are, not what the policy is
+becoming — read `kl` and `clip`.
+
+**Most of the source head's error is ordering, not judgement.** Its top pick is
+the unit the human moved *next* 44.7% of the time, but a unit they moved
+somewhere in the same turn 95.2% — against 68.2% for a uniform pick under the
+same mask. A turn's fourteen orders are largely interchangeable, so top-1 marks
+a correct choice wrong whenever the human happened to move something else first.
+`order_diag.py` measures it; the fix is an order-invariant source target.

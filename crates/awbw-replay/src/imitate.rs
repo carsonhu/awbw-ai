@@ -294,6 +294,12 @@ impl Cursor {
         Some(self.state()?.current)
     }
 
+    /// The engine for this position, for callers that need to enumerate legal
+    /// orders — action masks want it mutably for their reachability scratch.
+    pub fn engine_mut(&mut self) -> Option<&mut Engine> {
+        Some(self.loaded.as_mut()?.engine_mut())
+    }
+
     /// The order played here, and whether it is fit to learn from. Advances
     /// past orders that carry no label at all.
     pub fn sample(&mut self) -> Option<Sample> {

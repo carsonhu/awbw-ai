@@ -50,33 +50,35 @@ pageable memory each step cost more than the engine did.
 ## Training and rating a policy
 
 ```
-py -3.12 python/bc.py --teacher human --steps 6000   # clone the corpus
-py -3.12 python/bc.py --teacher greedy               # or the scripted bot
+py -3.12 python/bc.py --teacher human --steps 15000  # clone the corpus
 py -3.12 python/evaluate.py --temperature 0.3        # play it against greedy
 py -3.12 python/evaluate.py --policy random          # the floor, for scale
+py -3.12 python/ppo.py --init checkpoints/bc.pt      # fine-tune by playing
+py -3.12 python/order_diag.py                        # ordering vs judgement
 ```
 
-`--amp` is off by default and worth measuring before turning on: without fp16
-tensor cores it is nearly four times *slower*.
+`--amp` is off by default and worth measuring first: without fp16 tensor cores it
+is four times *slower*. In PPO read `kl` and `clip`, never entropy.
 
 ## Preparing replays
 
 `data/prepared/` and `data/maps/` are gitignored and rebuilt on demand:
 
 ```
-python tools/prepare_replay.py --glob '<replays>\*\*STD*.zip' --limit 400
+python tools/prepare_replay.py --glob '<replays>\**\*.zip' \
+    --map-id 119544 --exclude-fog --workers 12
 ```
 
-Maps are fetched once per id and cached. Filenames are not reliable — some
-games named `STD` are fog games — so filter on the `fog` field, not the name.
-
-The `probe_*.py` scripts are one-off diagnostics for the replay format, kept
-because it is undocumented and easy to re-misread.
+Filter on `--map-id`, never filenames: some games named `STD` are fog games, and
+the archive sorts by tournament, so `--limit N` samples one cluster rather than
+the corpus. `probe_*.py` are one-off format diagnostics, kept because the format
+is undocumented and easy to re-misread.
 
 ## Docs
 
-`python tools/check_docs.py` enforces a line budget per file. `CLAUDE.md` is
-loaded into every session, so it has the tightest one.
+`python tools/check_docs.py` budgets each doc by line count — `CLAUDE.md`
+tightest, since it loads every session — except `decisions.md`, which is
+append-only and budgeted per *entry* instead.
 
 Prefer editing an existing doc to adding a new one. When something is settled
 after real investigation, add a short entry to `decisions.md` — that file exists

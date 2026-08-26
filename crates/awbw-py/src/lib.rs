@@ -778,6 +778,7 @@ pub struct ReplayTeacher {
     files: Vec<std::path::PathBuf>,
     next_file: usize,
     slots: Vec<Option<Cursor>>,
+    masks: Vec<ActionMasks>,
     /// How far into its first game each slot starts.
     ///
     /// Without this every slot opens at turn 0, so the first hundred batches
@@ -983,6 +984,7 @@ impl ReplayTeacher {
             files,
             next_file: 0,
             slots: (0..num_envs).map(|_| None).collect(),
+            masks: (0..num_envs).map(|_| ActionMasks::new()).collect(),
             pending: stagger.clone(),
             stagger,
             want_map: map_name.map(str::to_string),
@@ -1097,6 +1099,42 @@ impl ReplayTeacher {
                     .and_then(|c| c.current_player())
                     .map_or(-1, |p| p as i64)
             })
+            .collect();
+        data.into_pyarray(py)
+    }
+
+    /// Which tiles could act in each slot's position, plus the end-turn index.
+    ///
+    /// The same mask the policy plays under, so a prediction made here is made
+    /// under play conditions — and so a uniform draw over it is a meaningful
+    /// baseline rather than a draw over the whole board.
+    fn source_mask<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
+        let width = self.shape.0 as usize * self.shape.1 as usize + 1;
+        let mut data = vec![false; self.slots.len() * width];
+        let mut scratch = Vec::new();
+        for (i, slot) in self.slots.iter_mut().enumerate() {
+            let Some(engine) = slot.as_mut().and_then(|c| c.engine_mut()) else {
+                continue;
+            };
+            self.masks[i].source_mask(engine, &mut scratch);
+            data[i * width..i * width + scratch.len()].copy_from_slice(&scratch);
+        }
+        Array2::from_shape_vec((self.slots.len(), width), data)
+            .expect("mask buffer is rectangular")
+            .into_pyarray(py)
+    }
+
+    /// Which recorded turn each slot is walking. `-1` where a slot has no game.
+    ///
+    /// A caller that wants to reason about a *turn* rather than an order — the
+    /// orders in one are largely interchangeable, so scoring them one at a time
+    /// punishes a policy for picking a different but equally good sequence —
+    /// needs to know where one turn ends and the next begins.
+    fn turn_index<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let data: Vec<i64> = self
+            .slots
+            .iter()
+            .map(|s| s.as_ref().map_or(-1, |c| c.turn_index() as i64))
             .collect();
         data.into_pyarray(py)
     }

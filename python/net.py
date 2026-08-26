@@ -206,6 +206,26 @@ class Policy(nn.Module):
         _, _, pooled = self.trunk(obs)
         return self.value(pooled).squeeze(1)
 
+    def evaluate_actions(self, obs, source, dest, kind):
+        """Logits for orders already chosen, plus the value, in one trunk pass.
+
+        What a PPO update needs: the heads are re-scored against the actions
+        the rollout actually took, so every head conditions on the *taken*
+        earlier choices rather than on a fresh guess. Sharing the trunk with
+        the value head halves the update's cost.
+        """
+        features, flat, pooled = self.trunk(obs)
+        context = self.context_of(flat, pooled, source, dest)
+        return (
+            (
+                self.source_logits(features, pooled),
+                self.dest_logits(features, flat, pooled, source),
+                self.kind_logits(context),
+                self.param_logits(features, context, kind),
+            ),
+            self.value(pooled).squeeze(1),
+        )
+
 
 def build(env, channels: int = 64, blocks: int = 6) -> Policy:
     """A policy shaped to whatever the environment actually emits."""

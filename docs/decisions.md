@@ -230,6 +230,17 @@ reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off �
 climbed 7% → 93%. When a run degrades, suspect what surrounds the update
 before the update (`log/2026-08-26-recalibration.md`).
 
+**PPO here climbs from behind and decays from level.** Four runs: from 7% and
+46% it gained and held; from ~50% (self-play) and 58% it came apart. Not step
+size — repeating at a third of the learning rate decayed identically. So a
+scripted ladder is spent once the policy is level with its top rung, which
+`ppo-jake2` now is (`log/2026-08-26-ppo-only-climbs-from-behind.md`).
+
+**A rollout window must hold enough games to mean something.** The bar that
+keeps a checkpoint now accumulates to `--min-games` (100) before it may claim
+anything. At the old 20 it kept a warm-up window with the policy frozen, and a
+93.1% reading whose rating was 83.1%.
+
 **A record read before an action cannot describe a unit that moved during it.**
 `survivor`'s fallback gave a killed attacker its origin tile and unspent fuel,
 because the only copy left predates its own move. The walk's cost is now kept

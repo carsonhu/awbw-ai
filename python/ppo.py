@@ -436,7 +436,7 @@ def main() -> int:
     # iteration 130 and finished at 80% -- so the final weights are reliably
     # not the ones worth keeping. The final set is still written, beside it.
     parser.add_argument("--out", default="checkpoints/ppo.pt")
-    parser.add_argument("--min-games", type=int, default=20,
+    parser.add_argument("--min-games", type=int, default=100,
                         help="games a window needs to claim it is the best")
     parser.add_argument("--opponent", default="greedy",
                         choices=["greedy", "jakeman", "capturer", "random"])
@@ -533,10 +533,20 @@ def main() -> int:
             # Windowed, not cumulative: `results` counts from construction, so a
             # running average of every game ever played would still be showing
             # the initial policy's score long after it had improved.
+            #
+            # The window *accumulates* until it is worth reading. A thirty-game
+            # window carries about ten points, which is more than any real
+            # improvement between two reports, so a bar set from one is decided
+            # by luck: the run that kept `ctrl-greedy` read 93.1% on a window
+            # whose rating is 83.1%, and the first JakeMan run kept a warm-up
+            # window in which the policy had not moved at all.
             played, won, drawn = trainer.env.results
             games = played - seen[0]
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
-            seen = (played, won, drawn)
+            needed = args.refresh_games if args.selfplay else args.min_games
+            closed = games >= needed
+            if closed:
+                seen = (played, won, drawn)
             rate = iteration * per / (time.perf_counter() - start)
             if args.selfplay:
                 # The score is against a moving opponent, so a high one means
@@ -544,8 +554,7 @@ def main() -> int:
                 # `best` would just track staleness. Promote instead: beating
                 # the last generation convincingly is the improvement, and the
                 # promoted weights are what gets kept.
-                kept = (not warming and games >= args.refresh_games
-                        and score >= args.refresh_at)
+                kept = not warming and closed and score >= args.refresh_at
                 if kept:
                     trainer.promote()
                     trainer.save(args.out)
@@ -562,7 +571,7 @@ def main() -> int:
                 # what is left -- noise -- to a full-size step, and the policy
                 # diffuses back down. A minimum window stops a lucky handful of
                 # games claiming the checkpoint.
-                kept = games >= args.min_games and score > best
+                kept = closed and score > best
                 if kept:
                     best = score
                     trainer.save(args.out)

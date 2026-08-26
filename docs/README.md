@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (10)
+## Log (11)
 
 | date | entry | what it found |
 |---|---|---|
@@ -46,6 +46,7 @@ Then `python tools/docs.py index`.
 | 2026-08-26 | [Self-play drifts below its own frozen copy, and three fixes did nothing](log/2026-08-26-selfplay-drift.md) | The learner loses to a snapshot of itself at 35-41% across every configuration tried. Recalibration, step size and shaping are all cleared. The one path the working control never exercises is the two-player advantage. |
 | 2026-08-26 | [The written replay reaches 100%, on two bugs about units that stopped existing](log/2026-08-26-round-trip-clean.md) | 99.837% to 100.000%, 33 divergences to none. A unit killed by the counterattack was recorded as never having moved, and a transport was named by a slot number where everything else uses a stable id. |
 | 2026-08-26 | [Recalibration was eating the policy](log/2026-08-26-recalibration.md) | Refitting batch-norm statistics costs seventeen points of play strength with no gradient step taken at all. It is on by default, so it ran in every job since it was added — including the JakeMan run whose result it invalidates. |
+| 2026-08-26 | [PPO climbs from behind and decays from level, and the ladder has no rung left](log/2026-08-26-ppo-only-climbs-from-behind.md) | Four runs, one rule: a policy clearly worse than its opponent gains a lot, a policy level with it or ahead comes apart. Step size is not the cause, and `ppo-jake2` has nothing left to be behind. |
 | 2026-08-26 | [The recipe that beat greedy goes backwards against JakeMan](log/2026-08-26-jakeman-ppo.md) | The RL checkpoints survived the opening fix, and PPO from the best of them never beat its own start against JakeMan, decaying to 7.6%. Two lessons. |
 | 2026-08-26 | [JakeMan beaten, by running yesterday's experiment without the bug](log/2026-08-26-jakeman-beaten.md) | The same run that scored 7.6% scores 67.2% with recalibration off. A sixty point swing from one default, and the first policy here to beat the strongest scripted opponent. |
 | 2026-08-25 | [An order-invariant target for the source head](log/2026-08-25-source-set.md) | Training the source head on the whole turn's set of units instead of the next one. The mechanism worked; play did not move. Null result. |

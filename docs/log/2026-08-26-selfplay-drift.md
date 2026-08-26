@@ -4,10 +4,9 @@
 > configuration tried. Recalibration, step size and shaping are all cleared.
 > The one path the working control never exercises is the two-player advantage.
 
-**The symptom.** In self-play the learner is rated against a frozen copy of
-itself, and two copies of one policy should sit at half. From `spR` it sits
-well below, so it can never reach the 70% that promotes a generation, and a
-run produces nothing.
+**The symptom.** The learner is rated against a frozen copy of itself, and two
+copies of one policy should sit at half. From `spR` it sits well below, never
+reaches the 70% that promotes a generation, and the run produces nothing.
 
 **What was tried**, all from `spR`, all with `--recalibrate 0` after that was
 found to cost seventeen points on its own (`log/2026-08-26-recalibration.md`):
@@ -18,14 +17,13 @@ found to cost seventeen points on its own (`log/2026-08-26-recalibration.md`):
 | `--adv-floor 0.12` | 41% | 71 |
 | `--shaping 0` | 35% | 84 |
 
-Each is two to three sigma below parity, and they are indistinguishable from
-each other. The floor was aimed at advantage normalisation rescaling a
-well-predicted rollout to full-size noise; measured, the healthy regime runs
-at spread 0.12-0.13 and self-play at 0.05-0.09, a factor of two rather than
-the order of magnitude the theory wanted, and damping it changed nothing.
-Removing shaping was aimed at the win signal being drowned by material; it
-changed nothing either, and the terminal signal alone still produced spread
-around 0.04, so it is present.
+Each is two to three sigma below parity and they are indistinguishable from
+each other. The floor was aimed at normalisation rescaling a well-predicted
+rollout to full-size noise; measured, the healthy regime runs at spread
+0.12-0.13 against self-play's 0.05-0.09 — a factor of two, not the order of
+magnitude the theory wanted — and damping it changed nothing. Removing
+shaping was aimed at the win signal being drowned by material; it changed
+nothing either, and the terminal signal alone still spread around 0.04.
 
 **What is cleared.** The harness (`spR` against itself rates 52.8% ±3.5 over
 200 games), the opening fix, and the PPO update — a control reproducing the
@@ -34,23 +32,28 @@ its kept weights rate 83.1% ±1.9 against `greedy` and **46.0% ±2.5 against
 JakeMan**, the best of any checkpoint here. It is the one usable artifact of
 the day, and the natural start for the next self-play attempt.
 
-That checkpoint also pays the window lesson again: the rollout window that
-saved it read 93.1%, and its rating is 83.1%. Ten points of fluke, in the
-direction that makes a run look finished.
+**The remaining lead.** That control is also why to look at the two-player
+advantage path: with a scripted opponent the caller only sees its own seat, so
+`buf.mine` and the sign flip in `advantages()` do nothing, while in self-play
+they carry the whole update. Inspection found no defect, so the test was run
+instead — with learner and frozen weights identical the two sides are one
+player, and their advantages must come from one distribution.
 
-**The remaining lead.** That control is also the reason to look at the
-two-player advantage path. With a scripted opponent the caller only ever sees
-its own seat, so `buf.mine` and the sign flip in `advantages()` do nothing;
-in self-play both carry the whole update. The code the working configuration
-never touches is the code the failing one depends on. Inspection found no
-defect — `flip` is +1 within a turn and -1 across a change of turn, applied to
-both the bootstrap and the accumulator — so the next step is a test rather
-than more reading: with learner and frozen weights identical, the learner's
-mean advantage over a rollout should be zero, and a systematic sign would
-show up directly.
+| | 20 rollouts, weights identical |
+|---|---|
+| critic spread | 0.41 — not collapsed, so advantages are not noise |
+| advantage gap | -0.0046 ±0.0036, marginal |
+| **learner's row share** | **46.1%**, and 47.1% on a separate run |
 
-**A caution for whoever picks this up.** Three separate calls in this session
-were made on 27, 32 and 33-game samples and all three were wrong; the
-project's own rule is 200 games for a rating. A rollout window is worth
-roughly ±9 points and cannot distinguish any of the numbers in the table
-above from any other.
+The row share is the one that does not go away. Seats alternate 16/16, so the
+learner's share is `(seat 0's share + seat 1's share) / 2` — exactly a half
+whatever the map's asymmetry does to orders per turn, because the two groups
+cancel. It is not a half. `actors` is read before the action is applied, so
+the flip is aligned and that is not it. Unexplained, reproducible, and in the
+path a working vs-a-bot run never touches: start here.
+
+**A caution for whoever picks this up.** Three calls in this session were made
+on 27, 32 and 33-game samples and all three were wrong; the first version of
+the probe above called its gap significant by pooling correlated rows; and the
+window that kept `ctrl-greedy` read 93.1% against a rating of 83.1%. A rollout
+window is worth about ±9 points, always flattering. The rule is 200 games.

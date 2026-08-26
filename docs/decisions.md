@@ -230,6 +230,11 @@ reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off �
 climbed 7% → 93%. When a run degrades, suspect what surrounds the update
 before the update (`log/2026-08-26-recalibration.md`).
 
+**JakeMan is beaten, and the scripted ladder is exhausted.** `ppo-jake2` rates
+67.2% ±2.3 against JakeMan and 86.4% ±1.7 against `greedy` — the same run that
+scored 7.6% with recalibration on. Nothing scripted is left to climb
+(`log/2026-08-26-jakeman-beaten.md`).
+
 **Self-play's learner drifts below its own frozen copy, cause unknown.** 35-41%
 across recalibration off, an advantage floor and no shaping alike, so it
 promotes nothing. The harness, the opening fix and the update are all cleared

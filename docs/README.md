@@ -38,13 +38,14 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (7)
+## Log (8)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-26 | [Self-play drifts below its own frozen copy, and three fixes did nothing](log/2026-08-26-selfplay-drift.md) | The learner loses to a snapshot of itself at 35-41% across every configuration tried. Recalibration, step size and shaping are all cleared. The one path the working control never exercises is the two-player advantage. |
 | 2026-08-26 | [Recalibration was eating the policy](log/2026-08-26-recalibration.md) | Refitting batch-norm statistics costs seventeen points of play strength with no gradient step taken at all. It is on by default, so it ran in every job since it was added — including the JakeMan run whose result it invalidates. |
 | 2026-08-26 | [The recipe that beat greedy goes backwards against JakeMan](log/2026-08-26-jakeman-ppo.md) | The RL checkpoints survived the opening fix, and PPO from the best of them never beat its own start against JakeMan, decaying to 7.6%. Two lessons. |
+| 2026-08-26 | [JakeMan beaten, by running yesterday's experiment without the bug](log/2026-08-26-jakeman-beaten.md) | The same run that scored 7.6% scores 67.2% with recalibration off. A sixty point swing from one default, and the first policy here to beat the strongest scripted opponent. |
 | 2026-08-25 | [An order-invariant target for the source head](log/2026-08-25-source-set.md) | Training the source head on the whole turn's set of units instead of the next one. The mechanism worked; play did not move. Null result. |
 | 2026-08-25 | [PPO's first real run, and why it came apart at the top](log/2026-08-25-ppo-first-run.md) | 5.5% to 96.2% against `greedy`. It saturated the opponent by iteration 110, then unlearned itself back to 80% — with a traceable cause, and a fix. |
 | 2026-08-25 | [Which DefendPeace AI is worth porting](log/2026-08-25-defendpeace-ai-ranking.md) | Ran their own AIs against each other before porting one. The 2,537-line WallyAI came fourth of five; JakeMan won. Sample size flipped the answer once. |

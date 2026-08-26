@@ -500,6 +500,13 @@ def main() -> int:
                 if kept:
                     trainer.promote()
                     trainer.save(args.out)
+                    # Each generation is kept under its own name as well, so the
+                    # ladder can be played against itself afterwards. Whether
+                    # generation three actually beats generation one is the only
+                    # honest measure of a self-play run, and it cannot be asked
+                    # of a single overwritten file.
+                    trainer.save(Path(args.out).with_name(
+                        f"{Path(args.out).stem}-gen{trainer.refreshes}.pt"))
             else:
                 # Keep the best weights seen, not the latest. A saturated
                 # opponent stops producing advantage, normalisation rescales

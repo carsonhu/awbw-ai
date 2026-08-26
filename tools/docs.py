@@ -62,7 +62,9 @@ BUDGETS = {
     "docs/rules.md": 90,
     "docs/verification.md": 90,
     "docs/decisions.md": None,  # per entry; see ENTRY_BUDGET
-    "docs/workflow.md": 87,
+    # Up 14 for writing replays out, which is a thing the project can now do
+    # rather than a longer way of saying what it already did.
+    "docs/workflow.md": 101,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by

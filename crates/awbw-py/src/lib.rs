@@ -33,6 +33,9 @@ use awbw_replay::imitate::Cursor;
 use awbw_replay::schema::Replay;
 use awbw_replay::Verifier;
 
+mod record;
+use record::Recorder;
+
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadwriteArray2};
 use pyo3::exceptions::PyValueError;
@@ -93,6 +96,10 @@ pub struct VecEnv {
     /// symptom is a policy that looks merely bad rather than broken.
     rejected: u64,
     submitted: u64,
+    /// One per game, kept only when the caller asks for replays. Recording
+    /// costs a snapshot of every unit and building once per turn, which is
+    /// nothing beside a rollout but pointless when nobody will read it.
+    recorders: Vec<Recorder>,
 }
 
 impl VecEnv {
@@ -155,8 +162,17 @@ impl VecEnv {
                 return;
             }
             let action = self.opponents[index].choose(&mut game.engine);
-            if game.engine.apply(action).is_err() {
+            let recorded = !self.recorders.is_empty();
+            let before = recorded
+                .then(|| self.recorders[index].begin(&self.games[index].engine.state, action));
+            let game = &mut self.games[index];
+            let refused = game.engine.apply(action).is_err();
+            if refused {
                 let _ = game.engine.apply(Action::EndTurn);
+            }
+            if let Some(before) = before {
+                let played = if refused { Action::EndTurn } else { action };
+                self.recorders[index].end(&self.games[index].engine, played, before);
             }
         }
         let _ = self.games[index].engine.apply(Action::EndTurn);
@@ -189,7 +205,7 @@ impl VecEnv {
     /// synthetic board, which needs no data file.
     #[pyo3(signature = (
         num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None,
-        opponent=None,
+        opponent=None, record=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -200,6 +216,7 @@ impl VecEnv {
         shaping: f32,
         map_path: Option<String>,
         opponent: Option<&str>,
+        record: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -228,6 +245,11 @@ impl VecEnv {
             draws: 0,
             rejected: 0,
             submitted: 0,
+            recorders: if record {
+                (0..num_envs).map(|_| Recorder::default()).collect()
+            } else {
+                Vec::new()
+            },
         };
         for i in 0..num_envs {
             let state = env.board.new_state(fog);
@@ -307,11 +329,16 @@ impl VecEnv {
         self.observe(py)
     }
 
-    /// `(games finished, agent wins, draws)` against a scripted opponent.
+    /// `(games finished, wins for [`VecEnv::agent_seat`], draws)`.
     ///
     /// Draws are almost all games that hit the day cap. Counting them apart
     /// from losses matters: a policy that never loses but never wins is a
     /// different failure from one that is simply beaten.
+    ///
+    /// Kept in self-play too, where it counts one nominated seat rather than
+    /// one player. Two copies of the same policy should sit at half, so this
+    /// doubles as a check that the seats really are being alternated -- and it
+    /// is the rating when the two seats hold *different* checkpoints.
     #[getter]
     fn results(&self) -> (u64, u64, u64) {
         (self.finished, self.agent_wins, self.draws)
@@ -322,6 +349,27 @@ impl VecEnv {
     #[getter]
     fn order_stats(&self) -> (u64, u64) {
         (self.submitted, self.rejected)
+    }
+
+    /// The last finished game in a slot, as JSON, or `None`.
+    ///
+    /// Needs `record=True`. Taking it clears it, so a caller polling every step
+    /// collects each game exactly once; a game nobody collects before the slot
+    /// finishes another is dropped. Feed the JSON to `tools/write_replay.py` to
+    /// get a file AWBW's own replay viewers will open.
+    fn take_replay(&mut self, index: usize) -> PyResult<Option<String>> {
+        if self.recorders.is_empty() {
+            return Err(PyValueError::new_err("construct VecEnv with record=True"));
+        }
+        if index >= self.recorders.len() {
+            return Err(PyValueError::new_err(format!(
+                "slot {index} of {}",
+                self.recorders.len()
+            )));
+        }
+        Ok(self.recorders[index]
+            .take()
+            .map(|log| serde_json::to_string(&log).unwrap_or_default()))
     }
 
     /// The seat the caller plays in each game.
@@ -494,28 +542,36 @@ impl VecEnv {
             } else {
                 self.games[i].engine.state.current
             };
-            {
-                let game = &mut self.games[i];
-                actors[i] = game.engine.state.current as i64;
+            let code = ActionCode {
+                source: sources[i],
+                dest: dests[i],
+                kind: kinds[i] as u8,
+                param: params[i],
+            };
+            // An unmasked or stale selection forfeits the turn rather than
+            // failing the whole batch; a policy sampling under the masks will
+            // never land here.
+            let decoded = decode(&self.games[i].engine.state, code);
+            let action = decoded.unwrap_or(Action::EndTurn);
+            actors[i] = self.games[i].engine.state.current as i64;
+            // Read before applying: the path a unit walks does not survive it.
+            let before = (!self.recorders.is_empty())
+                .then(|| self.recorders[i].begin(&self.games[i].engine.state, action));
 
-                let code = ActionCode {
-                    source: sources[i],
-                    dest: dests[i],
-                    kind: kinds[i] as u8,
-                    param: params[i],
-                };
-                // An unmasked or stale selection forfeits the turn rather than
-                // failing the whole batch; a policy sampling under the masks
-                // will never land here.
-                let decoded = decode(&game.engine.state, code);
-                let action = decoded.unwrap_or(Action::EndTurn);
+            let refused = {
+                let game = &mut self.games[i];
                 let refused = game.engine.apply(action).is_err();
                 if refused {
                     let _ = game.engine.apply(Action::EndTurn);
                 }
                 game.steps += 1;
-                bad += u64::from(decoded.is_none() || refused);
-                sent += 1;
+                refused
+            };
+            bad += u64::from(decoded.is_none() || refused);
+            sent += 1;
+            if let Some(before) = before {
+                let played = if refused { Action::EndTurn } else { action };
+                self.recorders[i].end(&self.games[i].engine, played, before);
             }
             self.run_opponent(i);
 
@@ -531,8 +587,9 @@ impl VecEnv {
                     Outcome::Winner(_) => -1.0,
                     _ => 0.0,
                 };
-                if versus {
-                    self.score(i);
+                self.score(i);
+                if !self.recorders.is_empty() {
+                    self.recorders[i].finish(&self.games[i].engine.state);
                 }
                 restarts.push(i);
             }
@@ -543,6 +600,11 @@ impl VecEnv {
         self.episodes += 1;
         for i in restarts {
             self.games[i] = self.new_game(i, self.episodes);
+            if !self.recorders.is_empty() {
+                // The finished log is already sealed and waiting; this drops
+                // only the turn bookkeeping so the next game starts clean.
+                self.recorders[i].clear();
+            }
             if versus {
                 self.opponents[i].reset(self.seed.wrapping_add(self.episodes));
                 self.run_opponent(i);
@@ -624,7 +686,7 @@ impl TeacherEnv {
         fog: bool,
         map_path: Option<String>,
     ) -> PyResult<Self> {
-        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None)?;
+        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None, false)?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
             .collect::<PyResult<Vec<_>>>()?;

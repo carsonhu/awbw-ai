@@ -167,6 +167,13 @@ through the full one drags the policy along.
 cannot pick a temperature, so 1.0 is the number that predicts what RL starts
 from. Quote both, or quote 1.0 (`log/2026-08-25-ppo-first-run.md`).
 
+**A written replay is checked by reading it back, not by opening it.** Recorded
+games return through `prepare_replay.py` and the verifier, which took agreement
+99.47% → 99.91% by catching four faults a viewer would have rendered as merely
+odd: a killed defender written as null (losing the target tile, so the attack
+was dropped whole), Join naming the survivor where AWBW names the mover, HP
+rounded to whole points where snapshots carry tenths, carried units omitted.
+
 **A saturated opponent unlearns the policy.** Once PPO beat `greedy` 100% the
 critic had nothing left to predict, value loss fell to 0.001, and normalising
 advantages rescaled what remained — noise — back to a full-size step. Entropy

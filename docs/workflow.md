@@ -77,6 +77,20 @@ the archive sorts by tournament, so `--limit N` samples one cluster rather than
 the corpus. `probe_*.py` are one-off format diagnostics, kept because the format
 is undocumented and easy to re-misread.
 
+## Watching a policy play
+
+```
+py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt --games 2
+py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt \
+    --versus checkpoints/bc-scaled.pt        # two nets, seat against seat
+```
+
+Writes real AWBW replay files to `replays/` (gitignored), which open in AWBW's
+own replay viewers. A win rate says a policy improved; only watching says what
+it learned. To check a written replay is faithful, put it back through
+`prepare_replay.py` and the verifier — that round trip is what the numbers in
+`verification.md` come from.
+
 ## Docs
 
 `docs/README.md` is the index, and states the rules each tier is kept under.

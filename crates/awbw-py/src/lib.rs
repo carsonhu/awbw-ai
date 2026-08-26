@@ -657,6 +657,9 @@ impl VecEnv {
 pub struct TeacherEnv {
     inner: VecEnv,
     teachers: Vec<Box<dyn Bot + Send + Sync>>,
+    /// A second bot, for the seat `teachers` does not play. Empty for a mirror,
+    /// where one bot plays both sides exactly as it always has.
+    opponents: Vec<Box<dyn Bot + Send + Sync>>,
     /// Games finished since construction, and how many the first seat won.
     finished: u64,
     seat_zero_wins: u64,
@@ -679,7 +682,11 @@ fn make_teacher(name: &str, seed: u64) -> PyResult<Box<dyn Bot + Send + Sync>> {
 #[pymethods]
 impl TeacherEnv {
     #[new]
-    #[pyo3(signature = (num_envs, teacher="greedy", seed=0, max_day=60, fog=false, map_path=None))]
+    #[pyo3(signature = (
+        num_envs, teacher="greedy", seed=0, max_day=60, fog=false, map_path=None,
+        opponent=None, record=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         num_envs: usize,
         teacher: &str,
@@ -687,17 +694,39 @@ impl TeacherEnv {
         max_day: u16,
         fog: bool,
         map_path: Option<String>,
+        opponent: Option<&str>,
+        record: bool,
     ) -> PyResult<Self> {
-        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None, false)?;
+        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None, record)?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
             .collect::<PyResult<Vec<_>>>()?;
+        // Left empty for a mirror, which keeps one bot per game playing both
+        // seats exactly as before. With a second name the two are different
+        // players, and `agent_seat` says which side `teacher` is on.
+        let opponents = match opponent {
+            Some(name) => (0..num_envs)
+                .map(|i| make_teacher(name, seed.wrapping_add(0xB0B + i as u64)))
+                .collect::<PyResult<Vec<_>>>()?,
+            None => Vec::new(),
+        };
         Ok(TeacherEnv {
             inner,
             teachers,
+            opponents,
             finished: 0,
             seat_zero_wins: 0,
         })
+    }
+
+    /// The seat `teacher` plays, when there are two different bots.
+    fn agent_seat<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        self.inner.agent_seat(py)
+    }
+
+    /// The last finished game in a slot, as JSON. Needs `record=True`.
+    fn take_replay(&mut self, index: usize) -> PyResult<Option<String>> {
+        self.inner.take_replay(index)
     }
 
     #[getter]
@@ -766,7 +795,12 @@ impl TeacherEnv {
         for i in 0..self.inner.games.len() {
             let game = &mut self.inner.games[i];
             let actor = game.engine.state.current;
-            let action = self.teachers[i].choose(&mut game.engine);
+            let mine = self.inner.agent_seats[i] == actor;
+            let action = if mine || self.opponents.is_empty() {
+                self.teachers[i].choose(&mut game.engine)
+            } else {
+                self.opponents[i].choose(&mut game.engine)
+            };
 
             // Record before applying: the label belongs to the position the
             // observation was taken from.
@@ -781,14 +815,25 @@ impl TeacherEnv {
             codes[i * 4 + 2] = code.kind as u32;
             codes[i * 4 + 3] = code.param;
 
-            if game.engine.apply(action).is_err() {
+            let before = (!self.inner.recorders.is_empty())
+                .then(|| self.inner.recorders[i].begin(&self.inner.games[i].engine.state, action));
+            let game = &mut self.inner.games[i];
+            let refused = game.engine.apply(action).is_err();
+            if refused {
                 let _ = game.engine.apply(Action::EndTurn);
             }
+            if let Some(before) = before {
+                let played = if refused { Action::EndTurn } else { action };
+                self.inner.recorders[i].end(&self.inner.games[i].engine, played, before);
+            }
 
-            if VecEnv::is_finished(&game.engine.state, self.inner.max_day) {
+            if VecEnv::is_finished(&self.inner.games[i].engine.state, self.inner.max_day) {
                 self.finished += 1;
-                if let Outcome::Winner(0) = game.engine.state.outcome() {
+                if let Outcome::Winner(0) = self.inner.games[i].engine.state.outcome() {
                     self.seat_zero_wins += 1;
+                }
+                if !self.inner.recorders.is_empty() {
+                    self.inner.recorders[i].finish(&self.inner.games[i].engine.state);
                 }
                 let _ = actor;
                 restarts.push(i);
@@ -799,6 +844,12 @@ impl TeacherEnv {
         for i in restarts {
             self.inner.games[i] = self.inner.new_game(i, self.inner.episodes);
             self.teachers[i].reset(self.inner.seed.wrapping_add(self.inner.episodes));
+            if !self.opponents.is_empty() {
+                self.opponents[i].reset(self.inner.seed.wrapping_add(self.inner.episodes));
+            }
+            if !self.inner.recorders.is_empty() {
+                self.inner.recorders[i].clear();
+            }
         }
 
         Array2::from_shape_vec((self.inner.games.len(), 4), codes)

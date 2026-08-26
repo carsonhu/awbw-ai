@@ -550,14 +550,16 @@ class Writer:
             self.previous[tile] = running.get(tile, CAPTURE_FULL)
             running[tile] = order["remaining"]
 
-    def write(self, out_dir):
+    def write(self, out_dir, filename=None):
         states, actions = [], []
         for number, turn in enumerate(self.log["turns"], start=1):
             states.append(php(self.state_line(turn)))
             actions.append(self.action_line(turn, number))
             self.advance_captures(turn)
 
-        path = Path(out_dir) / f"{self.game_id}.zip"
+        # AWBW needs a numeric game id inside the file; the *filename* is for
+        # whoever has to find the right replay in a directory of them.
+        path = Path(out_dir) / f"{filename or self.game_id}.zip"
         path.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr(str(self.game_id), gz("\n".join(states) + "\n"))

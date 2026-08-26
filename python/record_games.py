@@ -91,16 +91,25 @@ def main() -> int:
                 continue
             game = json.loads(log)
             game_id = args.game_id + len(written)
+            winner = game["outcome"]["winner"]
+            seat = int(env.agent_seat()[slot])
+            outcome = ("draw" if winner is None
+                       else "win" if winner == seat else "loss")
+            # Named for what it is, not for its id: a directory of numbers tells
+            # you nothing about which replay is the one you wanted.
+            stem = (f"{label}-vs-{against}-{outcome}"
+                    f"-d{game['days']}-{game_id}")
             path = write_replay.Writer(
                 game, game_id, args.map_id, args.name or f"{label} vs {against}",
                 [int(u) for u in args.users.split(",")] if args.users else None,
-            ).write(args.out)
+            ).write(args.out, stem)
             winner = game["outcome"]["winner"]
             seat = int(env.agent_seat()[slot])
-            result = ("a draw" if winner is None
-                      else f"seat {winner} won" + (" (ours)" if winner == seat else ""))
-            written.append(path)
-            print(f"  {path}  {game['days']} days, {len(game['turns'])} turns, {result}")
+            outcome = ("draw" if winner is None
+                       else "win" if winner == seat else "loss")
+            written.append((game, outcome))
+            print(f"  {path}  {game['days']} days, "
+                  f"{len(game['turns'])} turns, {outcome}")
 
     print(f"\n{len(written)} replays in {Path(args.out).resolve()}")
     print("Open them in AWBW Replay Player, or upload to awbw.amarriner.com.")

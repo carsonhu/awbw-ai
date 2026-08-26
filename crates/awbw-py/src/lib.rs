@@ -28,6 +28,7 @@ use awbw_engine::state::{GameState, Outcome, PlayerId};
 use awbw_bots::arena::Board;
 use awbw_bots::awbw_map::{AwbwMap, RIVER_SUPREME};
 use awbw_bots::greedy::GreedyBot;
+use awbw_bots::jakeman::JakeManBot;
 use awbw_bots::{Bot, RandomBot};
 use awbw_replay::imitate::Cursor;
 use awbw_replay::schema::Replay;
@@ -666,9 +667,10 @@ fn make_teacher(name: &str, seed: u64) -> PyResult<Box<dyn Bot + Send + Sync>> {
         "greedy" => Box::new(GreedyBot::new()),
         "capturer" => Box::new(GreedyBot::capture_only()),
         "random" => Box::new(RandomBot::new(seed)),
+        "jakeman" => Box::new(JakeManBot::new(seed)),
         other => {
             return Err(PyValueError::new_err(format!(
-                "unknown teacher {other:?}; expected greedy, capturer or random"
+                "unknown teacher {other:?}; expected greedy, jakeman, capturer or random"
             )))
         }
     })

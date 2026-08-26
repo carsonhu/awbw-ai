@@ -8,6 +8,7 @@
 pub mod arena;
 pub mod awbw_map;
 pub mod greedy;
+pub mod jakeman;
 pub mod map;
 
 use awbw_engine::actions::{Action, Engine};

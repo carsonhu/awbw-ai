@@ -365,6 +365,32 @@ class Trainer:
         out["stopped"] = stopped
         return out
 
+    @torch.no_grad()
+    def recalibrate(self):
+        """Refits the batch-norm running statistics to states now being visited.
+
+        Cloning leaves them describing the human corpus, and the update runs in
+        eval mode -- deliberately, so the rollout and the update normalise
+        identically -- which means nothing ever refreshes them again. Measured
+        on self-play states they were out by 1.75 standard deviations on
+        average and 3.15 at worst, with variances off by up to six times, and
+        the drift compounds with depth. Every gradient is then scaled by the
+        wrong constant, and the further the policy moves the wronger it gets.
+
+        Done *after* the update, never between rollout and update: the two must
+        see the same statistics or every importance ratio compares two
+        different policies, which is the failure that eval mode exists to stop.
+        """
+        flat = self.buffer.obs.reshape(-1, self.buffer.obs.shape[-1])
+        # A minibatch, not the rollout: the whole buffer through the trunk at
+        # once needs as much memory as the update does, and on a small card the
+        # two together simply stop. Batch statistics over a few hundred states
+        # are plenty, and the running average is what actually moves.
+        take = flat[torch.randperm(flat.shape[0], device=flat.device)[:self.args.minibatch]]
+        self.policy.train()
+        self.policy.trunk(take)
+        self.policy.eval()
+
     def promote(self):
         """Makes the current policy the opponent to beat.
 
@@ -400,7 +426,7 @@ def main() -> int:
     parser.add_argument("--min-games", type=int, default=20,
                         help="games a window needs to claim it is the best")
     parser.add_argument("--opponent", default="greedy",
-                        choices=["greedy", "capturer", "random"])
+                        choices=["greedy", "jakeman", "capturer", "random"])
     # A scripted opponent is a finite resource -- `greedy` is beaten 96%, and
     # the run that saturated it then spent seventy iterations unlearning itself.
     # Self-play replaces it with a frozen copy of the learner, refreshed
@@ -414,6 +440,8 @@ def main() -> int:
                         help="games that window needs before it may promote")
     parser.add_argument("--refresh-warmup", type=int, default=10,
                         help="critic-only iterations after each promotion")
+    parser.add_argument("--recalibrate", type=int, default=1,
+                        help="refit batch-norm statistics to visited states")
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--envs", type=int, default=32)
     parser.add_argument("--steps", type=int, default=64)
@@ -476,6 +504,8 @@ def main() -> int:
         if trainer.recalibrating > 0:
             trainer.recalibrating -= 1
         stats = trainer.update(adv, returns, critic_only=warming)
+        if args.recalibrate:
+            trainer.recalibrate()
 
         if warming and iteration == args.value_warmup:
             print(f"  critic warm-up done after {iteration} iterations "

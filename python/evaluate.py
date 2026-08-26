@@ -207,7 +207,7 @@ def main() -> int:
                         choices=["net", "random", "greedy", "capturer"],
                         help="what plays the agent's seat")
     parser.add_argument("--opponent", default="greedy",
-                        choices=["greedy", "capturer", "random"])
+                        choices=["greedy", "jakeman", "capturer", "random"])
     # The scripted ladder tops out -- `greedy` is beaten 96% -- so rating a
     # checkpoint against another checkpoint is the only way to keep measuring
     # once self-play starts. Seats still alternate, so this is a fair pairing

@@ -1,0 +1,542 @@
+//! JakeMan, ported from DefendPeace.
+//!
+//! Picked by playing DefendPeace's own AIs against each other on this map
+//! rather than by reading them — the largest and most elaborate of the five
+//! came fourth. See `docs/log/2026-08-25-defendpeace-ai-ranking.md`.
+//!
+//! What it adds over [`crate::greedy`] is three things, and they are the reason
+//! it wins:
+//!
+//! *A threat map.* Every tile carries, per enemy unit type, the weight of the
+//! units that could strike it. A move onto a tile nothing can punish is worth
+//! more than the same move onto one three tanks cover, and `greedy` cannot see
+//! the difference because it only ever looks one exchange deep.
+//!
+//! *Counter-building.* Production is scored against what the enemy actually
+//! fields, not against a fixed preference order. `greedy` builds the same army
+//! whatever it is facing, which is exactly the uniformity a learned policy
+//! discovers and exploits.
+//!
+//! *A safety test before committing.* A unit only takes a property or walks
+//! into range if the friendly units nearby can answer whatever threatens the
+//! tile — the counter-power accounting in [`Ai::dude_free`].
+//!
+//! The control flow is not ported. DefendPeace runs a queue of modules that
+//! each claim units; this scores every legal order the way those modules would
+//! and takes the best, which is the shape the engine here already offers and
+//! reaches the same decisions.
+
+use std::collections::HashMap;
+
+use awbw_engine::actions::{Action, Engine};
+use awbw_engine::combat;
+use awbw_engine::map::Pos;
+use awbw_engine::movement::Reach;
+use awbw_engine::rng::Rng;
+use awbw_engine::state::{GameState, PlayerId, Unit, UnitId};
+use awbw_engine::types::{TerrainKind, UnitType};
+
+use crate::Bot;
+
+/// Damage a weapon must do before it counts as threatening. A unit that fires
+/// back can shrug off a light hit; one that cannot is in trouble from anything.
+const DIRECT_THREAT: i32 = 30;
+const INDIRECT_THREAT: i32 = 7;
+
+/// Hitting something that threatens you first is worth double: the exchange you
+/// avoid is as valuable as the damage you deal.
+const FIRST_STRIKE: f32 = 2.0;
+/// Charged against an attack that kills the attacker. Trading a unit away has
+/// to clear a real bar, not merely come out even on funds.
+const STAY_ALIVE_BIAS: f32 = 2_000.0;
+/// Below this health a unit is nearly spent, so finishing it is worth less than
+/// opening up something fresh.
+const BIG_THREAT_HP: u8 = 80;
+/// A unit standing still counts less as its own defender than one that is
+/// actively covering the tile.
+const PEACEFUL_SELF_RATIO: f32 = 1.0;
+
+// Scores share the bands `greedy` uses so the two remain comparable.
+const IDLE: f32 = -1.0;
+const CAPTURE_COMPLETE: f32 = 100_000.0;
+const CAPTURE_STEP: f32 = 40_000.0;
+const HQ_BONUS: f32 = 500_000.0;
+const BUILD_FLOOR: f32 = 20_000.0;
+const APPROACH: f32 = 100.0;
+/// Charged against ending a move somewhere the threat accounting says is lost.
+const UNSAFE: f32 = 6_000.0;
+
+/// Per unit type, the threat resting on each tile, indexed by tile.
+type ThreatMap = HashMap<UnitType, Vec<f32>>;
+
+/// Whether `threat` hits `target` hard enough to matter.
+///
+/// The threshold depends on the *target*: something that shoots back only
+/// counts a real blow as a threat, where an indirect unit — which never
+/// counterattacks — is threatened by far less.
+fn threatened_by(target: UnitType, threat: UnitType) -> bool {
+    let bar = if target.is_indirect() {
+        INDIRECT_THREAT
+    } else {
+        DIRECT_THREAT
+    };
+    combat::base_percentage(threat, target, threat.stats().max_ammo)
+        .is_some_and(|(pct, _)| pct >= bar)
+}
+
+/// Threatened by it, and unable to threaten it back. The matchups worth
+/// building for.
+fn weak_to(target: UnitType, threat: UnitType) -> bool {
+    threatened_by(target, threat) && !threatened_by(threat, target)
+}
+
+fn is_capturer(typ: UnitType) -> bool {
+    matches!(typ, UnitType::Infantry | UnitType::Mech)
+}
+
+fn unit_value(unit: &Unit) -> f32 {
+    unit.typ.stats().cost as f32 * unit.hp100 as f32 / 100.0
+}
+
+pub struct JakeManBot {
+    name: String,
+    rng: Rng,
+    reach: Reach,
+    buffer: Vec<Action>,
+    /// Rebuilt when the turn changes; every score in a turn reads the same map.
+    enemy: ThreatMap,
+    friendly: ThreatMap,
+    built_for: Option<(u16, PlayerId)>,
+    /// Enemy army composition, as funds on the board per unit type.
+    composition: HashMap<UnitType, f32>,
+}
+
+impl Default for JakeManBot {
+    fn default() -> Self {
+        JakeManBot::new(0)
+    }
+}
+
+impl JakeManBot {
+    pub fn new(seed: u64) -> Self {
+        JakeManBot {
+            name: "jakeman".to_string(),
+            rng: Rng::new(seed),
+            reach: Reach::new(),
+            buffer: Vec::new(),
+            enemy: HashMap::new(),
+            friendly: HashMap::new(),
+            built_for: None,
+            composition: HashMap::new(),
+        }
+    }
+
+    /// Tiles this unit could put a shot on this turn.
+    ///
+    /// An indirect unit fires from where it stands and may not move first, so
+    /// its reach is a ring around its own tile; everything else threatens the
+    /// neighbours of every tile it can walk to.
+    fn threat_tiles(&mut self, state: &GameState, unit: &Unit, out: &mut Vec<usize>) {
+        out.clear();
+        let map = &state.map;
+        if unit.typ.is_indirect() {
+            let stats = unit.typ.stats();
+            let (lo, hi) = (stats.range_min as i32, stats.range_max as i32);
+            for index in 0..map.tile_count() {
+                let pos = map.pos_of(index);
+                let d = pos.distance(unit.pos) as i32;
+                if d >= lo && d <= hi {
+                    out.push(index);
+                }
+            }
+            return;
+        }
+        self.reach.compute(state, unit.id);
+        for from in self.reach.reachable(state) {
+            for step in [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)] {
+                let (x, y) = (from.x as i32 + step.0, from.y as i32 + step.1);
+                if x < 0 || y < 0 || x >= map.width as i32 || y >= map.height as i32 {
+                    continue;
+                }
+                out.push(map.index(Pos::new(x as u8, y as u8)));
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+    }
+
+    /// Rebuilds the threat maps and the enemy's composition for a new turn.
+    fn survey(&mut self, engine: &Engine) {
+        let state = &engine.state;
+        let key = (state.day, state.current);
+        if self.built_for == Some(key) {
+            return;
+        }
+        self.built_for = Some(key);
+        self.enemy.clear();
+        self.friendly.clear();
+        self.composition.clear();
+
+        let tiles = state.map.tile_count();
+        let me = state.current;
+        let units: Vec<(UnitType, bool, f32, UnitId)> = state
+            .units()
+            .filter(|u| u.carried_by.is_none())
+            .map(|u| {
+                (
+                    u.typ,
+                    state.are_enemies(me, u.owner),
+                    // Squared, so a nearly-dead unit stops counting as a whole
+                    // one — it can still shoot, but not survive the answer.
+                    {
+                        let h = u.hp100 as f32 / 100.0;
+                        h * h
+                    },
+                    u.id,
+                )
+            })
+            .collect();
+
+        let mut scratch = Vec::new();
+        for (typ, hostile, weight, id) in units {
+            let Some(unit) = state.unit(id) else { continue };
+            let unit = unit.clone();
+            self.threat_tiles(state, &unit, &mut scratch);
+            let map = if hostile {
+                &mut self.enemy
+            } else {
+                &mut self.friendly
+            };
+            let entry = map.entry(typ).or_insert_with(|| vec![0.0; tiles]);
+            for &t in &scratch {
+                entry[t] += weight;
+            }
+            if hostile {
+                *self.composition.entry(typ).or_insert(0.0) += unit_value(&unit);
+            }
+        }
+    }
+
+    /// Whether a unit can stand on `pos` without being picked off.
+    ///
+    /// Ported from `isDudeFree`. Each enemy type that threatens the tile is set
+    /// against the friendly power covering the tiles next to it: a threat that
+    /// our neighbours can answer is written off, and only a surplus counts. A
+    /// unit that has not moved counts less as its own cover, since sitting
+    /// still is not the same as guarding a square.
+    fn dude_free(&self, state: &GameState, unit: &Unit, pos: Pos, attacking: bool) -> bool {
+        let index = state.map.index(pos);
+        let mut threats: Vec<(UnitType, f32)> = self
+            .enemy
+            .iter()
+            .filter(|(&typ, _)| threatened_by(unit.typ, typ))
+            .filter_map(|(&typ, tiles)| {
+                let v = tiles[index];
+                (v > 0.0).then_some((typ, v))
+            })
+            .collect();
+        if threats.is_empty() {
+            return true;
+        }
+
+        let neighbours: Vec<usize> = [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)]
+            .iter()
+            .filter_map(|(dx, dy)| {
+                let (x, y) = (pos.x as i32 + dx, pos.y as i32 + dy);
+                (x >= 0 && y >= 0 && x < state.map.width as i32 && y < state.map.height as i32)
+                    .then(|| state.map.index(Pos::new(x as u8, y as u8)))
+            })
+            .collect();
+
+        for (threat, surplus) in threats.iter_mut() {
+            for (&counter, tiles) in &self.friendly {
+                if !threatened_by(*threat, counter) {
+                    continue;
+                }
+                let mine_and_idle = !attacking && counter == unit.typ;
+                let mut total = 0.0;
+                for &n in &neighbours {
+                    let mut power = tiles[n];
+                    if mine_and_idle {
+                        power -= PEACEFUL_SELF_RATIO * unit.display_hp() as f32 / 10.0;
+                    }
+                    total += power.max(0.0);
+                }
+                let average = total / neighbours.len().max(1) as f32;
+                if average >= *surplus {
+                    *surplus = 0.0;
+                    break;
+                }
+                *surplus -= average;
+            }
+        }
+        threats.retain(|(_, surplus)| *surplus > 0.0);
+        if threats.is_empty() {
+            return true;
+        }
+
+        // Cover can still make it worth standing: three defence stars, one
+        // leftover threat, and that threat the same type as the unit itself.
+        let defense = state.map.terrain_at(pos).defense();
+        if defense < 3 || unit.typ.stats().move_type == awbw_engine::types::MoveType::Air {
+            return false;
+        }
+        threats.len() == 1 && threats[0].0 == unit.typ && threats[0].1 < 1.3
+    }
+
+    /// `findBestAttack`'s scoring: what the exchange is worth in funds, with a
+    /// thumb on the scale for hitting what would otherwise hit you.
+    fn attack_score(&self, engine: &Engine, unit_id: UnitId, dest: Pos, target: Pos) -> f32 {
+        let state = &engine.state;
+        let (Some(attacker), Some(defender)) = (state.unit(unit_id), state.unit_at(target)) else {
+            return f32::MIN;
+        };
+        let Some(spread) = engine.preview_damage(unit_id, target) else {
+            return f32::MIN;
+        };
+        let dealt = (spread.expected as f32).min(defender.hp100 as f32);
+        let mut damage = dealt / 100.0 * defender.typ.stats().cost as f32;
+        if threatened_by(attacker.typ, defender.typ) {
+            damage *= FIRST_STRIKE;
+        }
+        if defender.hp100 < BIG_THREAT_HP {
+            damage /= 1.5;
+        }
+
+        let mut loss = 0.0;
+        let surviving = (defender.hp100 as f32 - dealt).max(0.0) as i32;
+        if let Some(defender_id) = state.unit_id_at(target) {
+            if let Some(counter) = engine.preview_counter(defender_id, surviving, unit_id, dest) {
+                let taken = (counter.expected as f32).min(attacker.hp100 as f32);
+                if taken >= attacker.hp100 as f32 {
+                    loss += STAY_ALIVE_BIAS;
+                }
+                loss += taken / 100.0 * attacker.typ.stats().cost as f32;
+            }
+        }
+        damage - loss
+    }
+
+    /// What to build, weighed against what the enemy actually has.
+    fn build_score(&self, engine: &Engine, typ: UnitType, player: PlayerId) -> f32 {
+        let state = &engine.state;
+        // No transport plan, so no transports.
+        if matches!(
+            typ,
+            UnitType::Apc | UnitType::TCopter | UnitType::Lander | UnitType::BlackBoat
+        ) {
+            return f32::MIN;
+        }
+        let cost = engine.unit_cost(player, typ) as f32;
+        let mut score = BUILD_FLOOR;
+
+        // Counter-building: how much of what they field does this beat, and how
+        // much of it beats this back. Normalised by the enemy's total value, so
+        // the shape of their army decides rather than its size.
+        let total: f32 = self.composition.values().sum::<f32>().max(1.0);
+        let mut counter = 0.0;
+        for (&theirs, &value) in &self.composition {
+            let share = value / total;
+            if weak_to(theirs, typ) {
+                counter += share;
+            }
+            if weak_to(typ, theirs) {
+                counter -= share;
+            }
+        }
+        score += counter * 9_000.0;
+
+        // Properties still win the game, so the capture engine keeps running.
+        let cappers = state.units_of(player).filter(|u| is_capturer(u.typ)).count();
+        let takeable = state
+            .buildings()
+            .iter()
+            .filter(|b| b.owner != Some(player))
+            .count();
+        let wanted = takeable.min(state.property_count(player) as usize + 4);
+        let funds = state.player(player).funds as f32;
+        let poor = (1.0 - funds / 20_000.0).clamp(0.0, 1.0);
+        if cappers < wanted && typ == UnitType::Infantry {
+            score += poor * 4_000.0;
+        }
+        // With money to spare, a base-turn is worth more than the money.
+        score += (1.0 - poor) * 2_000.0 * (cost / 28_000.0).min(1.0);
+        score
+    }
+
+    /// The nearest thing worth walking toward.
+    fn objective(&self, state: &GameState, unit: &Unit) -> Option<Pos> {
+        let me = unit.owner;
+        if is_capturer(unit.typ) {
+            return state
+                .buildings()
+                .iter()
+                .filter(|b| b.owner != Some(me))
+                .map(|b| b.pos)
+                .min_by_key(|p| p.distance(unit.pos));
+        }
+        state
+            .units()
+            .filter(|u| state.are_enemies(me, u.owner) && u.carried_by.is_none())
+            // Chase what this unit actually beats.
+            .min_by_key(|u| {
+                let bonus = if weak_to(u.typ, unit.typ) { 0 } else { 4 };
+                u.pos.distance(unit.pos) as u32 + bonus
+            })
+            .map(|u| u.pos)
+    }
+
+    fn score(&self, engine: &Engine, action: Action) -> f32 {
+        let state = &engine.state;
+        let me = state.current;
+        match action {
+            Action::EndTurn => IDLE,
+            Action::Build { typ, .. } => self.build_score(engine, typ, me),
+
+            Action::Attack { unit, dest, target } => self.attack_score(engine, unit, dest, target),
+
+            Action::Capture { unit, dest } => {
+                let (Some(actor), Some(building)) = (state.unit(unit), state.building_at(dest))
+                else {
+                    return f32::MIN;
+                };
+                let rate = state.co_of(me).capture_multiplier_pct;
+                let progress = actor.display_hp() as u32 * rate / 100;
+                let mut score = if progress >= building.capture_remaining as u32 {
+                    CAPTURE_COMPLETE
+                        + if building.kind == TerrainKind::Hq {
+                            HQ_BONUS
+                        } else {
+                            0.0
+                        }
+                } else {
+                    CAPTURE_STEP
+                };
+                // A capture that gets the capturer killed hands the property
+                // straight back, so it is worth less than it looks.
+                if !self.dude_free(state, actor, dest, false) {
+                    score -= UNSAFE;
+                }
+                score
+            }
+
+            Action::Move { unit, dest } => {
+                let Some(actor) = state.unit(unit) else {
+                    return f32::MIN;
+                };
+                let mut score = match self.objective(state, actor) {
+                    Some(goal) => {
+                        let before = actor.pos.distance(goal) as f32;
+                        let after = dest.distance(goal) as f32;
+                        (before - after) * APPROACH
+                    }
+                    None => state.map.terrain_at(dest).defense() as f32,
+                };
+                if !self.dude_free(state, actor, dest, false) {
+                    score -= UNSAFE;
+                }
+                score
+            }
+
+            Action::Join { unit, dest } => {
+                let (Some(a), Some(b)) = (state.unit(unit), state.unit_at(dest)) else {
+                    return f32::MIN;
+                };
+                if a.hp100 <= 30 && b.hp100 <= 70 {
+                    2_000.0
+                } else {
+                    f32::MIN
+                }
+            }
+
+            Action::Load { .. } | Action::Unload { .. } => f32::MIN,
+            Action::Supply { .. } => 200.0,
+        }
+    }
+}
+
+impl Bot for JakeManBot {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn reset(&mut self, seed: u64) {
+        self.rng = Rng::new(seed);
+        self.built_for = None;
+    }
+
+    fn choose(&mut self, engine: &mut Engine) -> Action {
+        self.survey(engine);
+        engine.legal_actions_into(&mut self.buffer);
+        if self.buffer.is_empty() {
+            return Action::EndTurn;
+        }
+        // Ties broken at random: the action list is built row-major, so
+        // resolving them by enumeration order is a geographic bias in disguise.
+        let mut best = Action::EndTurn;
+        let mut best_score = f32::MIN;
+        let mut seen = 0u32;
+        let actions = std::mem::take(&mut self.buffer);
+        for &action in &actions {
+            let score = self.score(engine, action);
+            if score > best_score {
+                best_score = score;
+                best = action;
+                seen = 1;
+            } else if score == best_score {
+                seen += 1;
+                if self.rng.roll_inclusive(seen - 1) == 0 {
+                    best = action;
+                }
+            }
+        }
+        self.buffer = actions;
+        best
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::symmetric_map;
+    use awbw_engine::state::Outcome;
+
+    fn engine() -> Engine {
+        let (map, owners) = symmetric_map(13, 13);
+        let players = vec![
+            awbw_engine::state::Player::new(10_000, 1),
+            awbw_engine::state::Player::new(10_000, 2),
+        ];
+        let state = awbw_engine::state::GameState::new(
+            map,
+            awbw_engine::state::GameSettings::default(),
+            players,
+            &owners,
+        );
+        Engine::new(state, 1)
+    }
+
+    #[test]
+    fn every_chosen_order_is_legal() {
+        let mut engine = engine();
+        let mut bot = JakeManBot::new(1);
+        for _ in 0..2_000 {
+            if engine.state.outcome() != Outcome::InProgress {
+                break;
+            }
+            let action = bot.choose(&mut engine);
+            assert!(engine.check(action).is_ok(), "illegal order {action:?}");
+            engine.apply(action).expect("apply");
+        }
+    }
+
+    #[test]
+    fn a_threatened_tile_reads_as_threatened() {
+        // Infantry is threatened by a tank; a tank is not much threatened back.
+        assert!(threatened_by(UnitType::Infantry, UnitType::Tank));
+        assert!(weak_to(UnitType::Infantry, UnitType::Tank));
+        assert!(!weak_to(UnitType::Tank, UnitType::Infantry));
+        // Artillery never counterattacks, so far less counts as a threat to it.
+        assert!(threatened_by(UnitType::Artillery, UnitType::Infantry));
+    }
+}

@@ -5,6 +5,7 @@
 use awbw_bots::arena::{elo_difference, play_match_on, Board};
 use awbw_bots::awbw_map::{AwbwMap, RIVER_SUPREME};
 use awbw_bots::greedy::GreedyBot;
+use awbw_bots::jakeman::JakeManBot;
 use awbw_bots::{Bot, RandomBot};
 
 fn main() {
@@ -55,6 +56,7 @@ fn main() {
     let max_day = flag("--max-day", 60) as u16;
 
     let mut bots: Vec<Box<dyn Bot>> = vec![
+        Box::new(JakeManBot::new(1)),
         Box::new(GreedyBot::new()),
         Box::new(GreedyBot::capture_only()),
         Box::new(RandomBot::new(1)),

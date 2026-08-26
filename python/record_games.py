@@ -38,7 +38,7 @@ def main() -> int:
     parser.add_argument("--versus", default=None,
                         help="a second checkpoint for the other seat")
     parser.add_argument("--opponent", default="greedy",
-                        choices=["greedy", "capturer", "random"])
+                        choices=["greedy", "jakeman", "capturer", "random"])
     parser.add_argument("--games", type=int, default=2)
     parser.add_argument("--envs", type=int, default=2)
     parser.add_argument("--max-day", type=int, default=60)

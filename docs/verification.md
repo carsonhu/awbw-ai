@@ -1,7 +1,7 @@
 # Verification
 
-The engine is checked by replaying real AWBW games through it and diffing
-against what actually happened.
+> How the replay harness checks the engine against recorded games, and what it
+> currently agrees on.
 
 ## How it works
 

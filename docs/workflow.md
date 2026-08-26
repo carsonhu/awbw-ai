@@ -1,11 +1,13 @@
 # Workflow
 
+> Regenerating game data, preparing replays, training a policy, running checks.
+
 ## Build and test
 
 ```
 cargo test                                   # engine + harness unit tests
 cargo run --release --example selfplay_bench # throughput
-python tools/check_docs.py                   # doc size budgets
+python tools/docs.py                         # doc budgets and index
 ```
 
 Anything touching rules should also be run through the replay harness — see
@@ -76,10 +78,9 @@ is undocumented and easy to re-misread.
 
 ## Docs
 
-`python tools/check_docs.py` budgets each doc by line count — `CLAUDE.md`
-tightest, since it loads every session — except `decisions.md`, which is
-append-only and budgeted per *entry* instead.
+`docs/README.md` is the index, and states the rules each tier is kept under.
 
-Prefer editing an existing doc to adding a new one. When something is settled
-after real investigation, add a short entry to `decisions.md` — that file exists
-to stop the same question being re-opened.
+```
+python tools/docs.py index        # rebuild the index from each doc's `> ` hook
+python tools/docs.py find fog     # which doc talks about this
+```

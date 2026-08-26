@@ -1,5 +1,7 @@
 # Architecture
 
+> Crate layout, the key types, and the action space a policy emits into.
+
 ## Crates
 
 `crates/awbw-engine` — the rules engine, no I/O and no dependencies.

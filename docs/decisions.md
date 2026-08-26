@@ -1,10 +1,12 @@
 # Decisions
 
-Questions that are settled, and why. Read before re-deciding one — several of
-these cost real effort to establish, and two were established twice because the
-first answer looked reasonable and was wrong.
+> Questions already settled, and why — read before re-litigating one.
 
-Append new entries at the bottom. Keep each to a few lines.
+Several of these cost real effort to establish, and two were established twice
+because the first answer looked reasonable and was wrong.
+
+Append new entries at the bottom. Keep each to a few lines, and link the log
+entry holding the numbers rather than reciting them here.
 
 ## Sourcing
 
@@ -143,10 +145,10 @@ at three properties for sixty days. A missing label is not just less data when
 a whole kind of decision is the thing missing.
 
 **A policy is rated by playing, not by predicting**, and the two barely track
-each other. Scaling the clone moved held-out accuracy 0.450 to 0.464 — a point
-and a half — while its score against `greedy` went 6.2% to 16.5%, error bars
-nowhere near touching. Judge with `evaluate.py`; accuracy is for spotting a
-*broken* run, not a better one.
+each other: a point and a half of held-out accuracy across a change that nearly
+tripled play strength (`log/2026-08-25-bc-scaling.md`). Judge with
+`evaluate.py`; accuracy is for spotting a *broken* run, not a better one. Rate
+over 400 games — 200 put ±2.6 on a number that moves by less.
 
 **Batch norm must stay in eval mode during a PPO update.** Updating in train mode
 while rolling out in eval mode makes the same weights give different logits on
@@ -165,8 +167,8 @@ choices than an opening. It tracks where the games are, not what the policy is
 becoming — read `kl` and `clip`.
 
 **Most of the source head's error is ordering, not judgement — and fixing that
-bought nothing.** Its top pick is the unit the human moved *next* 44.7% of the
-time but a unit they moved somewhere in the turn 95.2%, against 68.2% for a
-uniform pick (`order_diag.py`). Training against the whole turn's set instead
-(`--source-set`) moved in-turn 95.2%→95.7% and play 19.0%→19.8% ±2.0 — the
-mechanism worked, there was simply no headroom. That head is not the bottleneck.
+bought nothing.** Its top pick is a unit the human moved somewhere in the turn
+95.2% of the time, against 68.2% for a uniform pick, so its 44.7% top-1 is
+mostly disagreement about sequence. Training against the turn's whole set
+(`--source-set`) worked and changed no outcome: that head is not the bottleneck,
+and its accuracy is not worth optimising (`log/2026-08-25-source-set.md`).

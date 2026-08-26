@@ -30,13 +30,12 @@ Rust rules engine for Advance Wars by Web, built to run RL self-play. See
 
 ## Docs
 
-| file | when to read |
-|---|---|
-| `docs/architecture.md` | crate layout, key types, action space |
-| `docs/rules.md` | what AWBW rules are and are not modelled |
-| `docs/verification.md` | how the replay harness works, current numbers |
-| `docs/decisions.md` | questions already settled — read before re-litigating |
-| `docs/workflow.md` | regenerating data, preparing replays, running checks |
+`docs/README.md` indexes them all and is generated, so it is never stale. The
+shape: `architecture` `rules` `verification` `workflow` are reference and kept
+current, `decisions.md` is settled questions — read it before re-litigating one
+— and `docs/log/` holds dated, immutable records of what each experiment
+measured.
 
-Keep every doc under its budget; `python tools/check_docs.py` enforces it.
-Prefer editing an existing doc over adding one.
+`python tools/docs.py` checks budgets, conventions and the index; `index`
+rewrites it; `find <term>` locates a doc. Prefer editing a reference doc to
+adding one. A dated result is a log entry, not a new doc.

@@ -1,7 +1,7 @@
 # Rules
 
-What the engine models, what it does not, and where the numbers came from.
-The wiki is authoritative; see `decisions.md`.
+> What the engine models, what it deliberately does not, and where the numbers
+> came from. The wiki is authoritative; see `decisions.md`.
 
 ## Sources
 

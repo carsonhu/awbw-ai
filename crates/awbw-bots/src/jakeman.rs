@@ -62,6 +62,18 @@ const CAPTURE_COMPLETE: f32 = 100_000.0;
 const CAPTURE_STEP: f32 = 40_000.0;
 const HQ_BONUS: f32 = 500_000.0;
 const BUILD_FLOOR: f32 = 20_000.0;
+/// Lifts a worthwhile attack clear of every walk.
+///
+/// DefendPeace does not weigh the two against each other: `GetFreeDudes`
+/// returns `findBestAttack`'s pick outright, and `Travel` is the module that
+/// runs afterwards for whatever did not act — "if no attack/capture actions are
+/// available now, just move around". Flattening that into one number put an
+/// attack worth a few hundred against a walk worth `APPROACH` a tile, and the
+/// walk won 24 times in 412 on the training map. A floor restores the
+/// precedence while leaving attacks ranked among themselves by value. Below
+/// `BUILD_FLOOR` deliberately: attacks spend no money and builds consume no
+/// unit, so within a turn both happen either way and the order does not matter.
+const ATTACK_FLOOR: f32 = 10_000.0;
 const APPROACH: f32 = 100.0;
 /// Charged against ending a move somewhere the threat accounting says is lost.
 const UNSAFE: f32 = 6_000.0;
@@ -393,7 +405,17 @@ impl JakeManBot {
             Action::EndTurn => IDLE,
             Action::Build { typ, .. } => self.build_score(engine, typ, me),
 
-            Action::Attack { unit, dest, target } => self.attack_score(engine, unit, dest, target),
+            Action::Attack { unit, dest, target } => {
+                // A losing exchange keeps its own negative score, so it still
+                // ranks below walking away, exactly as a null from
+                // `findBestAttack` leaves the unit to `Travel`.
+                let value = self.attack_score(engine, unit, dest, target);
+                if value > 0.0 {
+                    ATTACK_FLOOR + value
+                } else {
+                    value
+                }
+            }
 
             Action::Capture { unit, dest } => {
                 let (Some(actor), Some(building)) = (state.unit(unit), state.building_at(dest))

@@ -242,6 +242,24 @@ class Writer:
         record["countries_code"] = COUNTRIES[u["player"]]
         return record
 
+    def combat_record(self, u):
+        """A combatant as `combatInfo` carries it: five fields, not the row.
+
+        AWBW's own replays put a *delta* here -- id, tile, ammo and the HP left
+        -- where `Move` and `Build` carry the whole unit. Writing the full row
+        instead is read as an assertion that the unit exists, so a mover that
+        dies to the counterattack is put back on its tile at zero HP and stays
+        there. The defender survives this because the viewer removes it on the
+        HP; the attacker is the one being re-placed.
+        """
+        return {
+            "units_id": BASE_UNIT_ID + u["id"],
+            "units_x": u["x"],
+            "units_y": u["y"],
+            "units_ammo": u["ammo"],
+            "units_hit_points": -(-u["hp100"] // 10),
+        }
+
     def per_viewer(self, value):
         """AWBW writes one copy per player plus a global one, for fog."""
         out = {"global": value}
@@ -340,8 +358,8 @@ class Writer:
                 },
             }
         if kind == "Fire":
-            attacker = self.unit_payload(order["unit"])
-            defender = (self.unit_payload(order["defender"])
+            attacker = self.combat_record(order["unit"])
+            defender = (self.combat_record(order["defender"])
                         if order.get("defender") else None)
             return {
                 "action": "Fire",

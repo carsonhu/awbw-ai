@@ -230,6 +230,17 @@ reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off �
 climbed 7% → 93%. When a run degrades, suspect what surrounds the update
 before the update (`log/2026-08-26-recalibration.md`).
 
+**`combatInfo` carries five fields, not the unit row.** AWBW puts a delta there
+— id, x, y, ammo, HP — and the full row only in `Move` and `Build`. Writing the
+row instead re-places the mover, so an attacker killed by the counterattack sat
+on the board at 0 HP forever (`log/2026-08-26-two-fixes.md`).
+
+**JakeMan attacks before it travels, and this is not a tunable.** DefendPeace
+returns `findBestAttack`'s pick outright and travels only with what did not
+act. Scoring the two against each other let a walk outbid an attack 24 times in
+412. Ratings against JakeMan from before `ATTACK_FLOOR` are against a weaker
+bot: `ppo-jake2` fell 67.2% -> 58.4% (`log/2026-08-26-two-fixes.md`).
+
 **JakeMan is beaten, and the scripted ladder is exhausted.** `ppo-jake2` rates
 67.2% ±2.3 against JakeMan and 86.4% ±1.7 against `greedy` — the same run that
 scored 7.6% with recalibration on. Nothing scripted is left to climb

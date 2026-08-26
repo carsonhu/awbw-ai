@@ -293,13 +293,22 @@ class Trainer:
         flat_returns = returns.reshape(-1)
         # Normalised over the learner's rows alone, so the opponent's advantages
         # cannot shift the mean the learner's steps are measured against.
+        #
+        # Dividing by the batch's own spread rescales whatever is there to unit
+        # size, including nothing. When the critic predicts well the residual is
+        # noise, and normalising hands it a full-size step -- which is how the
+        # first run came apart once `greedy` was saturated, and the same regime
+        # an even matchup reaches from the other side. The floor keeps a
+        # genuinely small advantage small; at 0.0 this is the old behaviour.
         flat_adv = torch.zeros_like(adv.reshape(-1))
         kept = adv.reshape(-1)[keep]
-        flat_adv[keep] = (kept - kept.mean()) / (kept.std() + 1e-8)
+        spread = kept.std()
+        flat_adv[keep] = ((kept - kept.mean())
+                          / (spread.clamp(min=self.args.adv_floor) + 1e-8))
 
         total = keep.numel()
         stats = {"policy": 0.0, "value": 0.0, "entropy": 0.0, "kl": 0.0,
-                 "clipped": 0.0, "n": 0}
+                 "clipped": 0.0, "n": 0, "spread": spread.item()}
         recent = 0.0
         for _ in range(self.args.epochs):
             order = keep[torch.randperm(total, device=self.device)]
@@ -361,8 +370,12 @@ class Trainer:
                 break
         n = max(stats.pop("n"), 1)
         stopped = stats.pop("stopped", 0)
+        # Measured once over the rollout, not per minibatch, so it is carried
+        # past the averaging rather than through it.
+        spread_of = stats.pop("spread")
         out = {k: v / n for k, v in stats.items()}
         out["stopped"] = stopped
+        out["spread"] = spread_of
         return out
 
     @torch.no_grad()
@@ -470,6 +483,12 @@ def main() -> int:
                         help="iterations fitting the critic before the policy moves")
     parser.add_argument("--value-coef", type=float, default=0.5)
     parser.add_argument("--max-grad", type=float, default=1.0)
+    # Advantages are normalised to unit scale, which turns a rollout the critic
+    # already predicts well into full-size steps of noise. A floor under the
+    # divisor keeps a small advantage small. Zero is the old behaviour; read
+    # `spread` in the report to pick one, it is the raw scale being divided by.
+    parser.add_argument("--adv-floor", type=float, default=0.0,
+                        help="smallest advantage spread the update will divide by")
     parser.add_argument("--shaping", type=float, default=0.1)
     parser.add_argument("--max-day", type=int, default=60)
     parser.add_argument("--seed", type=int, default=11)
@@ -552,7 +571,8 @@ def main() -> int:
                   f"score {score:.1%} over {games} games  "
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
-                  f"clip {stats['clipped']:.2f} stop {stats['stopped']}  "
+                  f"clip {stats['clipped']:.2f} stop {stats['stopped']} "
+                  f"spread {stats['spread']:.4f}  "
                   f"{rate:,.0f}/s{mark}")
 
     last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")

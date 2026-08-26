@@ -218,6 +218,18 @@ the even matchup PPO is supposed to like — the defaults that took `greedy`
 throughout. Cause unestablished; a fixed opponent has now failed by
 saturating (`greedy`) and by this (`log/2026-08-26-jakeman-ppo.md`).
 
+**Batch-norm recalibration degrades the policy; run with `--recalibrate 0`.**
+Twenty-five refits with the weights held still cost seventeen points — 33.5%
+against the checkpoint it started from. It was on by default, so it ran in
+every job since it was added, and it invalidates the JakeMan result. Damage
+that does not arrive through the gradient is invisible to `kl` and `clip`
+(`log/2026-08-26-recalibration.md`).
+
+**Neither the opening fix nor the PPO update is broken.** The control that
+reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off —
+climbed 7% → 93%. When a run degrades, suspect what surrounds the update
+before the update (`log/2026-08-26-recalibration.md`).
+
 **Most of the source head's error is ordering, not judgement — and fixing that
 bought nothing.** Its top pick is a unit the human moved somewhere in the turn
 95.2% of the time, against 68.2% for a uniform pick, so its 44.7% top-1 is

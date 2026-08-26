@@ -55,13 +55,14 @@ pageable memory each step cost more than the engine did.
 py -3.12 python/bc.py --teacher human --steps 15000  # clone the corpus
 py -3.12 python/evaluate.py --temperature 1.0        # play it against greedy
 py -3.12 python/evaluate.py --policy random          # the floor, for scale
-py -3.12 python/ppo.py --init checkpoints/bc-scaled.pt  # fine-tune by playing
+py -3.12 python/ppo.py --init checkpoints/bc-scaled.pt --recalibrate 0  # by playing
 py -3.12 python/order_diag.py                        # ordering vs judgement
 ```
 
 `--amp` is off by default and worth measuring first: without fp16 tensor cores it
-is four times *slower*. In PPO read `kl` and `clip`, never entropy. Rate at 1.0:
-0.3 flatters a clone threefold, and only 1.0 says what PPO starts from.
+is four times *slower*. In PPO read `kl` and `clip`, never entropy, and pass
+`--recalibrate 0` — refitting costs seventeen points and `kl` cannot see it. Rate
+at 1.0: 0.3 flatters a clone threefold, and only 1.0 says what PPO starts from.
 
 ## Preparing replays
 
@@ -82,14 +83,13 @@ is undocumented and easy to re-misread.
 ```
 py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt --games 2
 py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt \
-    --versus checkpoints/bc-scaled.pt        # two nets, seat against seat
+    --versus checkpoints/bc-scaled.pt   # two nets, seat against seat
 ```
 
 Writes real AWBW replay files to `replays/` (gitignored), which open in AWBW's
-own replay viewers. A win rate says a policy improved; only watching says what
-it learned. To check a written replay is faithful, put it back through
-`prepare_replay.py` and the verifier — that round trip is what the numbers in
-`verification.md` come from.
+own replay viewers. A win rate says a policy improved; only watching says what it
+learned. To check a written replay is faithful, put it back through
+`prepare_replay.py` and the verifier — the round trip behind `verification.md`.
 
 ## Docs
 

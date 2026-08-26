@@ -154,7 +154,11 @@ class Writer:
         self.map_id = map_id
         self.name = name
         self.seats = sorted({t["active"] for t in log["turns"]} | {0, 1})
-        # Capture progress as of the last snapshot written; see `state_line`.
+        # What each property's capture stood at before the most recent capture
+        # *event*, which is not the same as the previous snapshot: snapshots
+        # alternate players, so comparing against one makes the marker flicker
+        # off on every other turn. This persists until the tile is captured
+        # again, which is what keeps the marker up across the opponent's turn.
         self.previous = {}
         # A property's id has to be stable across turns, or a viewer sees every
         # building replaced each time the board is snapshotted.
@@ -437,9 +441,6 @@ class Writer:
 
     def state_line(self, turn):
         properties = {(b["x"], b["y"]): b for b in turn["buildings"]}
-        previous, self.previous = self.previous, {
-            (b["x"], b["y"]): b["capture"] for b in turn["buildings"]
-        }
         game = {
             "id": self.game_id,
             "name": self.name,
@@ -487,7 +488,8 @@ class Writer:
                     # `capture != last_capture` -- equal values mean nothing is
                     # in progress -- so writing the same number twice hides
                     # every capture in the game.
-                    "last_capture": previous.get((b["x"], b["y"]), CAPTURE_FULL),
+                    "last_capture": self.previous.get(
+                        (b["x"], b["y"]), CAPTURE_FULL),
                     "last_updated": STAMP,
                 })
                 for b in turn["buildings"]
@@ -511,11 +513,22 @@ class Writer:
         pid = player_id(turn["active"])
         return f"p:{pid};d:{turn['day']};a:" + php({0: pid, 1: number, 2: payloads})
 
+    def advance_captures(self, turn):
+        """Folds a turn's capture orders into what `last_capture` will report."""
+        running = {(b["x"], b["y"]): b["capture"] for b in turn["buildings"]}
+        for order in turn["orders"]:
+            if order["kind"] != "Capt":
+                continue
+            tile = (order["x"], order["y"])
+            self.previous[tile] = running.get(tile, CAPTURE_FULL)
+            running[tile] = order["remaining"]
+
     def write(self, out_dir):
         states, actions = [], []
         for number, turn in enumerate(self.log["turns"], start=1):
             states.append(php(self.state_line(turn)))
             actions.append(self.action_line(turn, number))
+            self.advance_captures(turn)
 
         path = Path(out_dir) / f"{self.game_id}.zip"
         path.parent.mkdir(parents=True, exist_ok=True)

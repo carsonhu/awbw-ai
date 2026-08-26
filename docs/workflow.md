@@ -53,14 +53,15 @@ pageable memory each step cost more than the engine did.
 
 ```
 py -3.12 python/bc.py --teacher human --steps 15000  # clone the corpus
-py -3.12 python/evaluate.py --temperature 0.3        # play it against greedy
+py -3.12 python/evaluate.py --temperature 1.0        # play it against greedy
 py -3.12 python/evaluate.py --policy random          # the floor, for scale
-py -3.12 python/ppo.py --init checkpoints/bc.pt      # fine-tune by playing
+py -3.12 python/ppo.py --init checkpoints/bc-scaled.pt  # fine-tune by playing
 py -3.12 python/order_diag.py                        # ordering vs judgement
 ```
 
 `--amp` is off by default and worth measuring first: without fp16 tensor cores it
-is four times *slower*. In PPO read `kl` and `clip`, never entropy.
+is four times *slower*. In PPO read `kl` and `clip`, never entropy. Rate at 1.0:
+0.3 flatters a clone threefold, and only 1.0 says what PPO starts from.
 
 ## Preparing replays
 

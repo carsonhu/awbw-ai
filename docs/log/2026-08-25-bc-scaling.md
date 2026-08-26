@@ -10,7 +10,9 @@ on replay preparation.
 **Setup.** The archive sweep took the corpus from 243 games to 2,446 games /
 68,028 turns / 986,869 orders. Two things then varied, one at a time: the corpus
 at fixed network and step count, then the network and step count at the full
-corpus. Rated by `evaluate.py` against `greedy`, seats swapped, paired seeds.
+corpus. Rated by `evaluate.py --temperature 0.3` against `greedy`, seats
+swapped, paired seeds. The temperature matters more than it looks — the same
+checkpoint rates 5.5% at 1.0 (`2026-08-25-ppo-first-run.md`).
 
 **Result.**
 

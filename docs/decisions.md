@@ -161,6 +161,18 @@ critic's own error, which normalising rescales to unit size. The warm-up steps a
 *separate* optimizer over the value head: it shares the trunk, so fitting it
 through the full one drags the policy along.
 
+**A rating means nothing without the temperature it was sampled at.**
+`bc-scaled` scores 19.0% against `greedy` at `--temperature 0.3` and 5.5% at
+1.0 — the same weights, a factor of three apart. PPO samples on-policy and
+cannot pick a temperature, so 1.0 is the number that predicts what RL starts
+from. Quote both, or quote 1.0 (`log/2026-08-25-ppo-first-run.md`).
+
+**A saturated opponent unlearns the policy.** Once PPO beat `greedy` 100% the
+critic had nothing left to predict, value loss fell to 0.001, and normalising
+advantages rescaled what remained — noise — back to a full-size step. Entropy
+climbed and the score fell 100% → 80% over the next seventy iterations. Keep the
+best weights, not the last, and treat a fixed opponent as a finite resource.
+
 **Reported entropy is not a health check.** It rises through a rollout with the
 policy provably frozen, because a midgame position holds more units and more real
 choices than an opening. It tracks where the games are, not what the policy is

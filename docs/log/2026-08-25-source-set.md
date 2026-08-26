@@ -30,7 +30,8 @@ A blend rather than a replacement, because order is not always free: a blocker
 has to move before the unit it blocks. Validation keeps scoring the exact label,
 so the metric cannot move just because the training target did.
 
-96×8, 15k steps, `--source-set 0.5`, otherwise identical. 400 paired games each.
+96×8, 15k steps, `--source-set 0.5`, otherwise identical. 400 paired games each
+at `--temperature 0.3`.
 
 **Result.**
 

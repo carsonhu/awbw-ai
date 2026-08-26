@@ -298,7 +298,13 @@ class Trainer:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--init", default="checkpoints/bc-scaled.pt")
+    # The best rollout score, not the last. Against a fixed opponent a run
+    # saturates and then comes apart -- the first one peaked at 100% by
+    # iteration 130 and finished at 80% -- so the final weights are reliably
+    # not the ones worth keeping. The final set is still written, beside it.
     parser.add_argument("--out", default="checkpoints/ppo.pt")
+    parser.add_argument("--min-games", type=int, default=20,
+                        help="games a window needs to claim it is the best")
     parser.add_argument("--opponent", default="greedy",
                         choices=["greedy", "capturer", "random"])
     parser.add_argument("--iterations", type=int, default=200)
@@ -347,6 +353,7 @@ def main() -> int:
 
     start = time.perf_counter()
     seen = (0, 0, 0)
+    best = -1.0
     for iteration in range(1, args.iterations + 1):
         last = trainer.collect()
         adv, returns = trainer.advantages(last)
@@ -370,19 +377,29 @@ def main() -> int:
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
             seen = (played, won, drawn)
             rate = iteration * per / (time.perf_counter() - start)
+            # Keep the best weights seen, not the latest. A saturated opponent
+            # stops producing advantage, normalisation rescales what is left --
+            # noise -- to a full-size step, and the policy diffuses back down.
+            # Requiring a minimum window stops a lucky handful of games
+            # claiming the checkpoint.
+            kept = games >= args.min_games and score > best
+            if kept:
+                best = score
+                trainer.save(args.out)
             print(f"  {iteration:>4}/{args.iterations}  "
                   f"score {score:.1%} over {games} games  "
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']}  "
-                  f"{rate:,.0f}/s")
-            trainer.save(args.out)
+                  f"{rate:,.0f}/s{'  *' if kept else ''}")
 
-    trainer.save(args.out)
+    last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")
+    trainer.save(last)
     played, won, drawn = trainer.env.results
     print(f"\n{played} games during training, "
           f"score {(won + 0.5*drawn)/max(played,1):.1%}")
-    print(f"saved {ROOT / args.out} -- rate it with evaluate.py")
+    print(f"best rollout score {best:.1%}, saved {ROOT / args.out}")
+    print(f"final weights {ROOT / last} -- rate either with evaluate.py")
     return 0
 
 

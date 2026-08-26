@@ -38,9 +38,10 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (2)
+## Log (3)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-25 | [An order-invariant target for the source head](log/2026-08-25-source-set.md) | Training the source head on the whole turn's set of units instead of the next one. The mechanism worked; play did not move. Null result. |
+| 2026-08-25 | [PPO's first real run, and why it came apart at the top](log/2026-08-25-ppo-first-run.md) | 5.5% to 96.2% against `greedy`. It saturated the opponent by iteration 110, then unlearned itself back to 80% — with a traceable cause, and a fix. |
 | 2026-08-25 | [Is the clone limited by data or by capacity?](log/2026-08-25-bc-scaling.md) | Ten times the corpus bought nothing at fixed steps; a bigger network for longer nearly tripled play strength. And accuracy barely tracked either. |

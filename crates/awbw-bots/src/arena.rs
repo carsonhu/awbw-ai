@@ -35,10 +35,15 @@ impl Board {
         match self {
             Board::Synthetic { width, height } => {
                 let (map, owners) = symmetric_map(*width, *height);
-                let players = vec![Player::new(10_000, 1), Player::new(10_000, 2)];
-                GameState::new(map, settings, players, &owners)
+                let players = vec![Player::new(0, 1), Player::new(0, 2)];
+                let mut state = GameState::new(map, settings, players, &owners);
+                state.begin_turn();
+                state
             }
-            Board::Awbw(m) => m.new_game(settings, 10_000),
+            // Nothing in the bank: every recorded league game on this map
+            // starts at zero and lives on property income from day one. Ten
+            // thousand bought a tank before the first infantry had moved.
+            Board::Awbw(m) => m.new_game(settings, 0),
         }
     }
 }

@@ -181,6 +181,13 @@ domain (G/S/M) in a game state and a per-type letter in an action payload, and
 either looks plausible in the other's place. Diff written payloads against real
 ones key by key and value by value; the verifier does not see this class at all.
 
+**Games start on nothing, and the first player collects on day one.** The
+environment opened on ten thousand — a tank before the first infantry moved —
+and ran `begin_turn` only off `end_turn`, so seat one went without day-one income
+too. All 300 recorded games start at zero with *both* sides on three thousand at
+their first turn. Fixing it took the clone 5.5%→10.8% against `greedy`: it had
+been cloned from one opening and tested in another.
+
 **A saturated opponent unlearns the policy.** Once PPO beat `greedy` 100% the
 critic had nothing left to predict, value loss fell to 0.001, and normalising
 advantages rescaled what remained — noise — back to a full-size step. Entropy

@@ -176,6 +176,12 @@ impl AwbwMap {
                 unit.hp100 = deployment.hp.min(10) * 10;
             }
         }
+        // The player who moves first collects on day one like everybody else.
+        // `begin_turn` only ever ran off the back of `end_turn`, so seat one
+        // opened a game on its starting funds alone while seat two opened on
+        // starting funds plus income. Every recorded game has both sides at
+        // three thousand on their first turn.
+        state.begin_turn();
         state
     }
 
@@ -285,7 +291,7 @@ mod tests {
     #[test]
     fn a_game_starts_with_the_maps_own_units() {
         let m = river_supreme();
-        let state = m.new_game(GameSettings::default(), 10_000);
+        let state = m.new_game(GameSettings::default(), 0);
         assert_eq!(state.units().count(), 3);
         for d in &m.deployments {
             let unit = state.unit_at(d.pos).expect("deployment is on the board");

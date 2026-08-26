@@ -38,12 +38,13 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (9)
+## Log (10)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-26 | [A dead attacker that would not disappear, and JakeMan's missing precedence](log/2026-08-26-two-fixes.md) | Both found by watching a replay rather than reading a number. `combatInfo` was carrying the whole unit row where AWBW carries five fields, and the port let a walk outbid an attack. JakeMan is stronger for it: 67.2% -> 58.4%. |
 | 2026-08-26 | [Self-play drifts below its own frozen copy, and three fixes did nothing](log/2026-08-26-selfplay-drift.md) | The learner loses to a snapshot of itself at 35-41% across every configuration tried. Recalibration, step size and shaping are all cleared. The one path the working control never exercises is the two-player advantage. |
+| 2026-08-26 | [The written replay reaches 100%, on two bugs about units that stopped existing](log/2026-08-26-round-trip-clean.md) | 99.837% to 100.000%, 33 divergences to none. A unit killed by the counterattack was recorded as never having moved, and a transport was named by a slot number where everything else uses a stable id. |
 | 2026-08-26 | [Recalibration was eating the policy](log/2026-08-26-recalibration.md) | Refitting batch-norm statistics costs seventeen points of play strength with no gradient step taken at all. It is on by default, so it ran in every job since it was added — including the JakeMan run whose result it invalidates. |
 | 2026-08-26 | [The recipe that beat greedy goes backwards against JakeMan](log/2026-08-26-jakeman-ppo.md) | The RL checkpoints survived the opening fix, and PPO from the best of them never beat its own start against JakeMan, decaying to 7.6%. Two lessons. |
 | 2026-08-26 | [JakeMan beaten, by running yesterday's experiment without the bug](log/2026-08-26-jakeman-beaten.md) | The same run that scored 7.6% scores 67.2% with recalibration off. A sixty point swing from one default, and the first policy here to beat the strongest scripted opponent. |

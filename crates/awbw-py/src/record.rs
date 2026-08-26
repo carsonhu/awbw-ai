@@ -57,6 +57,18 @@ impl Recorder {
     fn unit_json(&self, state: &GameState, id: UnitId) -> Value {
         unit_json(&self.live, state, id)
     }
+
+    /// A slot's stable replay id — the number every *other* record calls it by.
+    ///
+    /// `UnitId` is a slot and the engine reuses it; `live` is what keeps one
+    /// number meaning one unit for a whole game. Anything written into a
+    /// payload has to go through here, or it names whichever unit later
+    /// inherited the slot. A transport id written raw pointed at the wrong
+    /// unit, and a reader that cannot resolve it drops the unload entirely,
+    /// leaving the passenger standing on the boat.
+    fn stable(&self, id: UnitId) -> u64 {
+        self.live.get(&id).copied().unwrap_or(0)
+    }
 }
 
 fn unit_json(live: &HashMap<UnitId, u64>, state: &GameState, id: UnitId) -> Value {
@@ -167,8 +179,34 @@ impl Recorder {
         dead
     }
 
-    /// The path a unit walks to `dest`, origin first, as AWBW records it.
-    fn path(state: &GameState, unit: UnitId, dest: Pos) -> Value {
+    /// A mover's record when it did not survive the move it made.
+    ///
+    /// `before` was read before the unit set off, so it holds the tile it left
+    /// and the fuel it left with — and the unit really did arrive, pay for the
+    /// trip, and die there. Reading that back afterwards is impossible, the
+    /// unit is gone, so the arrival is written on by hand. Left uncorrected an
+    /// attacker killed by the counterattack is recorded as never having moved,
+    /// which is a whole move's fuel adrift and the wrong tile besides.
+    fn dead_mover(before: Option<&Value>, dest: Pos, spent: u8) -> Value {
+        let mut dead = before.cloned().unwrap_or(Value::Null);
+        if let Some(fields) = dead.as_object_mut() {
+            let fuel = fields
+                .get("fuel")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+                .saturating_sub(spent as u64);
+            fields.insert("hp100".into(), json!(0));
+            fields.insert("x".into(), json!(dest.x));
+            fields.insert("y".into(), json!(dest.y));
+            fields.insert("fuel".into(), json!(fuel));
+            fields.insert("moved".into(), json!(true));
+        }
+        dead
+    }
+
+    /// The path a unit walks to `dest`, origin first, as AWBW records it, and
+    /// what the walk costs it — the two come from one reachability search.
+    fn path_and_cost(state: &GameState, unit: UnitId, dest: Pos) -> (Value, u8) {
         let mut reach = Reach::new();
         reach.compute(state, unit);
         let steps: Vec<Value> = reach
@@ -176,7 +214,11 @@ impl Recorder {
             .into_iter()
             .map(|p| json!({"x": p.x, "y": p.y}))
             .collect();
-        Value::Array(steps)
+        (Value::Array(steps), reach.cost_to(state, dest).unwrap_or(0))
+    }
+
+    fn path(state: &GameState, unit: UnitId, dest: Pos) -> Value {
+        Self::path_and_cost(state, unit, dest).0
     }
 
     /// What has to be read before the action lands.
@@ -186,23 +228,34 @@ impl Recorder {
             | Action::Capture { unit, dest }
             | Action::Load { unit, dest }
             | Action::Supply { unit, dest } => json!({"path": Self::path(state, unit, dest)}),
-            Action::Join { unit, dest } => json!({
-                "path": Self::path(state, unit, dest),
-                // The mover is consumed by the merge, so its record has to be
-                // kept from before it: AWBW reports the join as the *mover*
-                // arriving at the tile, and names the survivor separately.
-                "mover": self.unit_json(state, unit),
-            }),
-            Action::Attack { unit, dest, target } => json!({
-                "path": Self::path(state, unit, dest),
-                // Both records are kept from before the fight, because a unit
-                // that dies in it leaves nothing to read afterwards and AWBW
-                // still reports it -- at zero HP, not as a null. Dropping the
-                // defender would take the target tile with it, and a reader
-                // then cannot tell what was attacked.
-                "attacker": self.unit_json(state, unit),
-                "defender": state.unit_id_at(target).map(|d| self.unit_json(state, d)),
-            }),
+            Action::Join { unit, dest } => {
+                let (path, spent) = Self::path_and_cost(state, unit, dest);
+                json!({
+                    "path": path,
+                    "spent": spent,
+                    // The mover is consumed by the merge, so its record has to
+                    // be kept from before it: AWBW reports the join as the
+                    // *mover* arriving at the tile, and names the survivor
+                    // separately.
+                    "mover": self.unit_json(state, unit),
+                })
+            }
+            Action::Attack { unit, dest, target } => {
+                let (path, spent) = Self::path_and_cost(state, unit, dest);
+                json!({
+                    "path": path,
+                    // What the walk costs, kept because a unit killed by the
+                    // counterattack cannot be asked for it afterwards.
+                    "spent": spent,
+                    // Both records are kept from before the fight, because a
+                    // unit that dies in it leaves nothing to read afterwards
+                    // and AWBW still reports it -- at zero HP, not as a null.
+                    // Dropping the defender would take the target tile with
+                    // it, and a reader then cannot tell what was attacked.
+                    "attacker": self.unit_json(state, unit),
+                    "defender": state.unit_id_at(target).map(|d| self.unit_json(state, d)),
+                })
+            }
             Action::Build { .. } => json!({}),
             Action::Unload { .. } => json!({}),
             Action::EndTurn => json!({"day": state.day, "player": state.current}),
@@ -237,15 +290,26 @@ impl Recorder {
                     "terrain": building.map(|b| format!("{:?}", b.kind)),
                 })
             }
-            Action::Attack { unit, target, .. } => json!({
-                "kind": "Fire",
-                "path": path,
-                "unit": self.survivor(state, Some(unit), before.get("attacker")),
-                "defender": self.survivor(
-                    state, state.unit_id_at(target), before.get("defender")),
-                "target_x": target.x,
-                "target_y": target.y,
-            }),
+            Action::Attack { unit, dest, target } => {
+                // The attacker moved before it fought, so if it did not survive
+                // its record has to be carried forward to where it died; the
+                // defender never moved, and its own tile is already right.
+                let spent = before.get("spent").and_then(Value::as_u64).unwrap_or(0);
+                let attacker = if state.unit(unit).is_some() {
+                    self.unit_json(state, unit)
+                } else {
+                    Self::dead_mover(before.get("attacker"), dest, spent as u8)
+                };
+                json!({
+                    "kind": "Fire",
+                    "path": path,
+                    "unit": attacker,
+                    "defender": self.survivor(
+                        state, state.unit_id_at(target), before.get("defender")),
+                    "target_x": target.x,
+                    "target_y": target.y,
+                })
+            }
             Action::Build { at, .. } => {
                 let built = state.unit_id_at(at)?;
                 json!({"kind": "Build", "unit": self.unit_json(state, built)})
@@ -254,22 +318,31 @@ impl Recorder {
                 "kind": "Load",
                 "path": path,
                 "unit": self.unit_json(state, unit),
-                "transport": state.unit_id_at(dest),
+                "transport": state.unit_id_at(dest).map(|t| self.stable(t)),
             }),
             Action::Unload { transport, cargo, drop_at } => json!({
                 "kind": "Unload",
-                "transport": transport,
+                "transport": self.stable(transport),
                 "unit": self.unit_json(state, cargo),
                 "x": drop_at.x,
                 "y": drop_at.y,
             }),
             Action::Join { dest, .. } => {
                 // The mover, reported where it ended up rather than where it
-                // set off from, which is how AWBW writes a move.
+                // set off from, which is how AWBW writes a move -- and having
+                // paid for the trip, which it also did before being merged
+                // away. Its HP is not zeroed: a join is not a death.
+                let spent = before.get("spent").and_then(Value::as_u64).unwrap_or(0);
                 let mut mover = before.get("mover").cloned().unwrap_or(Value::Null);
                 if let Some(fields) = mover.as_object_mut() {
+                    let fuel = fields
+                        .get("fuel")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0)
+                        .saturating_sub(spent);
                     fields.insert("x".into(), json!(dest.x));
                     fields.insert("y".into(), json!(dest.y));
+                    fields.insert("fuel".into(), json!(fuel));
                 }
                 json!({
                     "kind": "Join",

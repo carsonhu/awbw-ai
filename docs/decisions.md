@@ -230,6 +230,17 @@ reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off �
 climbed 7% → 93%. When a run degrades, suspect what surrounds the update
 before the update (`log/2026-08-26-recalibration.md`).
 
+**A record read before an action cannot describe a unit that moved during it.**
+`survivor`'s fallback gave a killed attacker its origin tile and unspent fuel,
+because the only copy left predates its own move. The walk's cost is now kept
+in `before` and written on by hand; `Join` had it too
+(`log/2026-08-26-round-trip-clean.md`).
+
+**Every id in a payload goes through `live`, transports included.** `UnitId` is
+a slot the engine reuses. A transport written raw named whichever unit
+inherited the slot, so the unload could not be resolved and was dropped whole —
+the third bug from recycled slots (`log/2026-08-26-round-trip-clean.md`).
+
 **`combatInfo` carries five fields, not the unit row.** AWBW puts a delta there
 — id, x, y, ammo, HP — and the full row only in `Move` and `Build`. Writing the
 row instead re-places the mover, so an attacker killed by the counterattack sat

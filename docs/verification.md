@@ -68,21 +68,23 @@ decode back to something else — so no label asks for an output the masks forbi
 
 ## Bugs it has caught
 
-Worth knowing, because more than half were in the *harness* and would otherwise
-have read as engine faults:
+Worth knowing: more than half were in the *harness*, not the engine.
 
 - Fuel charged along the engine's cheapest path instead of the route the player
   actually took.
+- Writer: a unit killed by the counterattack recorded where it set off and
+  unspent, and a transport named by its engine *slot*. A written game now
+  round-trips at 100%.
 - Orders paired to snapshots by line index, silently attributing one player's
   turn to their opponent on truncated replays.
-- Recycled unit slots: a build inheriting a casualty's id made the casualty look
-  alive — 8,311 phantom divergences from one stale mapping.
+- Recycled unit slots, three times over: a build inheriting a casualty's id made
+  the casualty look alive — 8,311 phantom divergences from one stale mapping.
 - Fog vision wrappers: AWBW gives the seat that could not see an action an
   *empty string*, not null, so "first non-null" picked the blind seat's blank.
-- Mid-turn HP resynced from displayed HP, re-simulating later attacks from a
-  baseline up to a point too high.
+- Mid-turn HP resynced from displayed HP, re-simulating later attacks from too
+  high a baseline.
 - A unit acting *without moving* gets an empty `Move`, not a missing one, so the
-  translator dropped half of all captures and one attack in eight. The cloned
-  policy started captures and never finished one; see `decisions.md`.
+  translator dropped half of all captures and one attack in eight; see
+  `decisions.md`.
 - Engine: repair rounding up to the display step; Sami's capture rate and
   transport movement; Rachel's repair bonus.

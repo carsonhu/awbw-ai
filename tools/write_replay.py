@@ -41,19 +41,27 @@ COUNTRIES = ["os", "bm"]
 COUNTRY_ID = {"os": 1, "bm": 2}
 STAMP = "2026-01-01 00:00:00"
 
-# The engine's variant names against AWBW's. Only the irregular ones are listed;
-# everything else already agrees, and no rule covers APC, Md.Tank and B-Copter
-# at once.
-# AWBW's per-unit letter, which is cosmetic and follows no rule anyone can see
-# -- near-alphabetical by unit id, but Fighter onwards is off by one and Neotank
-# is nowhere near. These are the ones real replays actually show; anything else
-# falls back to a first letter, which is wrong but harmless.
+# `symbol` means two different things in the two files, which is worth stating
+# plainly because writing one where the other belongs looks like nothing.
+#
+# In a game state it is the unit's *domain*: G on the ground, S at sea, M in the
+# air, derived from the movement type. In an action payload it is a per-unit-type
+# letter instead. Real replays are unambiguous on both.
+DOMAINS = {"A": "M", "L": "S", "S": "S"}
+
+# The action payload's letter follows no rule anyone can see -- near-alphabetical
+# by unit id, but Fighter onwards is off by one and Neotank is nowhere near.
+# These are the ones real replays actually show; anything else falls back to a
+# first letter, which is wrong but cosmetic.
 SYMBOLS = {
     "Infantry": "A", "Mech": "B", "Md.Tank": "C", "Tank": "D", "Recon": "E",
     "APC": "F", "Artillery": "G", "Rocket": "H", "Anti-Air": "I",
     "Fighter": "L", "Bomber": "M", "B-Copter": "N", "Neotank": "T",
 }
 
+# The engine's variant names against AWBW's. Only the irregular ones are listed;
+# everything else already agrees, and no one rule covers APC, Md.Tank and
+# B-Copter at once.
 UNIT_NAMES = {
     "Apc": "APC",
     "MdTank": "Md.Tank",
@@ -163,7 +171,7 @@ class Writer:
             "short_range": stats["range_min"],
             "long_range": stats["range_max"],
             "second_weapon": "N",
-            "symbol": SYMBOLS.get(name, name[0]),
+            "symbol": DOMAINS.get(stats["move_type"], "G"),
             "cost": stats["cost"],
             "movement_type": stats["move_type"],
             "x": u["x"],
@@ -188,11 +196,14 @@ class Writer:
         under the key `"0"`, and add the country, which the row itself does not
         hold. Same data, a different table join.
         """
+        name = UNIT_NAMES.get(u["type"], u["type"])
         record = {"0": BASE_UNIT_ID + u["id"]}
         record.update({f"units_{k}": v for k, v in self.unit(u).items()})
         # Unlike a snapshot, an action reports the HP a player sees, rounded up:
-        # a unit on 6.7 shows as 7 and is destroyed at 0.
+        # a unit on 6.7 shows as 7 and is destroyed at 0. And its `symbol` is
+        # the per-type letter rather than the domain; see DOMAINS.
         record["units_hit_points"] = -(-u["hp100"] // 10)
+        record["units_symbol"] = SYMBOLS.get(name, name[0])
         record["countries_code"] = COUNTRIES[u["player"]]
         return record
 
@@ -338,16 +349,19 @@ class Writer:
         if kind == "End":
             return {
                 "action": "End",
+                # These keys, in this order, and nothing else: a viewer reads
+                # `nextWeather` as a *code*, so the word "Clear" is rejected
+                # where "C" is fine. The round trip through our own parser
+                # cannot catch that -- it ignores the field entirely.
                 "updatedInfo": {
                     "event": "NextTurn",
                     "nextPId": player_id(order["next"]),
                     "nextFunds": {"global": order["funds"][order["next"]]},
                     "nextTimer": 0,
-                    "nextWeather": "Clear",
-                    "supplied": {"global": []},
-                    "repaired": {"global": []},
+                    "nextWeather": "C",
+                    "supplied": self.per_viewer([]),
+                    "repaired": self.per_viewer([]),
                     "day": order["day"],
-                    "nextTurnStart": STAMP,
                 },
             }
         raise ValueError(f"unknown order kind {kind!r}")
@@ -382,10 +396,10 @@ class Writer:
             "turn_start": STAMP,
             "turn_clock": 0,
             "tags_co_id": None,
-            "tags_co_power": 0,
+            "tags_co_power": None,
             "tags_co_max_power": None,
             "tags_co_max_spower": None,
-            "interface": None,
+            "interface": "N",
         }
 
     def state_line(self, turn):
@@ -414,8 +428,8 @@ class Writer:
             "starting_funds": 0,
             "official": "N",
             "min_rating": 0,
-            "max_rating": 9999,
-            "league": "N",
+            "max_rating": None,
+            "league": None,
             "team": "N",
             "aet_interval": -1,
             "aet_date": None,

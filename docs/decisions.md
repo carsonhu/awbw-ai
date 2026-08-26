@@ -174,6 +174,13 @@ odd: a killed defender written as null (losing the target tile, so the attack
 was dropped whole), Join naming the survivor where AWBW names the mover, HP
 rounded to whole points where snapshots carry tenths, carried units omitted.
 
+**The round trip cannot check a field our own parser ignores.** A replay that
+verified at 99.9% still failed to open: `nextWeather` takes a weather *code*, so
+`"Clear"` is rejected where `"C"` is fine. `symbol` is worse — it is the unit's
+domain (G/S/M) in a game state and a per-type letter in an action payload, and
+either looks plausible in the other's place. Diff written payloads against real
+ones key by key and value by value; the verifier does not see this class at all.
+
 **A saturated opponent unlearns the policy.** Once PPO beat `greedy` 100% the
 critic had nothing left to predict, value loss fell to 0.001, and normalising
 advantages rescaled what remained — noise — back to a full-size step. Entropy

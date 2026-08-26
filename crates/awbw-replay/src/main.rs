@@ -63,7 +63,7 @@ fn verify_one(
             return Ok(Outcome::Filtered("fog"));
         }
     }
-    let verifier = Verifier::new(&replay)?;
+    let verifier = Verifier::new(std::sync::Arc::new(replay))?;
     Ok(Outcome::Verified(verifier.verify(), powered))
 }
 

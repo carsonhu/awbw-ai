@@ -124,7 +124,8 @@ fn main() {
         if !replay.fog {
             continue;
         }
-        let Ok(verifier) = Verifier::new(&replay) else {
+        let replay = std::sync::Arc::new(replay);
+        let Ok(verifier) = Verifier::new(replay.clone()) else {
             continue;
         };
         fog_games += 1;

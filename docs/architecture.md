@@ -27,10 +27,12 @@ deep, `capturer` is the same with combat off, `random` is the floor; `arena`
 runs a round robin on a `Board`, which is a real AWBW map by default and a
 synthetic symmetric one on request (`arena --show-map`).
 
-`crates/awbw-py` — a batched Python environment. Games step in lockstep, a batch
-per call, sampling the four heads autoregressively: `source_mask`,
-`dest_mask(sources)`, `kind_mask`, `param_mask`, `step`. Not in the default
-build; see `workflow.md`.
+`crates/awbw-py` — a batched Python environment, three classes. `VecEnv` steps
+games in lockstep, a batch per call, sampling the four heads autoregressively:
+`source_mask`, `dest_mask(sources)`, `kind_mask`, `param_mask`, `step`.
+`TeacherEnv` and `ReplayTeacher` both answer `observe_into` / `act` with the
+order a teacher chose — the scripted bots for one, recorded humans for the
+other. Not in the default build; see `workflow.md`.
 
 ## State
 
@@ -57,7 +59,10 @@ capture, build, load, unload, join and supply. Two enumeration paths:
 **Observations** are written from the moving player's side — ownership channels
 are *mine* and *theirs*, not seat 0 and seat 1 — so one policy plays either seat.
 Under fog only what that player sees is written, so it is exactly what the agent
-may act on. 62 planes plus 11 globals; layout in `plane::`.
+may act on. 64 planes plus 19 globals; layout in `plane::`. Two planes carry the
+acting CO's per-unit attack and defence, and the globals carry each side's build
+cost, capture rate, property income and power charge — so a policy trained on
+mixed-CO human games can tell whose numbers it is looking at.
 
 **Actions** are four masked choices — `source -> dest -> kind -> param` —
 rather than one flat index, whose product is enormous and almost all illegal.

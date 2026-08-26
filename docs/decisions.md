@@ -137,3 +137,13 @@ the early signal.
 **Orders are matched to snapshots by (player, day), not line index.** Some
 replays are truncated, and index pairing silently attributed one player's whole
 turn to their opponent.
+
+**A label must be emittable, not merely legal.** Every recorded order is encoded
+and decoded back before it is offered: an order whose code decodes to something
+else would train the policy toward an output its own masks forbid. All 134,518
+legal orders round-trip, so this is a guard rather than a filter.
+
+**Replays stream; they are never written to disk as a dataset.** One observation
+is 19,603 floats, so a million samples would be seventy-odd gigabytes, and the
+engine regenerates one in microseconds. `ReplayTeacher` walks a game per slot
+and refills from the corpus as each runs out.

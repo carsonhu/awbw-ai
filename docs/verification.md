@@ -62,6 +62,13 @@ It also reports rejections by position within the turn, which is how state
 corruption shows itself: a flat profile means a rejected order is not poisoning
 the ones after it.
 
+Every legal order also **round-trips** through the action codec: 0 of 134,518
+encode to a code that decodes back to something else. A label that failed this
+would teach the policy to reach for an output its masks can never produce.
+
+`ReplayTeacher` in `awbw-py` serves the same labels to a trainer, one game per
+slot, at ~20k orders/sec — roughly half of that spent parsing replay JSON.
+
 ## Bugs it has caught
 
 Worth knowing, because more than half were in the *harness* and would otherwise

@@ -50,6 +50,10 @@ fn main() {
         .cloned();
 
     let (mut games, mut samples, mut legal, mut powered) = (0u64, 0u64, 0u64, 0u64);
+    // Legal orders whose action code does not decode back to the order itself.
+    // Those are labels a masked policy could never emit, so they are worse than
+    // useless: the loss pulls toward an output the sampler cannot produce.
+    let mut unemittable = 0u64;
     // Illegality by position within the turn. If a rejected order corrupts the
     // state, later orders in the same turn should fail far more often.
     let mut by_position: Vec<(u64, u64)> = vec![(0, 0); 6];
@@ -67,10 +71,10 @@ fn main() {
                 continue;
             }
         }
-        let Ok(verifier) = Verifier::new(&replay) else { continue };
+        let Ok(verifier) = Verifier::new(std::sync::Arc::new(replay)) else { continue };
         games += 1;
 
-        let mut cursor = Cursor::new(&verifier, &replay);
+        let mut cursor = Cursor::new(verifier);
         while !cursor.finished() {
             let Some(sample) = cursor.sample() else { break };
             samples += 1;
@@ -94,6 +98,9 @@ fn main() {
             *kinds.entry(name).or_insert(0) += 1;
             if sample.legal {
                 legal += 1;
+                if !sample.emittable {
+                    unemittable += 1;
+                }
             } else {
                 *illegal_kinds.entry(name).or_insert(0) += 1;
             }
@@ -107,6 +114,10 @@ fn main() {
     let pct = |n: u64| 100.0 * n as f64 / samples.max(1) as f64;
     println!("{games} games -> {samples} labelled orders");
     println!("  the engine agrees are legal: {legal} ({:.2}%)", pct(legal));
+    println!(
+        "  legal but not emittable:    {unemittable} ({:.3}%)",
+        pct(unemittable)
+    );
     println!("  played under a CO power:     {powered} ({:.1}%)", pct(powered));
     let usable = samples.saturating_sub(powered);
     println!("  usable for a loss:           {usable} ({:.1}%)", pct(usable));

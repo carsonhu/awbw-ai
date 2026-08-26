@@ -23,11 +23,15 @@ use awbw_engine::encoding::{
     decode, encode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
     ActionMasks,
 };
+use awbw_engine::rng::Rng;
 use awbw_engine::state::{GameState, Outcome, PlayerId};
 use awbw_bots::arena::Board;
 use awbw_bots::awbw_map::{AwbwMap, RIVER_SUPREME};
 use awbw_bots::greedy::GreedyBot;
 use awbw_bots::{Bot, RandomBot};
+use awbw_replay::imitate::Cursor;
+use awbw_replay::schema::Replay;
+use awbw_replay::Verifier;
 
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadwriteArray2};
@@ -608,10 +612,378 @@ impl TeacherEnv {
     }
 }
 
+/// A batch of *recorded human games*, served with the same interface as
+/// `TeacherEnv`, for behaviour cloning off the replay corpus.
+///
+/// The scripted teacher plays a decent game; humans play a much better one, and
+/// there are only so many of their games. So this reads them in the trainer's
+/// own currency — a position and the order a person gave in it — while
+/// `TeacherEnv` supplies unlimited weaker data from the same interface.
+///
+/// Two filters matter, both on by default. Orders played while a CO power was
+/// running are dropped: the engine does not model powers, so the position does
+/// not explain the choice. Orders the engine rejects are dropped too, since an
+/// order the engine cannot even reproduce is not something a masked policy
+/// could ever emit.
+///
+/// Every game must be on the same map — observations are board-shaped, so a
+/// batch cannot mix sizes.
+///
+/// ```text
+///   env.observe_into(obs)        # positions humans were about to act on
+///   codes, valid = env.act()     # what they chose; (num_envs, 4) and (num_envs,)
+/// ```
+#[pyclass]
+pub struct ReplayTeacher {
+    files: Vec<std::path::PathBuf>,
+    next_file: usize,
+    slots: Vec<Option<Cursor>>,
+    want_map: Option<String>,
+    shape: (u8, u8),
+    obs_len: usize,
+    sizes: [usize; 4],
+    end_turn: u32,
+    map_name: String,
+    skip_powers: bool,
+    skip_illegal: bool,
+    served: u64,
+    skipped_power: u64,
+    skipped_illegal: u64,
+    games_opened: u64,
+    epochs: u64,
+}
+
+impl ReplayTeacher {
+    /// Parses replays in shuffled order until one matches the batch's map, and
+    /// hands back a cursor over it. `None` once a whole sweep finds nothing.
+    fn open_next(&mut self) -> Option<Cursor> {
+        for _ in 0..self.files.len() {
+            let index = self.next_file;
+            self.next_file += 1;
+            if self.next_file >= self.files.len() {
+                self.next_file = 0;
+                self.epochs += 1;
+            }
+
+            let Ok(text) = std::fs::read_to_string(&self.files[index]) else {
+                continue;
+            };
+            // Parsing a replay costs about twenty times reading it, and on a
+            // mixed corpus most files are on the wrong map. Looking for the
+            // name in the raw text first skips those for almost nothing; a
+            // false positive is caught by the real check below.
+            if let Some(want) = &self.want_map {
+                if !text.contains(want.as_str()) {
+                    continue;
+                }
+            }
+            let Ok(replay) = serde_json::from_str::<Replay>(&text) else {
+                continue;
+            };
+            if let Some(want) = &self.want_map {
+                if replay.map_name.as_deref() != Some(want.as_str()) {
+                    continue;
+                }
+            }
+            // The first game fixes the board; anything else must match it.
+            let (h, w) = (replay.height as u8, replay.width as u8);
+            if self.shape != (0, 0) && (h, w) != self.shape {
+                continue;
+            }
+            let name = replay.map_name.clone().unwrap_or_default();
+            let Ok(verifier) = Verifier::new(std::sync::Arc::new(replay)) else {
+                continue;
+            };
+            self.games_opened += 1;
+            if self.shape == (0, 0) {
+                self.shape = (h, w);
+                self.map_name = name;
+            }
+            return Some(Cursor::new(verifier));
+        }
+        None
+    }
+
+    /// Walks a slot forward until it sits on an order worth learning from,
+    /// opening fresh games as each one runs out.
+    fn refill(&mut self, slot: usize) {
+        let mut cursor = self.slots[slot].take();
+        let mut opens = 0usize;
+        let limit = self.files.len().max(1);
+
+        loop {
+            if cursor.is_none() {
+                if opens >= limit {
+                    break;
+                }
+                opens += 1;
+                cursor = self.open_next();
+                if cursor.is_none() {
+                    break;
+                }
+            }
+
+            let found = {
+                let c = cursor.as_mut().expect("cursor present");
+                if c.finished() {
+                    None
+                } else {
+                    c.sample()
+                }
+            };
+            let Some(sample) = found else {
+                cursor = None;
+                continue;
+            };
+
+            let skip = (self.skip_powers && sample.power_active)
+                || (self.skip_illegal && !(sample.legal && sample.emittable));
+            if !skip {
+                break;
+            }
+            if sample.power_active {
+                self.skipped_power += 1;
+            } else {
+                self.skipped_illegal += 1;
+            }
+            cursor.as_mut().expect("cursor present").advance();
+        }
+
+        self.slots[slot] = cursor;
+    }
+}
+
+#[pymethods]
+impl ReplayTeacher {
+    #[new]
+    /// `map_name` of `None` takes whichever map the first replay uses and holds
+    /// the rest of the batch to it.
+    #[pyo3(signature = (
+        replay_dir="data/prepared",
+        num_envs=32,
+        map_name="A River Supreme",
+        seed=0,
+        skip_powers=true,
+        skip_illegal=true,
+    ))]
+    fn new(
+        replay_dir: &str,
+        num_envs: usize,
+        map_name: Option<&str>,
+        seed: u64,
+        skip_powers: bool,
+        skip_illegal: bool,
+    ) -> PyResult<Self> {
+        if num_envs == 0 {
+            return Err(PyValueError::new_err("num_envs must be positive"));
+        }
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(replay_dir)
+            .map_err(|e| PyValueError::new_err(format!("{replay_dir}: {e}")))?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "json"))
+            .collect();
+        if files.is_empty() {
+            return Err(PyValueError::new_err(format!("no replays in {replay_dir}")));
+        }
+        files.sort();
+        // Shuffled, so slots start in different games and a batch is not
+        // thirty-two views of one opening.
+        let mut rng = Rng::new(seed);
+        for i in (1..files.len()).rev() {
+            files.swap(i, rng.roll_inclusive(i as u32) as usize);
+        }
+
+        let mut teacher = ReplayTeacher {
+            files,
+            next_file: 0,
+            slots: (0..num_envs).map(|_| None).collect(),
+            want_map: map_name.map(str::to_string),
+            shape: (0, 0),
+            obs_len: 0,
+            sizes: [0; 4],
+            end_turn: 0,
+            map_name: String::new(),
+            skip_powers,
+            skip_illegal,
+            served: 0,
+            skipped_power: 0,
+            skipped_illegal: 0,
+            games_opened: 0,
+            epochs: 0,
+        };
+
+        for i in 0..num_envs {
+            teacher.refill(i);
+        }
+        let Some(state) = teacher.slots.iter().find_map(|s| s.as_ref()?.state()) else {
+            return Err(PyValueError::new_err(format!(
+                "no usable replays in {replay_dir}{}",
+                match map_name {
+                    Some(m) => format!(" on map {m:?}"),
+                    None => String::new(),
+                }
+            )));
+        };
+        teacher.obs_len = observation_len(state);
+        teacher.sizes = head_sizes(state);
+        teacher.end_turn = end_turn_source(state);
+        Ok(teacher)
+    }
+
+    #[getter]
+    fn num_envs(&self) -> usize {
+        self.slots.len()
+    }
+
+    #[getter]
+    fn observation_size(&self) -> usize {
+        self.obs_len
+    }
+
+    #[getter]
+    fn action_sizes(&self) -> [usize; 4] {
+        self.sizes
+    }
+
+    #[getter]
+    fn board_shape(&self) -> (u8, u8) {
+        self.shape
+    }
+
+    #[getter]
+    fn map_name(&self) -> String {
+        self.map_name.clone()
+    }
+
+    #[getter]
+    fn end_turn_index(&self) -> u32 {
+        self.end_turn
+    }
+
+    /// Replays available on this map, before filtering by content.
+    #[getter]
+    fn replay_count(&self) -> usize {
+        self.files.len()
+    }
+
+    /// `(orders served, orders skipped for a power, orders skipped as illegal,
+    /// games opened, passes over the corpus)`.
+    ///
+    /// The two skip counts are the honest cost of the filters: a rising illegal
+    /// count means the engine and the record disagree about something.
+    #[getter]
+    fn stats(&self) -> (u64, u64, u64, u64, u64) {
+        (
+            self.served,
+            self.skipped_power,
+            self.skipped_illegal,
+            self.games_opened,
+            self.epochs,
+        )
+    }
+
+    /// Which seat is to move in each slot. `-1` where a slot has no game.
+    fn current_player<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let data: Vec<i64> = self
+            .slots
+            .iter()
+            .map(|s| {
+                s.as_ref()
+                    .and_then(|c| c.current_player())
+                    .map_or(-1, |p| p as i64)
+            })
+            .collect();
+        data.into_pyarray(py)
+    }
+
+    /// Writes the positions the recorded orders were played in. Rows for
+    /// exhausted slots are zeroed, and `act` marks them invalid.
+    fn observe_into(&mut self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
+        let expected = self.slots.len() * self.obs_len;
+        let len = self.obs_len;
+        let data = out
+            .as_slice_mut()
+            .map_err(|_| PyValueError::new_err("buffer must be C-contiguous"))?;
+        if data.len() != expected {
+            return Err(PyValueError::new_err(format!(
+                "buffer holds {} floats, expected {expected}",
+                data.len()
+            )));
+        }
+        for (i, slot) in self.slots.iter_mut().enumerate() {
+            let row = &mut data[i * len..(i + 1) * len];
+            let written = match slot {
+                Some(cursor) => cursor.observe(row),
+                None => false,
+            };
+            if !written {
+                row.fill(0.0);
+            }
+        }
+        Ok(())
+    }
+
+    /// Current observations, `(num_envs, observation_size)`.
+    fn observe<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<f32>> {
+        let len = self.obs_len;
+        let mut data = vec![0.0f32; self.slots.len() * len];
+        for (i, slot) in self.slots.iter_mut().enumerate() {
+            if let Some(cursor) = slot {
+                cursor.observe(&mut data[i * len..(i + 1) * len]);
+            }
+        }
+        Array2::from_shape_vec((self.slots.len(), len), data)
+            .expect("observation buffer is rectangular")
+            .into_pyarray(py)
+    }
+
+    /// The orders the humans gave, as `(num_envs, 4)` action codes, plus a
+    /// `(num_envs,)` mask of which rows carry one. Advances every slot.
+    fn act<'py>(&mut self, py: Python<'py>) -> (Bound<'py, PyArray2<u32>>, Bound<'py, PyArray1<bool>>) {
+        let n = self.slots.len();
+        let mut codes = vec![0u32; n * 4];
+        let mut valid = vec![false; n];
+
+        for i in 0..n {
+            let sample = self.slots[i].as_mut().and_then(|c| c.sample());
+            if let Some(sample) = sample {
+                codes[i * 4] = sample.code.source;
+                codes[i * 4 + 1] = sample.code.dest;
+                codes[i * 4 + 2] = sample.code.kind as u32;
+                codes[i * 4 + 3] = sample.code.param;
+                valid[i] = true;
+                self.served += 1;
+                self.slots[i].as_mut().expect("slot present").advance();
+            }
+            self.refill(i);
+        }
+
+        (
+            Array2::from_shape_vec((n, 4), codes)
+                .expect("code buffer is rectangular")
+                .into_pyarray(py),
+            valid.into_pyarray(py),
+        )
+    }
+
+    fn __repr__(&self) -> String {
+        let (h, w) = self.shape;
+        format!(
+            "ReplayTeacher(num_envs={}, map={:?} {h}x{w}, replays={}, served={})",
+            self.slots.len(),
+            self.map_name,
+            self.files.len(),
+            self.served
+        )
+    }
+}
+
 #[pymodule]
 fn awbw(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VecEnv>()?;
     m.add_class::<TeacherEnv>()?;
+    m.add_class::<ReplayTeacher>()?;
     m.add("__doc__", "Batched Advance Wars by Web environment.")?;
     Ok(())
 }

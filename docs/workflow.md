@@ -42,9 +42,9 @@ cp target/release/awbw.dll python/awbw.pyd     # awbw.so on Linux
 py -3.12 python/smoke_test.py
 ```
 
-The smoke test is the contract check: masks non-empty, every sampled order
-legal, episodes restarting. Keep observations in one reused buffer refilled by
-`observe_into`; allocating one per step costs four fifths of the throughput.
+`smoke_test.py` is the contract check for `VecEnv`; `replay_demo.py` is the same
+for `ReplayTeacher` and needs `data/prepared`. Keep observations in one reused
+buffer refilled by `observe_into`; allocating per step costs most of the speed.
 
 ## Preparing replays
 

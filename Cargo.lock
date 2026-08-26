@@ -27,8 +27,10 @@ version = "0.1.0"
 dependencies = [
  "awbw-bots",
  "awbw-engine",
+ "awbw-replay",
  "numpy",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]

@@ -193,8 +193,14 @@ impl Loaded {
     }
 }
 
-pub struct Verifier<'a> {
-    replay: &'a Replay,
+/// Reconstructs recorded turns and checks the engine against them.
+///
+/// The replay is held by `Arc` rather than borrowed so that a verifier — and
+/// the imitation cursor built on one — can be owned outright. A borrowing
+/// verifier cannot be stored anywhere its replay is not also stored, which
+/// rules out the Python bindings.
+pub struct Verifier {
+    replay: Arc<Replay>,
     players: PlayerMap,
     map: Arc<Map>,
     settings: GameSettings,
@@ -202,15 +208,15 @@ pub struct Verifier<'a> {
     country_owner: HashMap<String, PlayerId>,
 }
 
-impl<'a> Verifier<'a> {
-    pub fn new(replay: &'a Replay) -> Result<Self, String> {
+impl Verifier {
+    pub fn new(replay: Arc<Replay>) -> Result<Self, String> {
         let flat: Vec<u16> = replay.terrain.iter().flatten().copied().collect();
         let map = Map::from_awbw_ids(replay.width, replay.height, &flat)
             .map_err(|e| format!("map: {e}"))?;
 
-        let players = PlayerMap::new(replay);
+        let players = PlayerMap::new(&replay);
         let mut country_owner = HashMap::new();
-        for p in &replay.players {
+        for p in replay.players.iter() {
             if let Some(index) = players.index(p.id) {
                 country_owner.insert(p.country.clone(), index);
             }
@@ -230,6 +236,11 @@ impl<'a> Verifier<'a> {
             settings,
             country_owner,
         })
+    }
+
+    /// The game this verifier was built from.
+    pub fn replay(&self) -> &Arc<Replay> {
+        &self.replay
     }
 
     /// The engine seat an AWBW player id occupies.

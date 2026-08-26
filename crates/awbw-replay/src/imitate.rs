@@ -15,14 +15,18 @@
 //! are flagged: the engine does not model powers, so those positions do not
 //! explain the human's choice and belong out of the loss.
 
+use std::sync::Arc;
+
 use awbw_engine::actions::{Action, Engine};
-use awbw_engine::encoding::{encode, ActionCode};
+use awbw_engine::encoding::{
+    decode, encode, encode_observation, observation_len, ActionCode,
+};
 use awbw_engine::map::Pos;
-use awbw_engine::state::{GameState, UnitId};
+use awbw_engine::state::{GameState, PlayerId, UnitId};
 use awbw_engine::types::UnitType;
 use awbw_engine::vision::Vision;
 
-use crate::schema::{unwrap_vision, Replay, Turn};
+use crate::schema::{unwrap_vision, Replay};
 use crate::{Loaded, Verifier};
 
 /// One imitation sample: the order, and whether it can be trusted as a label.
@@ -31,6 +35,10 @@ pub struct Sample {
     pub code: ActionCode,
     /// The engine agrees this order is legal in the position it was taken from.
     pub legal: bool,
+    /// The code decodes back to the order it came from, so a policy sampling
+    /// under the engine's own masks could actually emit it. A label that fails
+    /// this teaches the network to reach for something it can never say.
+    pub emittable: bool,
     /// A CO power was active. The engine does not model powers, so the position
     /// does not explain the choice; drop these from the loss.
     pub power_active: bool,
@@ -159,9 +167,12 @@ pub fn translate(loaded: &Loaded, action: &serde_json::Value) -> Option<Action> 
 }
 
 /// Walks one replay, handing out positions and the orders played in them.
-pub struct Cursor<'a> {
-    verifier: &'a Verifier<'a>,
-    replay: &'a Replay,
+///
+/// Owns its verifier, so a caller can hold a fleet of cursors over different
+/// games without also holding every replay alongside them.
+pub struct Cursor {
+    verifier: Verifier,
+    replay: Arc<Replay>,
     turn: usize,
     order: usize,
     loaded: Option<Loaded>,
@@ -170,8 +181,9 @@ pub struct Cursor<'a> {
     vision: Vision,
 }
 
-impl<'a> Cursor<'a> {
-    pub fn new(verifier: &'a Verifier<'a>, replay: &'a Replay) -> Cursor<'a> {
+impl Cursor {
+    pub fn new(verifier: Verifier) -> Cursor {
+        let replay = verifier.replay().clone();
         let mut cursor = Cursor {
             verifier,
             replay,
@@ -202,8 +214,14 @@ impl<'a> Cursor<'a> {
         self.loaded = None;
     }
 
-    fn turn_ref(&self) -> Option<&'a Turn> {
-        self.replay.turns.get(self.turn)
+    /// The replay this cursor walks.
+    pub fn replay(&self) -> &Replay {
+        &self.replay
+    }
+
+    /// Which recorded turn the cursor is in.
+    pub fn turn_index(&self) -> usize {
+        self.turn
     }
 
     pub fn finished(&self) -> bool {
@@ -228,11 +246,36 @@ impl<'a> Cursor<'a> {
         Some(&self.vision)
     }
 
+    /// Encodes the position the next order was played in, from the acting
+    /// player's side. False if the cursor has run out of game.
+    pub fn observe(&mut self, out: &mut [f32]) -> bool {
+        let Some(loaded) = self.loaded.as_ref() else {
+            return false;
+        };
+        let player = loaded.state().current;
+        self.vision.compute(loaded.state(), player);
+        encode_observation(loaded.state(), &self.vision, out);
+        true
+    }
+
+    /// Floats one observation of this game needs.
+    pub fn observation_len(&self) -> Option<usize> {
+        Some(observation_len(self.state()?))
+    }
+
+    /// The seat about to move.
+    pub fn current_player(&self) -> Option<PlayerId> {
+        Some(self.state()?.current)
+    }
+
     /// The order played here, and whether it is fit to learn from. Advances
     /// past orders that carry no label at all.
     pub fn sample(&mut self) -> Option<Sample> {
         loop {
-            let turn = self.turn_ref()?;
+            // A cloned handle, so reading the record does not borrow the cursor
+            // while the engine is needed mutably.
+            let replay = self.replay.clone();
+            let turn = replay.turns.get(self.turn)?;
             let raw = turn.actions.get(self.order)?;
             let loaded = self.loaded.as_mut()?;
 
@@ -245,9 +288,11 @@ impl<'a> Cursor<'a> {
                 Some(action) => {
                     let legal = loaded.engine_mut().check(action).is_ok();
                     let code = encode(loaded.state(), action)?;
+                    let emittable = decode(loaded.state(), code) == Some(action);
                     return Some(Sample {
                         code,
                         legal,
+                        emittable,
                         power_active: self.power_active,
                     });
                 }
@@ -263,7 +308,8 @@ impl<'a> Cursor<'a> {
     }
 
     fn advance_raw(&mut self) {
-        let Some(turn) = self.turn_ref() else { return };
+        let replay = self.replay.clone();
+        let Some(turn) = replay.turns.get(self.turn) else { return };
         if let (Some(raw), Some(loaded)) = (turn.actions.get(self.order), self.loaded.as_mut()) {
             if let Some(action) = translate(loaded, raw) {
                 if loaded.engine_mut().apply(action).is_err() {
@@ -277,8 +323,9 @@ impl<'a> Cursor<'a> {
             }
         }
         self.order += 1;
-        let done = self
-            .turn_ref()
+        let done = replay
+            .turns
+            .get(self.turn)
             .map_or(true, |t| self.order >= t.actions.len());
         if done {
             self.turn += 1;

@@ -12,5 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 awbw-engine = { path = "../awbw-engine" }
 awbw-bots = { path = "../awbw-bots" }
+awbw-replay = { path = "../awbw-replay" }
+serde_json = "1"
 pyo3 = { version = "0.23", features = ["extension-module"] }
 numpy = "0.23"

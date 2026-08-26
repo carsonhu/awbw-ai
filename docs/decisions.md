@@ -280,3 +280,36 @@ bought nothing.** Its top pick is a unit the human moved somewhere in the turn
 mostly disagreement about sequence. Training against the turn's whole set
 (`--source-set`) worked and changed no outcome: that head is not the bottleneck,
 and its accuracy is not worth optimising (`log/2026-08-25-source-set.md`).
+
+**A day cap is not a result, and the engine was scoring it as one.** A truncated
+game bootstrapped from zero, so its advantage was `-V(s)`: a reward for being
+behind, a penalty for being ahead. It fires on 10.5% of `ppo-jake2`'s games
+against JakeMan and 0.5% of `bc-scaled`'s against `greedy`, which is the shape
+of "climbs from behind, decays from level" — but fixing it changed nothing, so
+that shape has another cause (`log/2026-08-26-awbw-units.md`).
+
+**PPO's credit horizon was one turn.** `1/(1 - gamma*lam)` at 0.997 and 0.95 is
+19 orders and a turn is about 17, so credit never crossed a change of turn and
+anything slower reached the policy through the critic alone. `--turn-discount`
+moves both rates to once per turn; `--steps 256` makes the rollout longer than
+the horizon, affordable because the rollout buffer now sits in host memory,
+which cost no throughput at all.
+
+**The shaping potential could not see money.** `advantage` counted only what
+stood on the board, so building a unit read as a free gain of its whole price
+and income was invisible until spent. `--potential funds` adds the bank;
+`worth` also prices a property at the income it has left rather than a flat
+5,000 — one taken on day 5 of 60 is worth ten of one taken on day 55. `worth`
+runs 2.2x the reward scale, so `--shaping` halves with it.
+
+**A credit horizon of one turn is what made PPO decay from level.** Widening it
+— per-turn discount, 256-step rollout, `lam 0.99` — holds `ppo-jake2` at 56.5%
+±3.5 against JakeMan's 59.5% over 100 iterations, where the control and the
+day-cap arm both fell about twenty points. Which of the three changes carries it
+is untested (`log/2026-08-26-awbw-units.md`).
+
+**An undecided day cap is a free half point, and the score hides it.** Draws
+count 0.5, so a policy that stops closing games reads as flat: arm B's score
+held near 58% while outright wins fell 51.0% -> 39.0% and draws doubled.
+`--decide-cap` settles a capped game on properties then material, the way a
+turn-limited league game is settled. Built, never trained against.

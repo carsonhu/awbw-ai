@@ -80,10 +80,13 @@ def rollout(env, steps, rng):
             params = sample_masked(prm_mask, rng)
 
         with env_time:
-            rewards, dones, actors = env.step(sources, dests, kinds, params)
+            rewards, dones, actors, cut = env.step(
+                sources, dests, kinds, params)
             env.observe_into(obs)
 
         assert rewards.shape == dones.shape == actors.shape == (env.num_envs,)
+        assert cut.shape == dones.shape
+        assert not (cut & ~dones).any(), "a cut game that did not finish"
         assert np.isfinite(rewards).all(), "reward went non-finite"
         episodes += int(dones.sum())
         total_reward += float(rewards.sum())
@@ -106,6 +109,25 @@ def main():
     print(f"  environment {env_time:.2f}s -> {env_steps / env_time:,.0f} env-steps/sec")
     print(f"  numpy sampling {policy_time:.2f}s (a real policy does this on GPU)")
     print(f"  {episodes} episodes finished, total reward {total_reward:+.1f}")
+
+    # Each rung of the potential has to be reachable and has to actually change
+    # the shaped reward -- a silently ignored name would leave a run measuring
+    # the arm it thought it had left behind.
+    print("\nshaped reward per order, by potential:")
+    for name in ("material", "funds", "worth"):
+        # The full day cap, not the short one above: `worth` prices a property
+        # by the days it has left to pay, so a 20-day game is the one setting
+        # where it and `funds` almost coincide.
+        rung = awbw.VecEnv(num_envs=16, seed=1, max_day=60, shaping=0.1,
+                           potential=name)
+        _, reward, _, _ = rollout(rung, 200, np.random.default_rng(0))
+        print(f"  {name:<9} {reward:+.2f}")
+    try:
+        awbw.VecEnv(num_envs=1, potential="nonesuch")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an unknown potential was accepted")
 
     # A masked-uniform policy cannot break the invariants asserted above, so
     # reaching this line means the contract holds.

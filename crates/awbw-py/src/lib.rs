@@ -50,14 +50,99 @@ struct Game {
     steps: u32,
 }
 
+/// How a game ended, once the day cap is taken into account.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Resolution {
+    Won(PlayerId),
+    /// Both sides gone, or a tied cap under `decide_cap`.
+    Drawn,
+    /// The day cap stopped a game still in progress and nothing decided it.
+    Cut,
+}
+
+/// Who was ahead when the clock ran out: properties first, then material.
+///
+/// The day cap is ours, not the game's — AWBW has no such rule — so a policy
+/// that runs into it is exploiting the harness. Left undecided it is a free
+/// half point, and a policy will take it: over one run the share of games
+/// stopped by the cap went 13% -> 33% while the win rate fell twelve points
+/// and the *score* did not move, because a draw counts half. Deciding it the
+/// way a turn-limited league game is decided prices stalling honestly.
+fn decided_by_tiebreak(state: &GameState, player: PlayerId) -> Resolution {
+    let them = (0..state.players.len() as PlayerId)
+        .find(|&p| state.are_enemies(player, p))
+        .unwrap_or(player);
+    let material = |p: PlayerId| -> u32 {
+        state
+            .units_of(p)
+            .map(|u| u.typ.stats().cost * u.hp100 as u32 / 100)
+            .sum()
+    };
+    let mine = (state.property_count(player), material(player));
+    let theirs = (state.property_count(them), material(them));
+    match mine.cmp(&theirs) {
+        std::cmp::Ordering::Greater => Resolution::Won(player),
+        std::cmp::Ordering::Less => Resolution::Won(them),
+        std::cmp::Ordering::Equal => Resolution::Drawn,
+    }
+}
+
+/// What the shaped reward measures a position by.
+///
+/// Shaping is the *difference* of this between two states, so what it leaves
+/// out is what it pays for. Each rung adds something the one above cannot see.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Potential {
+    /// Units and properties standing on the board. Money in hand counts for
+    /// nothing, so converting it into a unit is a free gain of the whole price
+    /// and holding it is never worth anything.
+    Material,
+    /// Adds the bank. Building becomes neutral, as it should be, and income
+    /// shows up on the day it is paid instead of the day it is spent.
+    Funds,
+    /// Values a property at the income it has left to pay, rather than a flat
+    /// 5,000. A property pays 1,000 a day, so one taken on day 5 of 60 is worth
+    /// ten of one taken on day 55 — the constant is about right at the very end
+    /// of a game and wrong for the whole of the rest of it.
+    ///
+    /// This makes the numbers several times larger in the opening, so `shaping`
+    /// wants to come down with it.
+    Worth,
+}
+
+impl Potential {
+    fn parse(name: &str) -> PyResult<Self> {
+        match name {
+            "material" => Ok(Potential::Material),
+            "funds" => Ok(Potential::Funds),
+            "worth" => Ok(Potential::Worth),
+            other => Err(PyValueError::new_err(format!(
+                "unknown potential {other:?}, want material, funds or worth"
+            ))),
+        }
+    }
+}
+
 /// Material and property, in funds, from `player`'s side of the board.
-fn advantage(state: &GameState, player: PlayerId) -> f32 {
+fn advantage(state: &GameState, player: PlayerId, how: Potential, max_day: u16) -> f32 {
     let value = |p: PlayerId| -> f32 {
         let units: u32 = state
             .units_of(p)
             .map(|u| u.typ.stats().cost * u.hp100 as u32 / 100)
             .sum();
-        units as f32 + state.property_count(p) as f32 * 5_000.0
+        let banked = match how {
+            Potential::Material => 0.0,
+            _ => state.players[p as usize].funds as f32,
+        };
+        let property = match how {
+            // `income` already counts the properties and the CO's bonus on
+            // each, so this is exactly what the rest of the game will pay.
+            Potential::Worth => {
+                state.income(p) as f32 * f32::from(max_day.saturating_sub(state.day))
+            }
+            _ => state.property_count(p) as f32 * 5_000.0,
+        };
+        units as f32 + banked + property
     };
     let them = (0..state.players.len() as PlayerId)
         .find(|&p| state.are_enemies(player, p))
@@ -77,6 +162,12 @@ pub struct VecEnv {
     /// Weight on the change in material advantage. Zero trains on the win
     /// signal alone, which is correct but very sparse over a thousand-step game.
     shaping: f32,
+    /// What that advantage is measured by.
+    potential: Potential,
+    /// Whether the day cap is settled on properties and material rather than
+    /// left undecided. Off keeps every rating on this environment comparable
+    /// with the ones already recorded.
+    decide_cap: bool,
     episodes: u64,
     /// A scripted opponent, one per game, playing the seat the agent does not.
     ///
@@ -112,7 +203,12 @@ impl VecEnv {
             .wrapping_add(index as u64)
             .wrapping_add(episode.wrapping_mul(0x1000_0001));
         let engine = Engine::new(state, seed);
-        let last_advantage = advantage(&engine.state, engine.state.current);
+        let last_advantage = advantage(
+            &engine.state,
+            engine.state.current,
+            self.potential,
+            self.max_day,
+        );
         Game {
             engine,
             last_advantage,
@@ -142,6 +238,19 @@ impl VecEnv {
     /// The game is over, either decided or out of time.
     fn is_finished(state: &GameState, max_day: u16) -> bool {
         state.outcome() != Outcome::InProgress || state.day > max_day
+    }
+
+    /// How a finished game ended, from `seat`'s side.
+    ///
+    /// Only ever called once `is_finished` holds, so `InProgress` here means
+    /// the day cap and nothing else.
+    fn resolve(state: &GameState, seat: PlayerId, decide_cap: bool) -> Resolution {
+        match state.outcome() {
+            Outcome::Winner(p) => Resolution::Won(p),
+            Outcome::Draw => Resolution::Drawn,
+            Outcome::InProgress if decide_cap => decided_by_tiebreak(state, seat),
+            Outcome::InProgress => Resolution::Cut,
+        }
     }
 
     /// Lets the scripted opponent play until the agent is to move again.
@@ -182,10 +291,11 @@ impl VecEnv {
     /// Records a finished game from the agent's side.
     fn score(&mut self, index: usize) {
         self.finished += 1;
-        match self.games[index].engine.state.outcome() {
-            Outcome::Winner(p) if p == self.agent_seats[index] => self.agent_wins += 1,
-            Outcome::Winner(_) => {}
-            _ => self.draws += 1,
+        let seat = self.agent_seats[index];
+        match VecEnv::resolve(&self.games[index].engine.state, seat, self.decide_cap) {
+            Resolution::Won(p) if p == seat => self.agent_wins += 1,
+            Resolution::Won(_) => {}
+            Resolution::Drawn | Resolution::Cut => self.draws += 1,
         }
     }
 }
@@ -206,7 +316,7 @@ impl VecEnv {
     /// synthetic board, which needs no data file.
     #[pyo3(signature = (
         num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None,
-        opponent=None, record=false,
+        opponent=None, record=false, potential="material", decide_cap=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -218,10 +328,13 @@ impl VecEnv {
         map_path: Option<String>,
         opponent: Option<&str>,
         record: bool,
+        potential: &str,
+        decide_cap: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
         }
+        let potential = Potential::parse(potential)?;
         let board = match map_path.as_deref() {
             Some("synthetic") => Board::default(),
             other => {
@@ -238,6 +351,8 @@ impl VecEnv {
             fog,
             seed,
             shaping,
+            potential,
+            decide_cap,
             episodes: 0,
             opponents: Vec::new(),
             agent_seats: (0..num_envs).map(|i| (i % 2) as PlayerId).collect(),
@@ -255,7 +370,8 @@ impl VecEnv {
         for i in 0..num_envs {
             let state = env.board.new_state(fog);
             let engine = Engine::new(state, seed.wrapping_add(i as u64));
-            let last_advantage = advantage(&engine.state, engine.state.current);
+            let last_advantage =
+                advantage(&engine.state, engine.state.current, potential, max_day);
             env.games.push(Game { engine, last_advantage, steps: 0 });
             env.masks.push(ActionMasks::new());
         }
@@ -265,8 +381,12 @@ impl VecEnv {
                 .collect::<PyResult<Vec<_>>>()?;
             for i in 0..num_envs {
                 env.run_opponent(i);
-                env.games[i].last_advantage =
-                    advantage(&env.games[i].engine.state, env.agent_seats[i]);
+                env.games[i].last_advantage = advantage(
+                    &env.games[i].engine.state,
+                    env.agent_seats[i],
+                    potential,
+                    max_day,
+                );
             }
         }
         Ok(env)
@@ -497,10 +617,15 @@ impl VecEnv {
 
     /// Applies one order per game.
     ///
-    /// Returns `(rewards, dones, acting_player)`. Rewards are from the side
-    /// that just moved. A finished game restarts immediately, so the next
-    /// observation for it belongs to a new episode; `dones` marks that
+    /// Returns `(rewards, dones, acting_player, truncated)`. Rewards are from
+    /// the side that just moved. A finished game restarts immediately, so the
+    /// next observation for it belongs to a new episode; `dones` marks that
     /// boundary. Fetch observations with `observe` or `observe_into`.
+    ///
+    /// `truncated` marks the ones the *day cap* stopped rather than the game
+    /// deciding — 10.5% of `ppo-jake2`'s games against JakeMan against 0.5% of
+    /// `bc-scaled`'s against `greedy`. Those are not endings and their zero is
+    /// not a result, so a learner has to tell them apart from a real draw.
     #[allow(clippy::type_complexity)]
     fn step<'py>(
         &mut self,
@@ -513,6 +638,7 @@ impl VecEnv {
         Bound<'py, PyArray1<f32>>,
         Bound<'py, PyArray1<bool>>,
         Bound<'py, PyArray1<i64>>,
+        Bound<'py, PyArray1<bool>>,
     )> {
         let (sources, dests) = (sources.as_slice()?, dests.as_slice()?);
         let (kinds, params) = (kinds.as_slice()?, params.as_slice()?);
@@ -527,8 +653,11 @@ impl VecEnv {
 
         let max_day = self.max_day;
         let shaping = self.shaping;
+        let potential = self.potential;
+        let decide_cap = self.decide_cap;
         let mut rewards = vec![0.0f32; self.games.len()];
         let mut dones = vec![false; self.games.len()];
+        let mut truncated = vec![false; self.games.len()];
         let mut actors = vec![0i64; self.games.len()];
         let mut restarts = Vec::new();
 
@@ -577,16 +706,28 @@ impl VecEnv {
             self.run_opponent(i);
 
             let game = &mut self.games[i];
-            let advantage_now = advantage(&game.engine.state, scored_for);
+            let advantage_now = advantage(&game.engine.state, scored_for, potential, max_day);
             rewards[i] = shaping * (advantage_now - game.last_advantage);
             game.last_advantage = advantage_now;
 
             if VecEnv::is_finished(&game.engine.state, max_day) {
                 dones[i] = true;
-                rewards[i] += match game.engine.state.outcome() {
-                    Outcome::Winner(p) if p == scored_for => 1.0,
-                    Outcome::Winner(_) => -1.0,
-                    _ => 0.0,
+                rewards[i] += match VecEnv::resolve(
+                    &game.engine.state,
+                    scored_for,
+                    decide_cap,
+                ) {
+                    Resolution::Won(p) if p == scored_for => 1.0,
+                    Resolution::Won(_) => -1.0,
+                    // Both sides gone, or a cap the tiebreak could not split.
+                    Resolution::Drawn => 0.0,
+                    // The day cap stopped it and nothing decided it. That is
+                    // where we stopped watching, not how it ended, so the
+                    // position keeps whatever it was worth.
+                    Resolution::Cut => {
+                        truncated[i] = true;
+                        0.0
+                    }
                 };
                 self.score(i);
                 if !self.recorders.is_empty() {
@@ -618,25 +759,28 @@ impl VecEnv {
             } else {
                 self.games[i].engine.state.current
             };
-            self.games[i].last_advantage = advantage(&self.games[i].engine.state, seat);
+            self.games[i].last_advantage =
+                advantage(&self.games[i].engine.state, seat, potential, max_day);
         }
 
         Ok((
             rewards.into_pyarray(py),
             dones.into_pyarray(py),
             actors.into_pyarray(py),
+            truncated.into_pyarray(py),
         ))
     }
 
     fn __repr__(&self) -> String {
         let (h, w) = self.board_shape();
         format!(
-            "VecEnv(num_envs={}, map={:?} {h}x{w}, fog={}, max_day={}, shaping={})",
+            "VecEnv(num_envs={}, map={:?} {h}x{w}, fog={}, max_day={}, shaping={} {:?})",
             self.games.len(),
             self.board.name(),
             self.fog,
             self.max_day,
-            self.shaping
+            self.shaping,
+            self.potential
         )
     }
 }
@@ -697,7 +841,11 @@ impl TeacherEnv {
         opponent: Option<&str>,
         record: bool,
     ) -> PyResult<Self> {
-        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None, record)?;
+        // Shaping is zero here, so the potential never contributes and which one
+        // it is cannot matter.
+        let inner = VecEnv::new(
+            num_envs, seed, max_day, fog, 0.0, map_path, None, record, "material", false,
+        )?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
             .collect::<PyResult<Vec<_>>>()?;

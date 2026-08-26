@@ -63,13 +63,20 @@ def head_stats(logits, mask, action):
 class Rollout:
     """Fixed-size storage for one batch of experience.
 
-    Observations dominate: 19,603 floats each, so `envs * steps` of them is the
-    whole memory budget on a small card. That is what sets the rollout size, not
-    anything about the algorithm.
+    Observations dominate: 19,603 floats each, at 78KB apiece. They are kept in
+    *host* memory and shipped to the card a minibatch at a time, because on a
+    6GB card they otherwise set the rollout length, and the rollout length is
+    the algorithm's credit horizon -- 64 orders is three turns of a game that
+    runs four hundred to seven hundred. Host RAM does not care: a 256-step
+    rollout is 640MB there and would not fit here.
+
+    The cost is a gather and a transfer per minibatch, about 20MB, against an
+    iteration that already spends seconds in the trunk. Everything else in the
+    buffer is one number per step and stays on the card.
     """
 
     def __init__(self, envs, steps, obs_size, sizes, device):
-        self.obs = torch.zeros((steps, envs, obs_size), device=device)
+        self.obs = torch.zeros((steps, envs, obs_size))
         self.actions = torch.zeros((steps, envs, HEADS), dtype=torch.long,
                                    device=device)
         self.masks = [
@@ -80,6 +87,10 @@ class Rollout:
         self.values = torch.zeros((steps, envs), device=device)
         self.rewards = torch.zeros((steps, envs), device=device)
         self.dones = torch.zeros((steps, envs), device=device)
+        # Of the finished games, the ones the day cap stopped. They end the
+        # episode like any other but they carry no result, so they are not
+        # allowed to teach the critic one.
+        self.cut = torch.zeros((steps, envs), device=device)
         # Who moved, and whether it was us. Against a scripted opponent every
         # step is ours and every step in a row belongs to the same player; in
         # self-play neither holds, and both facts are needed to read the
@@ -98,7 +109,8 @@ class Trainer:
         # seats, and `agent_seat` says which rows are the learner's.
         self.env = awbw.VecEnv(
             num_envs=args.envs, seed=args.seed, max_day=args.max_day,
-            shaping=args.shaping,
+            shaping=args.shaping, potential=args.potential,
+            decide_cap=args.decide_cap,
             opponent=None if args.selfplay else args.opponent,
         )
         self.policy = self.load_policy()
@@ -181,7 +193,9 @@ class Trainer:
         self.policy.eval()
         for t in range(buf.steps):
             obs = self.observe()
-            buf.obs[t] = obs
+            # From the staging buffer rather than back off the card: the host
+            # already has this observation, and it is the same bytes.
+            buf.obs[t].copy_(self.staging)
             carried = self.policy.trunk(obs)
             buf.values[t] = self.policy.value(carried[2]).squeeze(1)
             # The value head is the learner's on every row, including the
@@ -220,10 +234,11 @@ class Trainer:
             buf.logp[t] = total_logp
             if mine is not None:
                 buf.mine[t] = mine
-            rewards, dones, actors = self.env.step(*raw)
+            rewards, dones, actors, cut = self.env.step(*raw)
             buf.rewards[t] = torch.from_numpy(rewards).to(self.device)
             buf.dones[t] = torch.from_numpy(dones).to(self.device).float()
             buf.actors[t] = torch.from_numpy(actors).to(self.device)
+            buf.cut[t] = torch.from_numpy(cut).to(self.device).float()
 
         # Bootstrap from the position play actually continues from, and from
         # whose side it will be read.
@@ -237,7 +252,10 @@ class Trainer:
 
         A game is hundreds of orders long, so `gamma` sits very close to one:
         the terminal win has to survive being discounted across the whole game
-        or the policy only ever sees the shaped signal.
+        or the policy only ever sees the shaped signal. It does not, quite. At
+        0.997 over the 690 orders a game against JakeMan takes, a win is worth
+        0.13 by the time it reaches the opening, and `--turn-discount` is the
+        answer to that -- see the flag.
 
         Every quantity here is written from the point of view of whoever moved,
         because that is how the environment reports them -- the observation is
@@ -258,12 +276,40 @@ class Trainer:
             # +1 while the same player is still moving, -1 across a change of
             # turn. A finished game bootstraps from nothing, so the sign there
             # is irrelevant.
-            flip = torch.where(nxt_actor == buf.actors[t], 1.0, -1.0)
+            same = nxt_actor == buf.actors[t]
+            flip = torch.where(same, 1.0, -1.0)
+            # Per order by default; per *turn* under `--turn-discount`, which
+            # charges nothing inside a turn and the full rate across one. The
+            # orders in a turn are very nearly simultaneous -- a player picks
+            # the sequence, and mostly it does not matter -- so discounting
+            # between them prices a difference that is not there, and taxes
+            # using your units at 0.3% of the win apiece.
+            if self.args.turn_discount:
+                one = torch.ones_like(flip)
+                gamma = torch.where(same, one, one * self.args.gamma)
+                lam = torch.where(same, one, one * self.args.lam)
+            else:
+                gamma, lam = self.args.gamma, self.args.lam
             alive = 1.0 - buf.dones[t]
             delta = (buf.rewards[t]
-                     + self.args.gamma * flip * nxt * alive - buf.values[t])
-            running = (delta
-                       + self.args.gamma * self.args.lam * alive * flip * running)
+                     + gamma * flip * nxt * alive - buf.values[t])
+            # A game the day cap stopped is not a game that ended in nothing.
+            # Left alone the step above scores it against a bootstrap of zero,
+            # so its advantage is -V(s) -- the critic is told, in proportion to
+            # how good it thought the position was, that the position was
+            # worthless. That is a *systematic* error and its sign follows the
+            # matchup: for a policy losing 89% of its games a stopped game
+            # really is better than the loss it was heading for, and for one
+            # winning 51% it is worse. It is a reward for being behind and a
+            # penalty for being ahead, which is the shape of every run so far.
+            #
+            # There is nothing to bootstrap from -- the position is thrown away
+            # and replaced with a fresh game before anything can be observed --
+            # so the honest value is the one already on hand, V(s) itself. That
+            # makes the surprise zero and the return the critic's own estimate,
+            # which teaches it nothing rather than teaching it a falsehood.
+            delta = delta * (1.0 - buf.cut[t])
+            running = delta + gamma * lam * alive * flip * running
             adv[t] = running
         return adv, adv + buf.values
 
@@ -315,8 +361,11 @@ class Trainer:
             for start in range(0, total, self.args.minibatch):
                 idx = order[start:start + self.args.minibatch]
                 source, dest, kind, param = flat_actions[idx].unbind(dim=1)
+                # The observations live on the host; everything else is already
+                # here, so only this one gather has to cross.
+                obs = flat_obs[idx.cpu()].to(self.device, non_blocking=True)
                 logits, value = self.policy.evaluate_actions(
-                    flat_obs[idx], source, dest, kind)
+                    obs, source, dest, kind)
 
                 logp, entropy = 0.0, 0.0
                 taken = (source, dest, kind, param)
@@ -399,7 +448,8 @@ class Trainer:
         # once needs as much memory as the update does, and on a small card the
         # two together simply stop. Batch statistics over a few hundred states
         # are plenty, and the running average is what actually moves.
-        take = flat[torch.randperm(flat.shape[0], device=flat.device)[:self.args.minibatch]]
+        pick = torch.randperm(flat.shape[0])[:self.args.minibatch]
+        take = flat[pick].to(self.device, non_blocking=True)
         self.policy.train()
         self.policy.trunk(take)
         self.policy.eval()
@@ -465,6 +515,18 @@ def main() -> int:
                         help="warm-up rate; the critic starts from nothing")
     parser.add_argument("--gamma", type=float, default=0.997)
     parser.add_argument("--lam", type=float, default=0.95)
+    # Both of the above are per *order* by default, which is the wrong unit for
+    # this game. The credit horizon is 1/(1 - gamma*lam) = 19 orders and a turn
+    # is about 17, so credit does not reach across a single change of turn --
+    # everything slower than one turn has to arrive through the critic alone.
+    # With this set they apply once per turn instead: full Monte Carlo inside a
+    # turn, the stated rates between turns, and a horizon of 1/(1 - gamma*lam)
+    # *turns*. Pass a per-turn gamma with it -- 0.99, not 0.997.
+    #
+    # Still capped by `--steps`, which is why that wants raising too: a horizon
+    # of seventeen turns is worth nothing in a rollout three turns long.
+    parser.add_argument("--turn-discount", action="store_true",
+                        help="discount per turn, not per order")
     parser.add_argument("--clip", type=float, default=0.2)
     # Zero, which is unusual and deliberate. An entropy bonus exists to stop a
     # policy converging before it has explored, and a cloned one has the
@@ -490,6 +552,25 @@ def main() -> int:
     parser.add_argument("--adv-floor", type=float, default=0.0,
                         help="smallest advantage spread the update will divide by")
     parser.add_argument("--shaping", type=float, default=0.1)
+    # What the shaping measures. `material` counts what is standing on the
+    # board, which cannot see money: building a unit reads as a free gain of
+    # its whole price and income is invisible until spent. `funds` adds the
+    # bank. `worth` also values a property at the income it has left to pay
+    # rather than a flat 5,000 -- a property taken on day 5 of 60 is worth ten
+    # of one taken on day 55 -- which makes the opening numbers several times
+    # larger, so bring `--shaping` down with it.
+    parser.add_argument("--potential", default="material",
+                        choices=["material", "funds", "worth"],
+                        help="what the shaped reward measures a position by")
+    # The day cap is the harness's rule, not the game's, and left undecided it
+    # is a free half point. A policy will find that: over one run with a long
+    # enough credit horizon to see it, the share of games stopped by the cap
+    # went 13% -> 33% while the win rate fell twelve points and the reported
+    # score did not move at all, because a draw counts half. This settles a
+    # capped game on properties then material, the way a turn-limited league
+    # game is settled. Off by default -- it changes what every rating means.
+    parser.add_argument("--decide-cap", action="store_true",
+                        help="settle a day-capped game instead of drawing it")
     parser.add_argument("--max-day", type=int, default=60)
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--report-every", type=int, default=10)
@@ -542,6 +623,7 @@ def main() -> int:
             # window in which the policy had not moved at all.
             played, won, drawn = trainer.env.results
             games = played - seen[0]
+            stalled = (drawn - seen[2]) / max(games, 1)
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
             needed = args.refresh_games if args.selfplay else args.min_games
             closed = games >= needed
@@ -576,8 +658,13 @@ def main() -> int:
                     best = score
                     trainer.save(args.out)
             mark = f"  gen {trainer.refreshes}" if kept else ""
+            # `cut` is the share the day cap stopped. It is reported because it
+            # is not a neutral number: those games carry no result, and how
+            # many there are moved from 0.5% against `greedy` to 10.5% against
+            # JakeMan -- the difference between the runs that gained and the
+            # runs that came apart.
             print(f"  {iteration:>4}/{args.iterations}  "
-                  f"score {score:.1%} over {games} games  "
+                  f"score {score:.1%} over {games} games  cut {stalled:.0%}  "
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']} "

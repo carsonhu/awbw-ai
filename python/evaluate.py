@@ -219,6 +219,11 @@ def main() -> int:
     parser.add_argument("--games", type=int, default=200)
     parser.add_argument("--envs", type=int, default=50)
     parser.add_argument("--max-day", type=int, default=60)
+    # Must match the training run being rated. A capped game is half a point
+    # undecided and a whole one either way decided, so the two settings put a
+    # stalling policy several points apart.
+    parser.add_argument("--decide-cap", action="store_true",
+                        help="settle a day-capped game on properties, then material")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="0 for the best order every time")
     parser.add_argument("--seed", type=int, default=3)
@@ -245,6 +250,7 @@ def main() -> int:
     # With a checkpoint on the other seat there is no scripted opponent at all:
     # the caller moves both sides, and `agent_seat` says which rows are ours.
     env = awbw.VecEnv(num_envs=args.envs, seed=args.seed, max_day=args.max_day,
+                      decide_cap=args.decide_cap,
                       opponent=None if args.versus else args.opponent)
     if args.policy == "net":
         agent = Net(load(ROOT / args.checkpoint, env, device), device,

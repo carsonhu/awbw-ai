@@ -63,8 +63,10 @@ BUDGETS = {
     "docs/verification.md": 90,
     "docs/decisions.md": None,  # per entry; see ENTRY_BUDGET
     # Up 14 for writing replays out, which is a thing the project can now do
-    # rather than a longer way of saying what it already did.
-    "docs/workflow.md": 101,
+    # rather than a longer way of saying what it already did. Up 7 more for the
+    # knobs that fit PPO to this game rather than to Atari -- the credit
+    # horizon, the discount's unit, and what the shaping measures.
+    "docs/workflow.md": 108,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by

@@ -64,6 +64,13 @@ is four times *slower*. In PPO read `kl` and `clip`, never entropy, and pass
 `--recalibrate 0` — refitting costs seventeen points and `kl` cannot see it. Rate
 at 1.0: 0.3 flatters a clone threefold, and only 1.0 says what PPO starts from.
 
+Three PPO defaults are Atari's units, not this game's. `--turn-discount`
+discounts once per *turn*: `1/(1 - gamma*lam)` is 19 orders and a turn is 17, so
+credit otherwise never crosses one. Pass `--gamma 0.99` and `--steps 256` with
+it. `--potential worth` counts the bank, invisible to `material`, and prices a
+property by the income it has left — it doubles the reward scale, so halve
+`--shaping`. Watch the `cut` column: those games carry no result at all.
+
 ## Preparing replays
 
 `data/prepared/` and `data/maps/` are gitignored and rebuilt on demand:

@@ -230,6 +230,12 @@ reproduced the pre-fix recipe — `greedy` from `bc-scaled`, recalibration off �
 climbed 7% → 93%. When a run degrades, suspect what surrounds the update
 before the update (`log/2026-08-26-recalibration.md`).
 
+**Self-play's learner drifts below its own frozen copy, cause unknown.** 35-41%
+across recalibration off, an advantage floor and no shaping alike, so it
+promotes nothing. The harness, the opening fix and the update are all cleared
+by a working control; what that control never exercises is the two-player
+advantage path (`log/2026-08-26-selfplay-drift.md`).
+
 **Most of the source head's error is ordering, not judgement — and fixing that
 bought nothing.** Its top pick is a unit the human moved somewhere in the turn
 95.2% of the time, against 68.2% for a uniform pick, so its 44.7% top-1 is

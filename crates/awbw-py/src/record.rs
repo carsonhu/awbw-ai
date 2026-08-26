@@ -218,15 +218,23 @@ impl Recorder {
             }),
             Action::Capture { unit, dest } => {
                 let building = state.building_at(dest);
+                let taker = state.unit(unit).map(|u| u.owner);
+                // A finished capture is not a smaller `remaining`: the engine
+                // puts the counter back to full and moves the flag instead, so
+                // the only way to tell it from an untouched property is that
+                // the tile now belongs to whoever was standing on it. AWBW
+                // reports the two cases in quite different shapes.
+                let taken = taker.is_some() && building.and_then(|b| b.owner) == taker;
                 json!({
                     "kind": "Capt",
                     "path": path,
                     "unit": self.unit_json(state, unit),
                     "x": dest.x,
                     "y": dest.y,
-                    // AWBW reports what is left to capture, and zero means the
-                    // property changed hands on this order.
                     "remaining": building.map(|b| b.capture_remaining).unwrap_or(0),
+                    "captured": taken,
+                    "owner": building.and_then(|b| b.owner),
+                    "terrain": building.map(|b| format!("{:?}", b.kind)),
                 })
             }
             Action::Attack { unit, target, .. } => json!({

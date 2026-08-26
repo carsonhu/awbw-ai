@@ -252,6 +252,40 @@ class Writer:
     def discovered(self):
         return {str(player_id(s)): None for s in self.seats}
 
+    def capture_info(self, order):
+        """What a capture did to the property, as AWBW reports it.
+
+        A capture that *finishes* is a different record, not a smaller number:
+        it carries the new terrain and owner, and a viewer flips the tile the
+        moment it reads them. Without that it has to wait for the next snapshot,
+        so the property changes hands at the end of the turn rather than under
+        the unit that took it.
+        """
+        tile = (order["x"], order["y"])
+        bid = self.building_ids.get(tile, BASE_BUILDING_ID)
+        if not order.get("captured"):
+            return {
+                "buildings_capture": order["remaining"],
+                "buildings_id": bid,
+                "buildings_x": order["x"],
+                "buildings_y": order["y"],
+                "buildings_team": None,
+            }
+        tid = terrain_id(order["terrain"], order["owner"])
+        owner = player_id(order["owner"])
+        return {
+            "0": bid,
+            "buildings_id": bid,
+            "buildings_x": order["x"],
+            "buildings_y": order["y"],
+            "buildings_capture": 0,
+            "terrain_id": tid,
+            "terrain_name": TERRAIN[str(tid)]["name"],
+            "terrain_defense": TERRAIN[str(tid)]["defense"],
+            "buildings_players_id": owner,
+            "buildings_team": str(owner),
+        }
+
     # ── action payloads ──────────────────────────────────────────────────────
 
     def move(self, order, capturing=0):
@@ -299,14 +333,7 @@ class Writer:
                 "Move": self.move(order, capturing=1),
                 "Capt": {
                     "action": "Capt",
-                    "buildingInfo": {
-                        "buildings_capture": order["remaining"],
-                        "buildings_id": self.building_ids.get(
-                            (order["x"], order["y"]), BASE_BUILDING_ID),
-                        "buildings_x": order["x"],
-                        "buildings_y": order["y"],
-                        "buildings_team": None,
-                    },
+                    "buildingInfo": self.capture_info(order),
                     "vision": {"global": {
                         "onCapture": {"x": order["x"], "y": order["y"]}}},
                     "income": None,

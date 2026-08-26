@@ -41,6 +41,10 @@ COUNTRIES = ["os", "bm"]
 COUNTRY_ID = {"os": 1, "bm": 2}
 STAMP = "2026-01-01 00:00:00"
 
+# Capture points a property starts with, counting down as it is taken. AWBW and
+# the engine agree on twenty.
+CAPTURE_FULL = 20
+
 # `symbol` means two different things in the two files, which is worth stating
 # plainly because writing one where the other belongs looks like nothing.
 #
@@ -153,7 +157,21 @@ class Writer:
 
     # ── records ──────────────────────────────────────────────────────────────
 
-    def unit(self, u):
+    @staticmethod
+    def capturing(u, properties):
+        """Whether this unit is part-way through taking the tile it stands on.
+
+        AWBW carries this on the *unit*, and as a flag rather than a count --
+        the progress itself lives on the building -- and it is what a viewer
+        draws the capture marker from. The engine tracks only the building, so
+        it is derived: a property under someone else's flag, part captured.
+        """
+        prop = properties.get((u["x"], u["y"]))
+        if prop is None or prop["capture"] >= CAPTURE_FULL:
+            return 0
+        return int(prop["owner"] != u["player"])
+
+    def unit(self, u, capturing=0):
         """One `awbwUnit`, in AWBW's own field names."""
         name = UNIT_NAMES.get(u["type"], u["type"])
         stats = UNITS[name]
@@ -177,7 +195,7 @@ class Writer:
             "x": u["x"],
             "y": u["y"],
             "moved": int(bool(u["moved"])),
-            "capture": 0,
+            "capture": capturing,
             "fired": 0,
             # A snapshot keeps HP to a tenth -- AWBW's 0-10 scale is the engine's
             # 0-100 divided by ten, exactly, and rounding here to the *displayed*
@@ -189,7 +207,7 @@ class Writer:
             "carried": "Y" if u["carried"] else "N",
         }
 
-    def unit_payload(self, u):
+    def unit_payload(self, u, capturing=0):
         """The same unit as an *action* carries it.
 
         Action payloads prefix every column with `units_`, lead with the id
@@ -198,7 +216,7 @@ class Writer:
         """
         name = UNIT_NAMES.get(u["type"], u["type"])
         record = {"0": BASE_UNIT_ID + u["id"]}
-        record.update({f"units_{k}": v for k, v in self.unit(u).items()})
+        record.update({f"units_{k}": v for k, v in self.unit(u, capturing).items()})
         # Unlike a snapshot, an action reports the HP a player sees, rounded up:
         # a unit on 6.7 shows as 7 and is destroyed at 0. And its `symbol` is
         # the per-type letter rather than the domain; see DOMAINS.
@@ -219,7 +237,7 @@ class Writer:
 
     # ── action payloads ──────────────────────────────────────────────────────
 
-    def move(self, order):
+    def move(self, order, capturing=0):
         """The Move half of an order, or `[]` when the unit never left its tile.
 
         AWBW writes an empty array rather than omitting the key, which is the
@@ -230,7 +248,7 @@ class Writer:
             return []
         return {
             "action": "Move",
-            "unit": self.per_viewer(self.unit_payload(order["unit"])),
+            "unit": self.per_viewer(self.unit_payload(order["unit"], capturing)),
             "paths": {"global": [
                 {"unit_visible": True, "x": p["x"], "y": p["y"]} for p in path
             ]},
@@ -259,7 +277,9 @@ class Writer:
         if kind == "Capt":
             return {
                 "action": "Capt",
-                "Move": self.move(order),
+                # The mover is capturing by definition, and a viewer takes the
+                # marker from the unit rather than from the order.
+                "Move": self.move(order, capturing=1),
                 "Capt": {
                     "action": "Capt",
                     "buildingInfo": {
@@ -403,6 +423,7 @@ class Writer:
         }
 
     def state_line(self, turn):
+        properties = {(b["x"], b["y"]): b for b in turn["buildings"]}
         game = {
             "id": self.game_id,
             "name": self.name,
@@ -453,7 +474,10 @@ class Writer:
             # Carried units stay in the list, flagged, rather than being left
             # out: the transport points at them by id, and a reader that cannot
             # resolve those ids loses the passengers the moment one unloads.
-            "units": [PhpObject("awbwUnit", self.unit(u)) for u in turn["units"]],
+            "units": [
+                PhpObject("awbwUnit", self.unit(u, self.capturing(u, properties)))
+                for u in turn["units"]
+            ],
             "timers_initial": 0,
             "timers_increment": 0,
             "timers_max_turn": 0,

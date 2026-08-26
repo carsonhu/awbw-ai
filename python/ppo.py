@@ -17,6 +17,7 @@ distributions.
 """
 
 import argparse
+import copy
 import sys
 import time
 from pathlib import Path
@@ -79,6 +80,12 @@ class Rollout:
         self.values = torch.zeros((steps, envs), device=device)
         self.rewards = torch.zeros((steps, envs), device=device)
         self.dones = torch.zeros((steps, envs), device=device)
+        # Who moved, and whether it was us. Against a scripted opponent every
+        # step is ours and every step in a row belongs to the same player; in
+        # self-play neither holds, and both facts are needed to read the
+        # rewards, which are always from the mover's own side.
+        self.actors = torch.zeros((steps, envs), dtype=torch.long, device=device)
+        self.mine = torch.ones((steps, envs), dtype=torch.bool, device=device)
         self.steps = steps
         self.envs = envs
 
@@ -87,11 +94,26 @@ class Trainer:
     def __init__(self, args, device):
         self.args = args
         self.device = device
+        # Self-play takes no scripted opponent at all: the caller moves both
+        # seats, and `agent_seat` says which rows are the learner's.
         self.env = awbw.VecEnv(
             num_envs=args.envs, seed=args.seed, max_day=args.max_day,
-            shaping=args.shaping, opponent=args.opponent,
+            shaping=args.shaping,
+            opponent=None if args.selfplay else args.opponent,
         )
         self.policy = self.load_policy()
+        # A frozen copy of the policy holds the other seat. Not the live policy
+        # on both sides: its transitions would be off-policy for the update, and
+        # a score against yourself is 50% by construction and says nothing. A
+        # snapshot gives a real rating, and refreshing it when the learner pulls
+        # ahead is what stops the opponent from running out -- which is exactly
+        # how the first run against `greedy` came apart.
+        self.frozen = None
+        self.refreshes = 0
+        if args.selfplay:
+            self.frozen = copy.deepcopy(self.policy).eval()
+            self.frozen.requires_grad_(False)
+        self.seat = torch.from_numpy(self.env.agent_seat()).to(device)
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=args.lr,
                                            weight_decay=0.0)
         # The warm-up steps this one instead. The value head shares the trunk,
@@ -136,6 +158,22 @@ class Trainer:
             return torch.from_numpy(self.env.kind_mask(s, d)).to(self.device)
         return torch.from_numpy(self.env.param_mask(s, d, k)).to(self.device)
 
+    def heads_of(self, policy, obs, chosen, raw, head, carried):
+        """One head's logits, conditioned on what the earlier heads chose."""
+        features, flat, pooled = carried
+        if head == 0:
+            return policy.source_logits(features, pooled), self.current_masks()
+        if head == 1:
+            return (policy.dest_logits(features, flat, pooled, chosen[0]),
+                    self.current_masks(raw[0]))
+        if head == 2:
+            return (policy.kind_logits(policy.context_of(
+                flat, pooled, chosen[0], chosen[1])),
+                self.current_masks(raw[0], raw[1]))
+        context = policy.context_of(flat, pooled, chosen[0], chosen[1])
+        return (policy.param_logits(features, context, chosen[2]),
+                self.current_masks(raw[0], raw[1], raw[2]))
+
     @torch.no_grad()
     def collect(self):
         buf = self.buffer
@@ -143,31 +181,35 @@ class Trainer:
         for t in range(buf.steps):
             obs = self.observe()
             buf.obs[t] = obs
-            features, flat, pooled = self.policy.trunk(obs)
-            buf.values[t] = self.policy.value(pooled).squeeze(1)
+            carried = self.policy.trunk(obs)
+            buf.values[t] = self.policy.value(carried[2]).squeeze(1)
+            # The value head is the learner's on every row, including the
+            # opponent's: it is asked what the position is worth to whoever
+            # moves next, which is what the bootstrap wants.
+            mine = (torch.from_numpy(self.env.current_player()).to(self.device)
+                    == self.seat) if self.frozen is not None else None
+            theirs = self.frozen.trunk(obs) if self.frozen is not None else None
 
             chosen, total_logp, raw = [], 0.0, []
             for head in range(HEADS):
-                if head == 0:
-                    logits = self.policy.source_logits(features, pooled)
-                    mask = self.current_masks()
-                elif head == 1:
-                    logits = self.policy.dest_logits(features, flat, pooled,
-                                                     chosen[0])
-                    mask = self.current_masks(raw[0])
-                elif head == 2:
-                    context = self.policy.context_of(flat, pooled, chosen[0],
-                                                     chosen[1])
-                    logits = self.policy.kind_logits(context)
-                    mask = self.current_masks(raw[0], raw[1])
-                else:
-                    logits = self.policy.param_logits(features, context,
-                                                      chosen[2])
-                    mask = self.current_masks(raw[0], raw[1], raw[2])
-
+                logits, mask = self.heads_of(
+                    self.policy, obs, chosen, raw, head, carried)
                 distribution = torch.distributions.Categorical(
                     logits=masked_logits(logits, mask))
                 action = distribution.sample()
+                if self.frozen is not None:
+                    # Both networks run on the whole batch and the rows are
+                    # selected between, because each head's mask depends on what
+                    # the previous head actually chose -- the two sides have to
+                    # advance in step.
+                    other, _ = self.heads_of(
+                        self.frozen, obs, chosen, raw, head, theirs)
+                    other = torch.distributions.Categorical(
+                        logits=masked_logits(other, mask)).sample()
+                    action = torch.where(mine, action, other)
+                # Scored under the learner regardless of who chose, so an
+                # opponent row carries a coherent number; it is masked out of
+                # the update anyway.
                 total_logp = total_logp + distribution.log_prob(action)
                 buf.masks[head][t] = mask
                 buf.actions[t, :, head] = action
@@ -175,30 +217,52 @@ class Trainer:
                 raw.append(action.to(torch.int32).cpu().numpy().astype(np.uint32))
 
             buf.logp[t] = total_logp
-            rewards, dones, _ = self.env.step(*raw)
+            if mine is not None:
+                buf.mine[t] = mine
+            rewards, dones, actors = self.env.step(*raw)
             buf.rewards[t] = torch.from_numpy(rewards).to(self.device)
             buf.dones[t] = torch.from_numpy(dones).to(self.device).float()
+            buf.actors[t] = torch.from_numpy(actors).to(self.device)
 
-        # Bootstrap from the position play actually continues from.
+        # Bootstrap from the position play actually continues from, and from
+        # whose side it will be read.
         with torch.no_grad():
             last = self.policy.value_of(self.observe())
-        return last
+        last_actor = torch.from_numpy(self.env.current_player()).to(self.device)
+        return last, last_actor
 
-    def advantages(self, last_value):
-        """Generalized advantage estimation.
+    def advantages(self, last_value, last_actor):
+        """Generalized advantage estimation, across two players.
 
         A game is hundreds of orders long, so `gamma` sits very close to one:
         the terminal win has to survive being discounted across the whole game
         or the policy only ever sees the shaped signal.
+
+        Every quantity here is written from the point of view of whoever moved,
+        because that is how the environment reports them -- the observation is
+        the mover's view of the board and the reward is their side of it. So a
+        step whose successor belongs to the *other* player is looking at a value
+        in the opposite frame, and the game is zero-sum, so it enters negated.
+        Without that flip a policy is told that handing the opponent a good
+        position is good for it, and both seats train against each other.
         """
         buf = self.buffer
         adv = torch.zeros_like(buf.rewards)
         running = torch.zeros(buf.envs, device=self.device)
         for t in reversed(range(buf.steps)):
-            nxt = last_value if t == buf.steps - 1 else buf.values[t + 1]
+            if t == buf.steps - 1:
+                nxt, nxt_actor = last_value, last_actor
+            else:
+                nxt, nxt_actor = buf.values[t + 1], buf.actors[t + 1]
+            # +1 while the same player is still moving, -1 across a change of
+            # turn. A finished game bootstraps from nothing, so the sign there
+            # is irrelevant.
+            flip = torch.where(nxt_actor == buf.actors[t], 1.0, -1.0)
             alive = 1.0 - buf.dones[t]
-            delta = buf.rewards[t] + self.args.gamma * nxt * alive - buf.values[t]
-            running = delta + self.args.gamma * self.args.lam * alive * running
+            delta = (buf.rewards[t]
+                     + self.args.gamma * flip * nxt * alive - buf.values[t])
+            running = (delta
+                       + self.args.gamma * self.args.lam * alive * flip * running)
             adv[t] = running
         return adv, adv + buf.values
 
@@ -212,20 +276,32 @@ class Trainer:
         # policies and the first update destroyed the cloned one. Gradients flow
         # in eval mode; only normalisation behaves differently.
         self.policy.eval()
+        # Only the learner's own steps. The opponent's are needed to carry the
+        # advantage across its turn, and would be off-policy in the loss: they
+        # were sampled from a frozen snapshot, so their importance ratio is
+        # measuring the wrong pair of distributions.
+        #
+        # Selected by *indexing the minibatch*, not by slicing the buffer up
+        # front: an observation is 19,603 floats and slicing would copy the
+        # whole rollout, which is the one thing that does not fit twice.
+        keep = buf.mine.reshape(-1).nonzero(as_tuple=True)[0]
         flat_obs = buf.obs.reshape(-1, buf.obs.shape[-1])
         flat_actions = buf.actions.reshape(-1, HEADS)
         flat_masks = [m.reshape(-1, m.shape[-1]) for m in buf.masks]
         flat_logp = buf.logp.reshape(-1)
-        flat_adv = adv.reshape(-1)
         flat_returns = returns.reshape(-1)
-        flat_adv = (flat_adv - flat_adv.mean()) / (flat_adv.std() + 1e-8)
+        # Normalised over the learner's rows alone, so the opponent's advantages
+        # cannot shift the mean the learner's steps are measured against.
+        flat_adv = torch.zeros_like(adv.reshape(-1))
+        kept = adv.reshape(-1)[keep]
+        flat_adv[keep] = (kept - kept.mean()) / (kept.std() + 1e-8)
 
-        total = flat_obs.shape[0]
+        total = keep.numel()
         stats = {"policy": 0.0, "value": 0.0, "entropy": 0.0, "kl": 0.0,
                  "clipped": 0.0, "n": 0}
         recent = 0.0
         for _ in range(self.args.epochs):
-            order = torch.randperm(total, device=self.device)
+            order = keep[torch.randperm(total, device=self.device)]
             for start in range(0, total, self.args.minibatch):
                 idx = order[start:start + self.args.minibatch]
                 source, dest, kind, param = flat_actions[idx].unbind(dim=1)
@@ -288,6 +364,13 @@ class Trainer:
         out["stopped"] = stopped
         return out
 
+    def promote(self):
+        """Makes the current policy the opponent to beat."""
+        self.frozen.load_state_dict(self.policy.state_dict())
+        self.frozen.eval()
+        self.frozen.requires_grad_(False)
+        self.refreshes += 1
+
     def save(self, path):
         path = ROOT / path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -307,6 +390,17 @@ def main() -> int:
                         help="games a window needs to claim it is the best")
     parser.add_argument("--opponent", default="greedy",
                         choices=["greedy", "capturer", "random"])
+    # A scripted opponent is a finite resource -- `greedy` is beaten 96%, and
+    # the run that saturated it then spent seventy iterations unlearning itself.
+    # Self-play replaces it with a frozen copy of the learner, refreshed
+    # whenever the learner pulls far enough ahead, so there is always something
+    # left to beat.
+    parser.add_argument("--selfplay", action="store_true",
+                        help="play a frozen copy of the policy, not a bot")
+    parser.add_argument("--refresh-at", type=float, default=0.7,
+                        help="score over a window that promotes the learner")
+    parser.add_argument("--refresh-games", type=int, default=30,
+                        help="games that window needs before it may promote")
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--envs", type=int, default=32)
     parser.add_argument("--steps", type=int, default=64)
@@ -348,15 +442,16 @@ def main() -> int:
     per = args.envs * args.steps
     print(f"device {device}, {sum(p.numel() for p in trainer.policy.parameters())/1e6:.2f}M "
           f"parameters, from {args.init}")
-    print(f"vs {args.opponent}, {args.envs} envs x {args.steps} steps = "
+    against = "a frozen copy of itself" if args.selfplay else args.opponent
+    print(f"vs {against}, {args.envs} envs x {args.steps} steps = "
           f"{per} orders per iteration, shaping {args.shaping}")
 
     start = time.perf_counter()
     seen = (0, 0, 0)
     best = -1.0
     for iteration in range(1, args.iterations + 1):
-        last = trainer.collect()
-        adv, returns = trainer.advantages(last)
+        last, last_actor = trainer.collect()
+        adv, returns = trainer.advantages(last, last_actor)
         # Cloning never trains the value head -- its loss is four
         # cross-entropies and nothing else -- so PPO inherits a *random* critic.
         # Advantages are then mostly the critic's own error, and normalising
@@ -377,28 +472,48 @@ def main() -> int:
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
             seen = (played, won, drawn)
             rate = iteration * per / (time.perf_counter() - start)
-            # Keep the best weights seen, not the latest. A saturated opponent
-            # stops producing advantage, normalisation rescales what is left --
-            # noise -- to a full-size step, and the policy diffuses back down.
-            # Requiring a minimum window stops a lucky handful of games
-            # claiming the checkpoint.
-            kept = games >= args.min_games and score > best
-            if kept:
-                best = score
-                trainer.save(args.out)
+            if args.selfplay:
+                # The score is against a moving opponent, so a high one means
+                # the snapshot is stale rather than that the learner is good --
+                # `best` would just track staleness. Promote instead: beating
+                # the last generation convincingly is the improvement, and the
+                # promoted weights are what gets kept.
+                kept = (not warming and games >= args.refresh_games
+                        and score >= args.refresh_at)
+                if kept:
+                    trainer.promote()
+                    trainer.save(args.out)
+            else:
+                # Keep the best weights seen, not the latest. A saturated
+                # opponent stops producing advantage, normalisation rescales
+                # what is left -- noise -- to a full-size step, and the policy
+                # diffuses back down. A minimum window stops a lucky handful of
+                # games claiming the checkpoint.
+                kept = games >= args.min_games and score > best
+                if kept:
+                    best = score
+                    trainer.save(args.out)
+            mark = f"  gen {trainer.refreshes}" if kept else ""
             print(f"  {iteration:>4}/{args.iterations}  "
                   f"score {score:.1%} over {games} games  "
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']}  "
-                  f"{rate:,.0f}/s{'  *' if kept else ''}")
+                  f"{rate:,.0f}/s{mark}")
 
     last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")
     trainer.save(last)
     played, won, drawn = trainer.env.results
     print(f"\n{played} games during training, "
           f"score {(won + 0.5*drawn)/max(played,1):.1%}")
-    print(f"best rollout score {best:.1%}, saved {ROOT / args.out}")
+    if args.selfplay:
+        print(f"{trainer.refreshes} generations, saved {ROOT / args.out}")
+        print("Rate it against what it started from:")
+        print(f"  py -3.12 python/evaluate.py --checkpoint {args.out} "
+              f"--versus {args.init}")
+    else:
+        kept_any = "never improved on the start" if best < 0 else f"{best:.1%}"
+        print(f"best rollout score {kept_any}, saved {ROOT / args.out}")
     print(f"final weights {ROOT / last} -- rate either with evaluate.py")
     return 0
 

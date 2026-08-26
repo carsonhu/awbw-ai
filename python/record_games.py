@@ -46,6 +46,11 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--map-id", type=int, default=119544)
     parser.add_argument("-o", "--out", default="replays")
+    # Shown as the game's title. Player *names* cannot be set: an AWBW
+    # replay stores only a users_id and a viewer resolves it against the
+    # site, so synthetic ids come up blank however they are labelled here.
+    parser.add_argument("--name", default=None,
+                        help="game title; defaults to '<policy> vs <opponent>'")
     parser.add_argument("--game-id", type=int, default=990000,
                         help="first id; each game takes the next one")
     args = parser.parse_args()
@@ -84,7 +89,7 @@ def main() -> int:
             game = json.loads(log)
             game_id = args.game_id + len(written)
             path = write_replay.Writer(
-                game, game_id, args.map_id, f"{label} vs {against}",
+                game, game_id, args.map_id, args.name or f"{label} vs {against}",
             ).write(args.out)
             winner = game["outcome"]["winner"]
             seat = int(env.agent_seat()[slot])

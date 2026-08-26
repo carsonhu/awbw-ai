@@ -102,19 +102,45 @@ pub fn translate(loaded: &Loaded, action: &serde_json::Value) -> Option<Action> 
             Some(Action::Move { unit, dest })
         }
 
+        // A unit that acts without moving gets an *empty* `Move` rather than
+        // none at all, so the payload has to be read for the actor instead.
+        // This is not an edge case: it is half of all captures — the second
+        // turn of every two-turn capture — and one attack in eight.
         "Capt" => {
-            let (unit, dest) = move_parts(loaded, action.get("Move")?)?;
+            let moved = action.get("Move").and_then(|mv| move_parts(loaded, mv));
+            let (unit, dest) = match moved {
+                Some(parts) => parts,
+                None => {
+                    // Nothing names the unit here, but something of ours is
+                    // standing on the property, or the order could not have
+                    // been given.
+                    let info = action.get("Capt")?.get("buildingInfo")?;
+                    let at = Pos::new(
+                        as_num(info.get("buildings_x"))? as u8,
+                        as_num(info.get("buildings_y"))? as u8,
+                    );
+                    (loaded.state().unit_id_at(at)?, at)
+                }
+            };
             Some(Action::Capture { unit, dest })
         }
 
         "Fire" => {
-            let (unit, dest) = move_parts(loaded, action.get("Move")?)?;
-            let info = action
+            let combat = action
                 .get("Fire")?
                 .get("combatInfoVision")
                 .and_then(unwrap_vision)?
-                .get("combatInfo")?
-                .get("defender")?;
+                .get("combatInfo")?;
+            let moved = action.get("Move").and_then(|mv| move_parts(loaded, mv));
+            let (unit, dest) = match moved {
+                Some(parts) => parts,
+                None => {
+                    let rec = combat.get("attacker")?;
+                    let unit = loaded.unit_for(as_num(rec.get("units_id"))?)?;
+                    (unit, loaded.state().unit(unit)?.pos)
+                }
+            };
+            let info = combat.get("defender")?;
             Some(Action::Attack {
                 unit,
                 dest,

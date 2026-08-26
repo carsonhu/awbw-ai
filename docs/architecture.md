@@ -86,6 +86,24 @@ Random self-play, 15x15, 30-day games, one core (`--example selfplay_bench`):
 | factorized + observation + masks | ~28 | ~130k |
 | the same, batched through Python | ~28 | ~144k |
 
+## Training
+
+`python/net.py` is one trunk — a 64-channel, 6-block resnet, globals broadcast as
+extra planes — with four heads reading the *same* feature map. Running the trunk
+per head costs four times as much for nothing: the board does not change between
+the four choices, only the question does. Three heads are **pointers**, scoring
+every tile against a query built from the earlier choices, which shares spatial
+features instead of learning a separate 306-way classifier. `param` also gets a
+plain projection, since it is a tile for an attack but a small integer for a
+build or unload.
+
+The network is not a contract boundary; the *encoding* is. Head sizes and
+observation shape are read off the environment, so an encoding change is a shape
+error at construction rather than silent nonsense. Changing the net costs a
+retrain; changing the encoding costs re-verification and every checkpoint.
+
+`bc.py` clones a teacher, `evaluate.py` rates a checkpoint by playing it.
+
 ## Fog
 
 `Vision` holds two grids: *lit* tiles and *piercing* tiles (adjacent to a

@@ -74,6 +74,25 @@ pub struct VecEnv {
     /// signal alone, which is correct but very sparse over a thousand-step game.
     shaping: f32,
     episodes: u64,
+    /// A scripted opponent, one per game, playing the seat the agent does not.
+    ///
+    /// Empty for self-play, where whatever the caller submits moves both sides.
+    /// With one set, the caller only ever sees its own seat's positions, which
+    /// is what rating a policy against a fixed baseline needs.
+    opponents: Vec<Box<dyn Bot + Send + Sync>>,
+    /// Which seat the caller plays. Alternated across the batch, so a policy is
+    /// rated on both sides of an asymmetric map rather than on the better one.
+    agent_seats: Vec<PlayerId>,
+    finished: u64,
+    agent_wins: u64,
+    draws: u64,
+    /// Submitted orders the engine would not take, which forfeit the turn.
+    ///
+    /// A policy sampling under the masks should never produce one, so any
+    /// number here at all means the masks and the rules disagree — and the
+    /// symptom is a policy that looks merely bad rather than broken.
+    rejected: u64,
+    submitted: u64,
 }
 
 impl VecEnv {
@@ -116,6 +135,42 @@ impl VecEnv {
     fn is_finished(state: &GameState, max_day: u16) -> bool {
         state.outcome() != Outcome::InProgress || state.day > max_day
     }
+
+    /// Lets the scripted opponent play until the agent is to move again.
+    ///
+    /// A whole opposing turn is many orders, so this is a loop rather than a
+    /// step. The guard is for a bot that never ends its turn; the ones here
+    /// always do, but a hung environment is a miserable thing to debug.
+    fn run_opponent(&mut self, index: usize) {
+        if self.opponents.is_empty() {
+            return;
+        }
+        let seat = self.agent_seats[index];
+        let max_day = self.max_day;
+        for _ in 0..4096 {
+            let game = &mut self.games[index];
+            if game.engine.state.current == seat
+                || VecEnv::is_finished(&game.engine.state, max_day)
+            {
+                return;
+            }
+            let action = self.opponents[index].choose(&mut game.engine);
+            if game.engine.apply(action).is_err() {
+                let _ = game.engine.apply(Action::EndTurn);
+            }
+        }
+        let _ = self.games[index].engine.apply(Action::EndTurn);
+    }
+
+    /// Records a finished game from the agent's side.
+    fn score(&mut self, index: usize) {
+        self.finished += 1;
+        match self.games[index].engine.state.outcome() {
+            Outcome::Winner(p) if p == self.agent_seats[index] => self.agent_wins += 1,
+            Outcome::Winner(_) => {}
+            _ => self.draws += 1,
+        }
+    }
 }
 
 fn check_len(name: &str, got: usize, want: usize) -> PyResult<()> {
@@ -132,7 +187,11 @@ impl VecEnv {
     #[new]
     /// `map_path` defaults to the committed league map; pass `None` for the
     /// synthetic board, which needs no data file.
-    #[pyo3(signature = (num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None))]
+    #[pyo3(signature = (
+        num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None,
+        opponent=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         num_envs: usize,
         seed: u64,
@@ -140,6 +199,7 @@ impl VecEnv {
         fog: bool,
         shaping: f32,
         map_path: Option<String>,
+        opponent: Option<&str>,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -161,6 +221,13 @@ impl VecEnv {
             seed,
             shaping,
             episodes: 0,
+            opponents: Vec::new(),
+            agent_seats: (0..num_envs).map(|i| (i % 2) as PlayerId).collect(),
+            finished: 0,
+            agent_wins: 0,
+            draws: 0,
+            rejected: 0,
+            submitted: 0,
         };
         for i in 0..num_envs {
             let state = env.board.new_state(fog);
@@ -168,6 +235,16 @@ impl VecEnv {
             let last_advantage = advantage(&engine.state, engine.state.current);
             env.games.push(Game { engine, last_advantage, steps: 0 });
             env.masks.push(ActionMasks::new());
+        }
+        if let Some(name) = opponent {
+            env.opponents = (0..num_envs)
+                .map(|i| make_teacher(name, seed.wrapping_add(0xA11CE + i as u64)))
+                .collect::<PyResult<Vec<_>>>()?;
+            for i in 0..num_envs {
+                env.run_opponent(i);
+                env.games[i].last_advantage =
+                    advantage(&env.games[i].engine.state, env.agent_seats[i]);
+            }
         }
         Ok(env)
     }
@@ -222,8 +299,35 @@ impl VecEnv {
         self.episodes += 1;
         for i in 0..self.games.len() {
             self.games[i] = self.new_game(i, self.episodes);
+            if !self.opponents.is_empty() {
+                self.opponents[i].reset(self.seed.wrapping_add(self.episodes));
+                self.run_opponent(i);
+            }
         }
         self.observe(py)
+    }
+
+    /// `(games finished, agent wins, draws)` against a scripted opponent.
+    ///
+    /// Draws are almost all games that hit the day cap. Counting them apart
+    /// from losses matters: a policy that never loses but never wins is a
+    /// different failure from one that is simply beaten.
+    #[getter]
+    fn results(&self) -> (u64, u64, u64) {
+        (self.finished, self.agent_wins, self.draws)
+    }
+
+    /// `(orders submitted, orders the engine refused)`. The second should stay
+    /// at zero for anything sampling under the masks.
+    #[getter]
+    fn order_stats(&self) -> (u64, u64) {
+        (self.submitted, self.rejected)
+    }
+
+    /// The seat the caller plays in each game.
+    fn agent_seat<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let data: Vec<i64> = self.agent_seats.iter().map(|&s| s as i64).collect();
+        data.into_pyarray(py)
     }
 
     /// Writes the current observations into a caller-owned array.
@@ -379,48 +483,79 @@ impl VecEnv {
         let mut actors = vec![0i64; self.games.len()];
         let mut restarts = Vec::new();
 
+        let versus = !self.opponents.is_empty();
+        let (mut bad, mut sent) = (0u64, 0u64);
         for i in 0..self.games.len() {
-            let game = &mut self.games[i];
-            let actor = game.engine.state.current;
-            actors[i] = actor as i64;
-
-            let code = ActionCode {
-                source: sources[i],
-                dest: dests[i],
-                kind: kinds[i] as u8,
-                param: params[i],
+            // With an opponent the caller only ever moves its own seat, so that
+            // is whose side the reward is measured from; in self-play it is
+            // whoever just moved.
+            let scored_for = if versus {
+                self.agent_seats[i]
+            } else {
+                self.games[i].engine.state.current
             };
-            // An unmasked or stale selection forfeits the turn rather than
-            // failing the whole batch; a policy sampling under the masks will
-            // never land here.
-            let action = decode(&game.engine.state, code).unwrap_or(Action::EndTurn);
-            if game.engine.apply(action).is_err() {
-                let _ = game.engine.apply(Action::EndTurn);
-            }
-            game.steps += 1;
+            {
+                let game = &mut self.games[i];
+                actors[i] = game.engine.state.current as i64;
 
-            let advantage_now = advantage(&game.engine.state, actor);
+                let code = ActionCode {
+                    source: sources[i],
+                    dest: dests[i],
+                    kind: kinds[i] as u8,
+                    param: params[i],
+                };
+                // An unmasked or stale selection forfeits the turn rather than
+                // failing the whole batch; a policy sampling under the masks
+                // will never land here.
+                let decoded = decode(&game.engine.state, code);
+                let action = decoded.unwrap_or(Action::EndTurn);
+                let refused = game.engine.apply(action).is_err();
+                if refused {
+                    let _ = game.engine.apply(Action::EndTurn);
+                }
+                game.steps += 1;
+                bad += u64::from(decoded.is_none() || refused);
+                sent += 1;
+            }
+            self.run_opponent(i);
+
+            let game = &mut self.games[i];
+            let advantage_now = advantage(&game.engine.state, scored_for);
             rewards[i] = shaping * (advantage_now - game.last_advantage);
             game.last_advantage = advantage_now;
 
             if VecEnv::is_finished(&game.engine.state, max_day) {
                 dones[i] = true;
                 rewards[i] += match game.engine.state.outcome() {
-                    Outcome::Winner(p) if p == actor => 1.0,
+                    Outcome::Winner(p) if p == scored_for => 1.0,
                     Outcome::Winner(_) => -1.0,
                     _ => 0.0,
                 };
+                if versus {
+                    self.score(i);
+                }
                 restarts.push(i);
             }
         }
 
+        self.rejected += bad;
+        self.submitted += sent;
         self.episodes += 1;
         for i in restarts {
             self.games[i] = self.new_game(i, self.episodes);
+            if versus {
+                self.opponents[i].reset(self.seed.wrapping_add(self.episodes));
+                self.run_opponent(i);
+            }
         }
-        // Every game's advantage baseline follows whoever is now to move.
-        for game in self.games.iter_mut() {
-            game.last_advantage = advantage(&game.engine.state, game.engine.state.current);
+        // Every game's advantage baseline follows the side the reward is for.
+        for i in 0..self.games.len() {
+            let seat = if versus {
+                self.agent_seats[i]
+            } else {
+                self.games[i].engine.state.current
+            };
+            self.games[i].last_advantage = advantage(&self.games[i].engine.state, seat);
         }
 
         Ok((
@@ -489,7 +624,7 @@ impl TeacherEnv {
         fog: bool,
         map_path: Option<String>,
     ) -> PyResult<Self> {
-        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path)?;
+        let inner = VecEnv::new(num_envs, seed, max_day, fog, 0.0, map_path, None)?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
             .collect::<PyResult<Vec<_>>>()?;
@@ -524,6 +659,11 @@ impl TeacherEnv {
     #[getter]
     fn map_name(&self) -> String {
         self.inner.map_name()
+    }
+
+    #[getter]
+    fn end_turn_index(&self) -> u32 {
+        self.inner.end_turn_index()
     }
 
     /// Games completed so far, and the fraction the first seat won. A teacher
@@ -638,6 +778,15 @@ pub struct ReplayTeacher {
     files: Vec<std::path::PathBuf>,
     next_file: usize,
     slots: Vec<Option<Cursor>>,
+    /// How far into its first game each slot starts.
+    ///
+    /// Without this every slot opens at turn 0, so the first hundred batches
+    /// are a hundred views of day one — all builds and captures, no combat —
+    /// and a small held-out set that keeps restarting never shows anything
+    /// else. Only the *first* game is skipped into, so steady-state coverage
+    /// of a game stays even.
+    stagger: Vec<usize>,
+    pending: Vec<usize>,
     want_map: Option<String>,
     shape: (u8, u8),
     obs_len: usize,
@@ -718,8 +867,13 @@ impl ReplayTeacher {
                 }
                 opens += 1;
                 cursor = self.open_next();
-                if cursor.is_none() {
-                    break;
+                let Some(fresh) = cursor.as_mut() else { break };
+                let skip = std::mem::take(&mut self.pending[slot]);
+                for _ in 0..skip {
+                    if fresh.finished() {
+                        break;
+                    }
+                    fresh.advance();
                 }
             }
 
@@ -765,7 +919,10 @@ impl ReplayTeacher {
         seed=0,
         skip_powers=true,
         skip_illegal=true,
+        holdout=0.0,
+        validation=false,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         replay_dir: &str,
         num_envs: usize,
@@ -773,6 +930,8 @@ impl ReplayTeacher {
         seed: u64,
         skip_powers: bool,
         skip_illegal: bool,
+        holdout: f64,
+        validation: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -794,10 +953,38 @@ impl ReplayTeacher {
             files.swap(i, rng.roll_inclusive(i as u32) as usize);
         }
 
+        // The split is by *game*, not by order. Two orders from the same turn
+        // are nearly the same position, so splitting orders would leave the
+        // validation set memorised rather than held out.
+        if !(0.0..1.0).contains(&holdout) {
+            return Err(PyValueError::new_err("holdout must be in 0.0..1.0"));
+        }
+        if holdout > 0.0 {
+            let kept = ((files.len() as f64) * (1.0 - holdout)).round() as usize;
+            let kept = kept.clamp(1, files.len() - 1);
+            if validation {
+                files.drain(..kept);
+            } else {
+                files.truncate(kept);
+            }
+        } else if validation {
+            return Err(PyValueError::new_err(
+                "validation=True needs holdout > 0.0",
+            ));
+        }
+
+        // A typical game is about 380 orders, so this spreads the slots over a
+        // whole one without needing to know its length in advance.
+        let stagger: Vec<usize> = (0..num_envs)
+            .map(|_| rng.roll_inclusive(360) as usize)
+            .collect();
+
         let mut teacher = ReplayTeacher {
             files,
             next_file: 0,
             slots: (0..num_envs).map(|_| None).collect(),
+            pending: stagger.clone(),
+            stagger,
             want_map: map_name.map(str::to_string),
             shape: (0, 0),
             obs_len: 0,
@@ -881,6 +1068,23 @@ impl ReplayTeacher {
             self.games_opened,
             self.epochs,
         )
+    }
+
+    /// Returns every slot to where it started.
+    ///
+    /// A validation pass has to score the *same* orders each time it runs, or a
+    /// rising number cannot be told from an easier sample. Streaming teachers
+    /// do not naturally do that, so this rewinds one.
+    fn reset(&mut self) {
+        self.next_file = 0;
+        self.epochs = 0;
+        self.pending.copy_from_slice(&self.stagger);
+        for slot in self.slots.iter_mut() {
+            *slot = None;
+        }
+        for i in 0..self.slots.len() {
+            self.refill(i);
+        }
     }
 
     /// Which seat is to move in each slot. `-1` where a slot has no game.

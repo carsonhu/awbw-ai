@@ -7,6 +7,8 @@ Rust rules engine for Advance Wars by Web, built to run RL self-play. See
 
 - `crates/awbw-engine` — the engine. Rules, combat, movement, fog.
 - `crates/awbw-replay` — verifies the engine against recorded games.
+- `crates/awbw-py` — the batched environment Python trains against.
+- `python/` — the network, the cloning loop, and rating a checkpoint by play.
 - `tools/` — Python: generates data tables, normalizes replays.
 - `data/` — game data and cached maps. `data/prepared/` and `data/maps/` are
   gitignored and rebuilt on demand.

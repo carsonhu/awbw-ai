@@ -23,14 +23,18 @@ ROOT = Path(__file__).resolve().parent.parent
 # decisions.md is append-only by design, so it grows with the project by
 # construction. Its discipline is per-entry -- a few lines each, and delete an
 # entry when it stops being true -- rather than a fixed total.
+#
+# architecture.md and workflow.md went up again when training was added: a
+# network, a cloning loop and a way to rate a checkpoint are a stage the project
+# did not have, not padding around one it did.
 BUDGETS = {
     "CLAUDE.md": 45,
     "README.md": 60,
-    "docs/architecture.md": 110,
+    "docs/architecture.md": 115,
     "docs/rules.md": 90,
     "docs/verification.md": 90,
     "docs/decisions.md": 150,
-    "docs/workflow.md": 70,
+    "docs/workflow.md": 83,
 }
 
 # Everything under docs/ needs a budget, so a new file cannot slip in unbounded.

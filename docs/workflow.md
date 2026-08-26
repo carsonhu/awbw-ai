@@ -43,8 +43,21 @@ py -3.12 python/smoke_test.py
 ```
 
 `smoke_test.py` is the contract check for `VecEnv`; `replay_demo.py` is the same
-for `ReplayTeacher` and needs `data/prepared`. Keep observations in one reused
-buffer refilled by `observe_into`; allocating per step costs most of the speed.
+for `ReplayTeacher` and needs `data/prepared`. Keep observations in one *pinned*
+buffer refilled by `observe_into` — a batch is ten megabytes, and copying it from
+pageable memory each step cost more than the engine did.
+
+## Training and rating a policy
+
+```
+py -3.12 python/bc.py --teacher human --steps 6000   # clone the corpus
+py -3.12 python/bc.py --teacher greedy               # or the scripted bot
+py -3.12 python/evaluate.py --temperature 0.3        # play it against greedy
+py -3.12 python/evaluate.py --policy random          # the floor, for scale
+```
+
+`--amp` is off by default and worth measuring before turning on: without fp16
+tensor cores it is nearly four times *slower*.
 
 ## Preparing replays
 

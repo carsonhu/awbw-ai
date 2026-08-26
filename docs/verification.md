@@ -54,20 +54,17 @@ unit HP, 5 stragglers. No common cause found; diminishing returns.
 cargo run --release -p awbw-replay --bin bc-stats -- data/prepared
 ```
 
-Across 366 non-fog games: **138k labelled orders, 377 per game, 97.4% legal**,
-90.7% usable once power-affected orders are dropped. Humans spend 57% of orders
-moving, 17% building, 16% attacking, 9% capturing.
+Across 366 non-fog games: **154k labelled orders, 420 per game, 98.0% legal**,
+91% usable once power-affected orders are dropped. Humans spend 51% of orders
+moving, 16% attacking, 16% capturing, 15% building.
 
 It also reports rejections by position within the turn, which is how state
 corruption shows itself: a flat profile means a rejected order is not poisoning
 the ones after it.
 
-Every legal order also **round-trips** through the action codec: 0 of 134,518
-encode to a code that decodes back to something else. A label that failed this
-would teach the policy to reach for an output its masks can never produce.
-
-`ReplayTeacher` in `awbw-py` serves the same labels to a trainer, one game per
-slot, at ~20k orders/sec — roughly half of that spent parsing replay JSON.
+Every legal order also **round-trips** through the action codec — 0 of 150,870
+decode back to something else — so no label asks for an output the masks forbid.
+`ReplayTeacher` serves the same labels to a trainer at ~20k orders/sec.
 
 ## Bugs it has caught
 
@@ -84,5 +81,8 @@ have read as engine faults:
   *empty string*, not null, so "first non-null" picked the blind seat's blank.
 - Mid-turn HP resynced from displayed HP, re-simulating later attacks from a
   baseline up to a point too high.
+- A unit acting *without moving* gets an empty `Move`, not a missing one, so the
+  translator dropped half of all captures and one attack in eight. The cloned
+  policy started captures and never finished one; see `decisions.md`.
 - Engine: repair rounding up to the display step; Sami's capture rate and
   transport movement; Rachel's repair bonus.

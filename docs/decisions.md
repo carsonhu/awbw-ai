@@ -53,19 +53,18 @@ fog agreement.
 ## Training setup
 
 **The board is A River Supreme (AWBW map 119544)**, committed at
-`data/maps/119544.json`. Picked over the other popular league maps because it
-has the largest pool of recorded standard games (~1,875), the smallest board of
-the clean candidates (17x18), perfect 180-degree rotational symmetry, and —
-alone among the popular maps — no terrain the engine leaves unimplemented. A
-real map also removes the mismatch between the training environment and the
-replay corpus: same board, same rules, same opening.
+`data/maps/119544.json`. Picked over the other popular league maps for the
+largest pool of recorded standard games (~1,875), the smallest board of the
+clean candidates (17x18), perfect 180-degree rotational symmetry, and — alone
+among them — no terrain the engine leaves unimplemented. A real map also lets
+the training environment and the corpus share a board, rules and opening.
 
 **Bots must break ties at random.** The action list is built row-major, so
 resolving equal-scoring options by enumeration order is a geographic bias in
-disguise. On this map it turned a greedy mirror match into 15/85; randomising
-ties restored it to 40/60. Verified against a random-vs-random control, which
-sat at 43% throughout and proved the board and engine were never at fault. Any
-scripted teacher used for imitation needs this, or the bias is cloned with it.
+disguise. On this map it turned a greedy mirror into 15/85; randomising ties
+restored it to 40/60, and a random-vs-random control at 43% throughout proved
+the board was never at fault. Any scripted teacher used for imitation needs
+this, or the bias is cloned with it.
 
 **Its starting units are deliberately asymmetric.** Blue Moon gets an infantry
 Orange Star has no counterpart for, on top of the mirrored Black Boats. That is
@@ -73,24 +72,22 @@ a property of the map, not a loading bug, and it means the seats are *not*
 interchangeable — evaluation has to swap them, which the arena does.
 
 **The observation carries CO information, because imitation needs it.** A policy
-is only learnable if the input contains what the demonstrator was conditioning
-on. Kanbei attacks at +30% and Colin at -10%, a forty-point swing that flips
-which trades are correct, and Colin's 8,000 funds buys what Andy's 10,000 does —
-so identical-looking boards carried contradictory labels. The CO's attack and
-defence modifiers ride as *planes*, applying exactly where they act, and its
-cost, capture, income and power-meter values as globals. Encoding the modifiers
-rather than a one-hot CO identity shares statistical strength: Max's +20% and
-Grimm's +30% sit next to each other, and no single CO needs its own data.
+is only learnable if the input holds what the demonstrator conditioned on.
+Kanbei attacks at +30% and Colin at -10%, a swing that flips which trades are
+correct, so identical-looking boards carried contradictory labels. Attack and
+defence ride as *planes*, applying exactly where they act; cost, capture, income
+and power charge as globals. Encoding the modifiers rather than a one-hot CO
+identity shares strength — Max's +20% sits next to Grimm's +30%.
 
 **Powers cost far less data than they look like they will.** 69% of games on the
-training map use one, but only 7.4% of *turns* and 10.9% of *orders* happen while
-one is active, so those orders can simply be dropped from an imitation loss.
+training map use one, but only 9% of *orders* happen while one is active, so
+those can simply be dropped from an imitation loss.
 
-**Imitation labels check themselves.** Every translated human order is put
-through `Engine::check` in the position it was played in before being offered as
-a label. 94.5% pass across 366 non-fog games and 128k orders, which is the
-strongest available evidence that the translation and the engine agree. The
-failures are counted, not hidden, and the flag lets a trainer drop them.
+**Imitation labels check themselves**, twice. Every translated human order is put
+through `Engine::check` in the position it was played in, and its action code is
+decoded back to confirm it is one a masked policy could emit. 98.0% of 154k
+orders pass the first and all of them the second. Failures are counted, not
+hidden, and the flag lets a trainer drop them.
 
 **Unloading is a free action, and not part of a move.** AWBW departs from the
 cartridge: "transports may unload at any point in their turn, even if they have
@@ -101,10 +98,9 @@ still a legal source. Bundling the two, as the cartridge does, made essentially
 every recorded unload read as illegal.
 
 **A rejected order must still be forced onto the board.** The imitation cursor
-used to fall back to ending the turn, which handed play to the opponent
-mid-turn and made every later order in that turn illegal too. The damage was
-visible as a gradient — 2.7% of a turn's first orders rejected against 13.2% of
-its last — and disappeared once rejected orders were forced through instead.
+used to fall back to ending the turn, handing play to the opponent mid-turn and
+making every later order in that turn illegal too — 2.7% of a turn's first
+orders rejected against 13.2% of its last. Forcing them through flattened it.
 
 ## Verification
 
@@ -129,21 +125,26 @@ sharp.
 
 **Games need a ~60-day cap, not 30.** Measured with the `decisiveness` example:
 random self-play reaches a real win *0 times in 40 games even at 120 days*, and
-greedy mirrors 0/40 at a 30-day cap but 27/40 at 60. So a win/loss reward is not
-merely sparse for an untrained policy, it is absent — which is why training has
-to start from imitation rather than from scratch, and why shaped reward carries
-the early signal.
+greedy mirrors 0/40 at a 30-day cap but 27/40 at 60. A win/loss reward is not
+merely sparse for an untrained policy, it is absent — which is why training
+starts from imitation, and why shaped reward carries the early signal.
 
 **Orders are matched to snapshots by (player, day), not line index.** Some
 replays are truncated, and index pairing silently attributed one player's whole
 turn to their opponent.
 
-**A label must be emittable, not merely legal.** Every recorded order is encoded
-and decoded back before it is offered: an order whose code decodes to something
-else would train the policy toward an output its own masks forbid. All 134,518
-legal orders round-trip, so this is a guard rather than a filter.
-
 **Replays stream; they are never written to disk as a dataset.** One observation
 is 19,603 floats, so a million samples would be seventy-odd gigabytes, and the
-engine regenerates one in microseconds. `ReplayTeacher` walks a game per slot
-and refills from the corpus as each runs out.
+engine regenerates one in microseconds. `ReplayTeacher` walks a game per slot,
+staggered so a batch is not thirty-two views of day one.
+
+**An order with an empty `Move` still moved nobody, not nothing.** AWBW writes
+`"Move": []` when a unit acts where it stands, so a translator that tests
+whether the key *exists* loses all of them — half of every capture and one
+attack in eight. The cloned policy started captures, never finished one, and sat
+at three properties for sixty days. A missing label is not just less data when
+a whole kind of decision is the thing missing.
+
+**A policy is rated by playing, not by predicting.** Held-out accuracy says
+whether it guesses what a human did, not whether it can play. At 44% it beats
+`random` and `capturer` 40/40 and loses to `greedy` 38/40.

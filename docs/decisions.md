@@ -199,6 +199,25 @@ policy provably frozen, because a midgame position holds more units and more rea
 choices than an opening. It tracks where the games are, not what the policy is
 becoming — read `kl` and `clip`.
 
+**The opening fix moved the clone, not the RL checkpoints.** `ppo` rates
+96.1% against `greedy` in the fixed environment against 96.2% before it, so
+nothing trained by playing needs retraining for the opening alone. The clone
+doubled because it is nothing but the corpus opening
+(`log/2026-08-26-jakeman-ppo.md`).
+
+**A rollout window is not a rating, and must not set the best-weights bar.**
+A 38-game warm-up window claimed 57.9% for weights whose true rating is ~40%,
+and no real improvement could clear the fluke — the "best" checkpoint the
+guard kept was the starting weights. A window carries ±8 points; treat the
+bar it sets accordingly, or rate candidates over enough games to mean it
+(`log/2026-08-26-jakeman-ppo.md`).
+
+**The greedy PPO recipe does not transfer to JakeMan.** From a 44% start —
+the even matchup PPO is supposed to like — the defaults that took `greedy`
+5.5%→96% never improved and decayed to 7.6%, with `kl` and `clip` nominal
+throughout. Cause unestablished; a fixed opponent has now failed by
+saturating (`greedy`) and by this (`log/2026-08-26-jakeman-ppo.md`).
+
 **Most of the source head's error is ordering, not judgement — and fixing that
 bought nothing.** Its top pick is a unit the human moved somewhere in the turn
 95.2% of the time, against 68.2% for a uniform pick, so its 44.7% top-1 is

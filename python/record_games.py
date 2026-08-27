@@ -45,6 +45,12 @@ def main() -> int:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--map-id", type=int, default=119544)
+    # Which CO both seats play (a mirror). None is the ability-free vanilla CO.
+    # A checkpoint trained under one plays a different game without it: the
+    # power source indices are never legal, so a policy that has learned to pop
+    # simply never gets the chance, and the replay quietly omits the thing it
+    # was recorded to show.
+    parser.add_argument("--co", default=None)
     parser.add_argument("-o", "--out", default="replays")
     # Shown as the game's title. Player *names* cannot be set: an AWBW
     # replay stores only a users_id and a viewer resolves it against the
@@ -65,6 +71,7 @@ def main() -> int:
     env = awbw.VecEnv(
         num_envs=args.envs, seed=args.seed, max_day=args.max_day,
         opponent=None if args.versus else args.opponent, record=True,
+        co=args.co,
     )
     agent = evaluate.Net(
         evaluate.load(ROOT / args.checkpoint, env, device), device, args.temperature)
@@ -109,6 +116,7 @@ def main() -> int:
             path = write_replay.Writer(
                 game, game_id, args.map_id, f"{title} [{label} is P{seat + 1}]",
                 [int(u) for u in args.users.split(",")] if args.users else None,
+                co=args.co,
             ).write(args.out, stem)
             written.append((game, outcome))
             print(f"  {path}  {game['days']} days, "

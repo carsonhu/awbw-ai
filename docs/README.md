@@ -38,12 +38,13 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (24)
+## Log (25)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-27 | [The self-play ladder turns over, four generations in one run](log/2026-08-27-the-ladder-turns-over.md) | Continuing the from-behind run promoted four times. Rated, not windowed: the learner went from losing to `ppo-adder3` 15.4% to beating it **62.5% ±3.4**, and the fourth generation beats the first **93.5% ±1.7**. Self-play produces something for the first time in this project. |
 | 2026-08-27 | [Self-play works from behind, and the policy starts pressing the button](log/2026-08-27-selfplay-from-behind.md) | **Corrected the same day by `2026-08-27-parity-was-never-the-problem.md`: the opening is not what fixed this. A parity control with recalibration off promotes too, and beats this lineage. The measurements below stand; the credit assigned to `--frozen-init` does not.** |
+| 2026-08-27 | [The self-play gains do not transfer, and head-to-head hid it](log/2026-08-27-selfplay-does-not-transfer.md) | `sp-parity-gen3` beats `ppo-adder3` 90.3% head to head — and scores **22.8% against `greedy`, where `ppo-adder3` scores 65.1%**. The ladder has been producing counter-lineage specialists, not stronger play, and every measurement that would have caught it was inside the lineage. |
 | 2026-08-27 | [Self-play's missing rows are not missing](log/2026-08-27-row-share-retired.md) | `2026-08-26-selfplay-drift.md` closed on a 46.1% learner row share — "unexplained, reproducible, start here". Re-measured on the powers-era build it is 50.3%, and it decomposes exactly as that log argued it must. |
 | 2026-08-27 | [Recalibration defaulted on, and ran in every powers-era run](log/2026-08-27-recalibration-ran-again.md) | `2026-08-26-recalibration.md` measured seventeen points of damage from refitting batch-norm and closed with "run with `--recalibrate 0`". It was never made the default, so it ran in `ppo-adder1`, `ppo-adder2`, `ppo-adder3` and the first self-play attempt. The default is now 0. |
 | 2026-08-27 | [Parity was never the problem — recalibration was](log/2026-08-27-parity-was-never-the-problem.md) | The control that should have drifted promoted three times and produced the strongest policy of the night: 90.3% against `ppo-adder3`, and 84.0% against the from-behind ladder that took twice the compute to get to 87.0%. `--frozen-init` bought nothing. Correcting today's claim. |

@@ -47,6 +47,20 @@ COUNTRIES = ["os", "bm"]
 COUNTRY_ID = {"os": 1, "bm": 2}
 STAMP = "2026-01-01 00:00:00"
 
+# What a viewer needs to draw the CO: its AWBW id and portrait, and the meter
+# maxima, which are the star counts times 9,000 funds a star. `gen_cos.py` and
+# `co_data.rs` are the authority on the star counts; this table is only the
+# handful the trainer actually plays, and anything missing writes as vanilla.
+# `power` names are cosmetic — AWBW records carry them, no reader here reads
+# one — and are transcribed from the wiki.
+CO_ROWS = {
+    None: {"id": 1, "image": "andy.png", "cop": 1, "scop": 2,
+           "power": {"Y": None, "S": None}},
+    "Adder": {"id": 11, "image": "adder.png", "cop": 2, "scop": 5,
+              "power": {"Y": "Sideslip", "S": "Sidewinder"}},
+}
+STAR_CHARGE = 90_000
+
 # Capture points a property starts with, counting down as it is taken. AWBW and
 # the engine agree on twenty.
 CAPTURE_FULL = 20
@@ -147,12 +161,16 @@ def player_id(seat):
 class Writer:
     """Builds one replay's two files from a recorded game."""
 
-    def __init__(self, log, game_id, map_id, name, users=None):
+    def __init__(self, log, game_id, map_id, name, users=None, co=None):
         self.log = log
         self.users = list(users or DEFAULT_USERS)
         self.game_id = game_id
         self.map_id = map_id
         self.name = name
+        # A mirror, so one entry covers both seats. Unknown names fall back to
+        # the vanilla row rather than guessing an id a viewer would resolve to
+        # the wrong portrait.
+        self.co = CO_ROWS.get(co, CO_ROWS[None])
         self.seats = sorted({t["active"] for t in log["turns"]} | {0, 1})
         # What each property's capture stood at before the most recent capture
         # *event*, which is not the same as the previous snapshot: snapshots
@@ -427,6 +445,22 @@ class Writer:
                     "rows": [],
                     "supplied": {str(player_id(s)): [] for s in self.seats},
                 },
+            }
+        if kind == "Power":
+            # Shaped like a real one (`564287.json`): the flag, the meter after
+            # the cost came off, and `unitReplace` — which carries the HP a
+            # power *changed*, so a power that changes none writes both seats
+            # empty rather than omitting the key a viewer expects.
+            seat = order["playerID"]
+            return {
+                "action": "Power",
+                "playerID": self.user(seat),
+                "coName": order["coName"],
+                "coPower": order["coPower"],
+                "powerName": self.co["power"].get(order["coPower"]),
+                "playersCOP": order["playersCOP"],
+                "unitReplace": {str(self.user(s)): {"units": None}
+                                for s in self.seats},
             }
         if kind == "End":
             return {

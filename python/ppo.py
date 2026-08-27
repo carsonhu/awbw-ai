@@ -135,12 +135,22 @@ class Trainer:
             # weights the learner starts *behind* its opponent instead, which is
             # the regime the runs that gained were all in, and promotion turns
             # it back into a ladder from there.
-            if getattr(args, "frozen_init", None):
-                self.frozen = self.load_policy(args.frozen_init, remember=False)
-                self.frozen.eval()
-            else:
-                self.frozen = copy.deepcopy(self.policy).eval()
+            # `--frozen-init` takes a list, and more than one makes it a league:
+            # a run whose opponent is only ever its own recent past learns to
+            # beat that and nothing else -- generation four beat generation one
+            # 93.5% while losing 42 points to `greedy`
+            # (`log/2026-08-27-selfplay-does-not-transfer.md`). The pool holds
+            # weights, one is drawn per iteration, and each promotion adds the
+            # generation just made. Per iteration rather than per env because
+            # both sides run on the whole batch -- each head's mask depends on
+            # the last head's pick, so the sides advance in step and a pool of
+            # five sampled per env would be five forward passes a step.
+            names = [n for n in (getattr(args, "frozen_init", "") or "").split(",") if n]
+            self.pool = [self.load_policy(n, remember=False).state_dict() for n in names]
+            self.frozen = (copy.deepcopy(self.policy).eval() if not self.pool
+                           else self.load_policy(names[0], remember=False).eval())
             self.frozen.requires_grad_(False)
+            self.opponents_seen = 0
         self.seat = torch.from_numpy(self.env.agent_seat()).to(device)
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=args.lr,
                                            weight_decay=0.0)
@@ -486,11 +496,25 @@ class Trainer:
         the start, cost the first self-play run everything it had gained: it
         promoted at 78%, then fell to 20% against the weights it had just been.
         """
+        if self.pool:
+            # The generation just made joins the league rather than replacing
+            # it, so what the learner beat two rungs ago keeps coming back.
+            self.pool.append(copy.deepcopy(self.policy.state_dict()))
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
         self.refreshes += 1
         self.recalibrating = self.args.refresh_warmup
+
+    def take_opponent(self, iteration):
+        """Seats the next league member, round robin. No-op without a pool."""
+        if not self.pool:
+            return None
+        which = iteration % len(self.pool)
+        self.frozen.load_state_dict(self.pool[which])
+        self.frozen.eval()
+        self.frozen.requires_grad_(False)
+        return which
 
     def save(self, path):
         path = ROOT / path
@@ -523,8 +547,12 @@ def main() -> int:
     # it from behind instead -- the only regime anything here has ever gained
     # in -- and the first promotion is then a real rung climbed, not a snapshot
     # going stale. Must be the same network as `--init`.
+    # Comma-separated makes it a league: the pool is drawn from one member per
+    # iteration and each promotion adds a generation, so a policy cannot win by
+    # answering only what it played last.
     parser.add_argument("--frozen-init", default=None,
-                        help="weights for the opponent seat (default: a copy)")
+                        help="weights for the opponent seat, comma-separated "
+                             "for a league (default: a copy of the learner)")
     parser.add_argument("--refresh-at", type=float, default=0.7,
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,
@@ -621,7 +649,9 @@ def main() -> int:
     per = args.envs * args.steps
     print(f"device {device}, {sum(p.numel() for p in trainer.policy.parameters())/1e6:.2f}M "
           f"parameters, from {args.init}")
-    if args.selfplay:
+    if args.selfplay and len(trainer.pool) > 1:
+        against = f"a league of {len(trainer.pool)}, one per iteration"
+    elif args.selfplay:
         against = (f"frozen {args.frozen_init}" if args.frozen_init
                    else "a frozen copy of itself")
     else:
@@ -634,6 +664,7 @@ def main() -> int:
     pops = seen_pops = 0
     best = -1.0
     for iteration in range(1, args.iterations + 1):
+        trainer.take_opponent(iteration)
         last, last_actor = trainer.collect()
         # The learner's own power activations this rollout.
         pops += int(((trainer.buffer.actions[..., 0] >= trainer.pop_floor)

@@ -38,10 +38,11 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (20)
+## Log (21)
 
 | date | entry | what it found |
 |---|---|---|
+| 2026-08-27 | [Self-play works from behind, and the policy starts pressing the button](log/2026-08-27-selfplay-from-behind.md) | The same run that collapsed to 0.0% with recalibration on climbs 20.8% -> 52.8% with it off, against a frozen opponent that beat its starting weights 84.6/15.4. And activations rise from 0.02/g to a sustained 0.4-0.7/g — the first thing that has ever taught a CO power. |
 | 2026-08-27 | [Self-play's missing rows are not missing](log/2026-08-27-row-share-retired.md) | `2026-08-26-selfplay-drift.md` closed on a 46.1% learner row share — "unexplained, reproducible, start here". Re-measured on the powers-era build it is 50.3%, and it decomposes exactly as that log argued it must. |
 | 2026-08-27 | [Recalibration defaulted on, and ran in every powers-era run](log/2026-08-27-recalibration-ran-again.md) | `2026-08-26-recalibration.md` measured seventeen points of damage from refitting batch-norm and closed with "run with `--recalibrate 0`". It was never made the default, so it ran in `ppo-adder1`, `ppo-adder2`, `ppo-adder3` and the first self-play attempt. The default is now 0. |
 | 2026-08-27 | [The curriculum rung holds, and `greedy` stops being able to see it](log/2026-08-27-jakeman-under-adder.md) | `ppo-adder3` climbed 2.5% -> 15.5% against JakeMan-under-Adder over 200 iterations without ever decaying — behind the whole way, which is the point. It beats its own parent 84.6%. Against `greedy` the two are indistinguishable, which is a fact about `greedy`. |

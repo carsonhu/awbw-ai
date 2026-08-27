@@ -531,7 +531,13 @@ def main() -> int:
                         help="games that window needs before it may promote")
     parser.add_argument("--refresh-warmup", type=int, default=10,
                         help="critic-only iterations after each promotion")
-    parser.add_argument("--recalibrate", type=int, default=1,
+    # Off, and it stays off until somebody understands why refitting hurts.
+    # Twenty-five refits with *no gradient step at all* cost seventeen points
+    # of play strength (`log/2026-08-26-recalibration.md`), and the damage does
+    # not arrive through the gradient, so `kl` and `clip` stay nominal while it
+    # happens -- which is how it silently invalidated a JakeMan run, and then
+    # every powers-era run launched after the finding, because it defaulted on.
+    parser.add_argument("--recalibrate", type=int, default=0,
                         help="refit batch-norm statistics to visited states")
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--envs", type=int, default=32)

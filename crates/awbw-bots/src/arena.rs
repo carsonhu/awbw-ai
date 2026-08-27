@@ -133,17 +133,12 @@ pub fn play_game_on(
         }
     }
 
-    // Out of time: award it to whoever is further ahead, and call a genuine
-    // stalemate a draw.
-    let value = |p: PlayerId| {
-        engine
-            .state
-            .units_of(p)
-            .map(|u| u.typ.stats().cost as u64 * u.hp100 as u64 / 100)
-            .sum::<u64>()
-            + engine.state.property_count(p) as u64 * 5_000
-    };
-    let (a, b) = (value(0), value(1));
+    // Out of time: AWBW's own tiebreak — income, then property count (Com
+    // Towers and labs count, though they pay nothing), then a draw. Material
+    // is never considered.
+    let standing =
+        |p: PlayerId| (engine.state.income(p), engine.state.buildings_of(p).count());
+    let (a, b) = (standing(0), standing(1));
     match a.cmp(&b) {
         std::cmp::Ordering::Greater => Some(0),
         std::cmp::Ordering::Less => Some(1),

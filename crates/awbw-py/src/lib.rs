@@ -60,27 +60,22 @@ enum Resolution {
     Cut,
 }
 
-/// Who was ahead when the clock ran out: properties first, then material.
+/// Who was ahead when the clock ran out: AWBW's own tiebreak — income, then
+/// property count, then a draw. The count includes Com Towers and labs, which
+/// pay nothing; material is never considered.
 ///
-/// The day cap is ours, not the game's — AWBW has no such rule — so a policy
-/// that runs into it is exploiting the harness. Left undecided it is a free
-/// half point, and a policy will take it: over one run the share of games
-/// stopped by the cap went 13% -> 33% while the win rate fell twelve points
-/// and the *score* did not move, because a draw counts half. Deciding it the
-/// way a turn-limited league game is decided prices stalling honestly.
+/// Global League games are uncapped, but Live League caps at 30 days and this
+/// is how it decides them. Left undecided a capped game is a free half point,
+/// and a policy will take it: over one run the share of games stopped by the
+/// cap went 13% -> 33% while the win rate fell twelve points and the *score*
+/// did not move, because a draw counts half. Deciding it the way AWBW itself
+/// decides a turn-limited game prices stalling honestly.
 fn decided_by_tiebreak(state: &GameState, player: PlayerId) -> Resolution {
     let them = (0..state.players.len() as PlayerId)
         .find(|&p| state.are_enemies(player, p))
         .unwrap_or(player);
-    let material = |p: PlayerId| -> u32 {
-        state
-            .units_of(p)
-            .map(|u| u.typ.stats().cost * u.hp100 as u32 / 100)
-            .sum()
-    };
-    let mine = (state.property_count(player), material(player));
-    let theirs = (state.property_count(them), material(them));
-    match mine.cmp(&theirs) {
+    let standing = |p: PlayerId| (state.income(p), state.buildings_of(p).count());
+    match standing(player).cmp(&standing(them)) {
         std::cmp::Ordering::Greater => Resolution::Won(player),
         std::cmp::Ordering::Less => Resolution::Won(them),
         std::cmp::Ordering::Equal => Resolution::Drawn,

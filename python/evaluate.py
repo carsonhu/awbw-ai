@@ -223,7 +223,7 @@ def main() -> int:
     # undecided and a whole one either way decided, so the two settings put a
     # stalling policy several points apart.
     parser.add_argument("--decide-cap", action="store_true",
-                        help="settle a day-capped game on properties, then material")
+                        help="settle a day-capped game on income, then property count")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="0 for the best order every time")
     parser.add_argument("--seed", type=int, default=3)

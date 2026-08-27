@@ -311,5 +311,6 @@ is untested (`log/2026-08-26-awbw-units.md`).
 **An undecided day cap is a free half point, and the score hides it.** Draws
 count 0.5, so a policy that stops closing games reads as flat: arm B's score
 held near 58% while outright wins fell 51.0% -> 39.0% and draws doubled.
-`--decide-cap` settles a capped game on properties then material, the way a
-turn-limited league game is settled. Built, never trained against.
+`--decide-cap` settles a capped game as AWBW settles a turn-limited one:
+income, then property count (Com Towers and labs count, material never does),
+then a draw. Built, never trained against.

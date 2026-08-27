@@ -2,8 +2,8 @@
 //!
 //! This decides how much learning signal a win/loss reward can carry. A
 //! terminal reward is worth nothing if nobody ever reaches a terminal state,
-//! and the arena's material tiebreak at the day cap hides that: it reports a
-//! winner either way. Here the two are counted apart.
+//! and the arena's tiebreak at the day cap hides that: it reports a winner
+//! either way. Here the two are counted apart.
 
 use awbw_bots::greedy::GreedyBot;
 use awbw_bots::map::symmetric_map;

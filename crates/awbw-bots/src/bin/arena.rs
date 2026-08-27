@@ -51,8 +51,8 @@ fn main() {
     }
     let games = flag("--games", 20);
     // 60, not 30: two competent players need about 40 days to resolve a game,
-    // so a 30-day cap decides every mirror match on the material tiebreak and
-    // never on an actual win. See the `decisiveness` example.
+    // so a 30-day cap decides every mirror match on the tiebreak and never on
+    // an actual win. See the `decisiveness` example.
     let max_day = flag("--max-day", 60) as u16;
 
     let mut bots: Vec<Box<dyn Bot>> = vec![

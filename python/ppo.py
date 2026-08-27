@@ -567,8 +567,9 @@ def main() -> int:
     # enough credit horizon to see it, the share of games stopped by the cap
     # went 13% -> 33% while the win rate fell twelve points and the reported
     # score did not move at all, because a draw counts half. This settles a
-    # capped game on properties then material, the way a turn-limited league
-    # game is settled. Off by default -- it changes what every rating means.
+    # capped game the way AWBW settles a turn-limited one: income, then
+    # property count, then a draw. Off by default -- it changes what every
+    # rating means.
     parser.add_argument("--decide-cap", action="store_true",
                         help="settle a day-capped game instead of drawing it")
     parser.add_argument("--max-day", type=int, default=60)

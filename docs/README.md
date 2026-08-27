@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (13)
+## Log (14)
 
 | date | entry | what it found |
 |---|---|---|
@@ -47,6 +47,7 @@ Then `python tools/docs.py index`.
 | 2026-08-26 | [The written replay reaches 100%, on two bugs about units that stopped existing](log/2026-08-26-round-trip-clean.md) | 99.837% to 100.000%, 33 divergences to none. A unit killed by the counterattack was recorded as never having moved, and a transport was named by a slot number where everything else uses a stable id. |
 | 2026-08-26 | [Recalibration was eating the policy](log/2026-08-26-recalibration.md) | Refitting batch-norm statistics costs seventeen points of play strength with no gradient step taken at all. It is on by default, so it ran in every job since it was added — including the JakeMan run whose result it invalidates. |
 | 2026-08-26 | [PPO climbs from behind and decays from level, and the ladder has no rung left](log/2026-08-26-ppo-only-climbs-from-behind.md) | Four runs, one rule: a policy clearly worse than its opponent gains a lot, a policy level with it or ahead comes apart. Step size is not the cause, and `ppo-jake2` has nothing left to be behind. |
+| 2026-08-26 | [The meter meets the oracle, and Sonja had been blinding the verifier](log/2026-08-26-power-oracle.md) | Phase 2 of Adder powers: the verifier now applies recorded `Power` actions and checks the meter turn by turn. Timing verifies perfectly, charge to the digit in power-free games — and a Sonja bug found on the way pushes the power-free split to its best agreement ever, 99.982%. |
 | 2026-08-26 | [The recipe that beat greedy goes backwards against JakeMan](log/2026-08-26-jakeman-ppo.md) | The RL checkpoints survived the opening fix, and PPO from the best of them never beat its own start against JakeMan, decaying to 7.6%. Two lessons. |
 | 2026-08-26 | [JakeMan beaten, by running yesterday's experiment without the bug](log/2026-08-26-jakeman-beaten.md) | The same run that scored 7.6% scores 67.2% with recalibration off. A sixty point swing from one default, and the first policy here to beat the strongest scripted opponent. |
 | 2026-08-26 | [PPO's defaults are in the wrong units for this game, and one of them mattered](log/2026-08-26-awbw-units.md) | The credit horizon was one turn. Widening it stops the decay that four runs showed. Two other candidates — a day cap scored as a real result, and a potential that cannot see money — were wrong and unmeasured respectively. |

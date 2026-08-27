@@ -126,6 +126,12 @@ fn main() {
         .and_then(|i| args.get(i + 1))
         .and_then(|v| v.parse().ok())
         .unwrap_or(0usize);
+    // Print every divergence of one kind, for studying a pattern across games.
+    let kind_filter = args
+        .iter()
+        .position(|a| a == "--kind")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
     let target = args
         .iter()
         .find(|a| !a.starts_with('-') && a.parse::<usize>().is_err())
@@ -182,6 +188,15 @@ fn main() {
                     samples.entry(d.kind).or_insert_with(|| {
                         format!("game {} turn {} day {}: {}", report.game_id, d.turn_index, d.day, d.detail)
                     });
+                }
+                if let Some(k) = &kind_filter {
+                    for d in report.divergences.iter().filter(|d| d.kind == k.as_str()) {
+                        println!(
+                            "{} game {} turn {} day {}: {}",
+                            if powered { "P" } else { "-" },
+                            report.game_id, d.turn_index, d.day, d.detail
+                        );
+                    }
                 }
                 if verbose {
                     println!(

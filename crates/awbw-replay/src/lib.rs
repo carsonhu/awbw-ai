@@ -162,6 +162,17 @@ pub struct Loaded {
     /// payloads, so a unit reported at 5 HP is really anywhere in 4.1..=5.0.
     /// A second attack on the same unit has to allow for that whole band.
     approximate_hp: std::collections::HashSet<UnitId>,
+    /// Players whose turn snapshot recorded a numeric power meter. Many older
+    /// records leave the meter maps empty; with the start state unknown, a
+    /// meter comparison would only measure the recording gap.
+    meter_known: std::collections::HashSet<PlayerId>,
+    /// How far off each player's simulated power charge may honestly be.
+    ///
+    /// Charge banks `floor(precise damage / 10)` per strike, but combat
+    /// records carry displayed HP: a survivor's precise HP sits anywhere in a
+    /// ten-point band, so each such strike is uncertain by one displayed
+    /// point — the victim's cost on one meter, half of it on the other.
+    charge_slack: HashMap<PlayerId, u32>,
 }
 
 impl Loaded {
@@ -344,11 +355,20 @@ impl Verifier {
         }
 
         let awbw_of = ids.iter().map(|(&awbw, &unit)| (unit, awbw)).collect();
+        let meter_known = self
+            .replay
+            .players
+            .iter()
+            .filter(|p| turn.co_power.contains_key(&p.id.to_string()))
+            .filter_map(|p| self.players.index(p.id))
+            .collect();
         Ok(Loaded {
             engine: Engine::new(state, 0x5EED),
             ids,
             awbw_of,
             approximate_hp: std::collections::HashSet::new(),
+            meter_known,
+            charge_slack: HashMap::new(),
         })
     }
 
@@ -437,6 +457,7 @@ impl Verifier {
             "Unload" => self.do_unload(loaded, action, turn_index, day, report),
             "Supply" | "Repair" => self.do_supply(loaded, action, turn_index, day, report),
             "Hide" | "Unhide" => self.do_hide(loaded, action, kind == "Hide"),
+            "Power" => self.do_power(loaded, action, turn_index, day, report),
             "Delete" | "Explode" => self.do_delete(loaded, action),
             // Ending the turn runs the engine's own income, repair and fuel
             // bookkeeping, which is exactly what the next snapshot reflects.
@@ -772,11 +793,27 @@ impl Verifier {
             }
         }
 
+        // Each player's view of the combat is recorded separately, and Sonja
+        // hides her HP — the blinded side's view reads "?" where a number
+        // belongs. Take the view that actually parses, not the first one.
+        let numeric_sides = |info: &serde_json::Value| -> usize {
+            ["attacker", "defender"]
+                .iter()
+                .filter(|key| {
+                    info.get(**key)
+                        .is_some_and(|side| as_num(side.get("units_hit_points")).is_some())
+                })
+                .count()
+        };
         let Some(info) = action
             .get("Fire")
             .and_then(|f| f.get("combatInfoVision"))
-            .and_then(unwrap_vision)
-            .and_then(|v| v.get("combatInfo"))
+            .and_then(|v| v.as_object())
+            .and_then(|obj| {
+                obj.values()
+                    .filter_map(|view| view.get("combatInfo"))
+                    .max_by_key(|info| numeric_sides(info))
+            })
         else {
             return ActionOutcome::Unsupported("Fire/combatInfo".into());
         };
@@ -843,6 +880,19 @@ impl Verifier {
             }
         }
 
+        // The power meters bank the *recorded* outcome, not our roll: luck is
+        // unreproducible, and AWBW charges `floor(precise damage / 10)` in
+        // the victim's cost — full rate to the side that took it, half to
+        // the dealer. The record only carries displayed HP, so a surviving
+        // victim's precise damage is known to one displayed point; that
+        // uncertainty accumulates in `charge_slack` and the meter checks
+        // judge only what exceeds it. Banked before the snap below
+        // overwrites the "before" HP.
+        if let (Some((att_id, att_hp, _)), Some((def_id, def_hp, _))) = (attacker, defender) {
+            bank_combat(loaded, att_id, def_id, def_hp);
+            bank_combat(loaded, def_id, att_id, att_hp);
+        }
+
         // Snap to the record: luck is unreproducible, so carrying our own roll
         // forward would make every later check in this turn meaningless.
         for side in [attacker, defender].into_iter().flatten() {
@@ -865,6 +915,95 @@ impl Verifier {
             if let Some((att_id, _, _)) = attacker {
                 let _ = att_id;
             }
+        }
+        ActionOutcome::Applied
+    }
+
+    /// A recorded CO power activation, spent from the meter the engine has
+    /// been simulating.
+    ///
+    /// The record carries the server's post-activation charge (`playersCOP`);
+    /// ours is checked against it and then the record's value is adopted, so
+    /// one disagreement cannot cascade through the rest of the game.
+    fn do_power(
+        &self,
+        loaded: &mut Loaded,
+        action: &serde_json::Value,
+        turn_index: usize,
+        day: u16,
+        report: &mut Report,
+    ) -> ActionOutcome {
+        let Some(awbw_id) = action.get("playerID").and_then(|v| v.as_i64()) else {
+            return ActionOutcome::Unsupported("Power/playerID".into());
+        };
+        let Some(index) = self.players.index(awbw_id) else {
+            return ActionOutcome::Unsupported("Power/player".into());
+        };
+        let kind = match action.get("coPower").and_then(|v| v.as_str()) {
+            Some("S") => ActivePower::Scop,
+            _ => ActivePower::Cop,
+        };
+
+        // With no numeric meter in the snapshots, the engine cannot know the
+        // start-of-turn charge; apply the activation but judge nothing.
+        let known = loaded.meter_known.contains(&index);
+
+        let slack = loaded.charge_slack.get(&index).copied().unwrap_or(0);
+        let state = &mut loaded.engine.state;
+        if !state.activate_power(index, kind) {
+            // A bar short by no more than the banded strikes' uncertainty is
+            // not a disagreement about the rules.
+            let p = &state.players[index as usize];
+            let within_slack = p.active_power == ActivePower::None
+                && p.power_cost(kind)
+                    .is_some_and(|cost| p.charge as u64 + slack as u64 >= cost as u64);
+            if known {
+                report.checks += 1;
+                if !within_slack {
+                    report.divergences.push(Divergence {
+                        turn_index,
+                        day,
+                        kind: "power-activate",
+                        detail: format!(
+                            "player {awbw_id} fired {kind:?}, engine refused \
+                             (charge {} +-{slack}, cost {:?}, active {:?})",
+                            p.charge,
+                            p.power_cost(kind),
+                            p.active_power
+                        ),
+                    });
+                }
+            }
+            // Force it on so the rest of the turn plays under the power.
+            let p = &mut state.players[index as usize];
+            p.active_power = kind;
+            p.power_uses += 1;
+            p.charge = 0;
+        } else if known {
+            report.checks += 1;
+        }
+
+        if let Some(recorded) = action.get("playersCOP").and_then(|v| v.as_i64()) {
+            let p = &mut loaded.engine.state.players[index as usize];
+            if known {
+                report.checks += 1;
+                if (p.charge as i64 - recorded).unsigned_abs() > slack as u64 {
+                    report.divergences.push(Divergence {
+                        turn_index,
+                        day,
+                        kind: "power-charge",
+                        detail: format!(
+                            "player {awbw_id} after {kind:?}: engine {} (+-{slack}), \
+                             AWBW {recorded}",
+                            p.charge
+                        ),
+                    });
+                }
+            }
+            p.charge = recorded.max(0) as u32;
+            // The record just told us the exact meter; the uncertainty the
+            // banded strikes had built up is gone.
+            loaded.charge_slack.insert(index, 0);
         }
         ActionOutcome::Applied
     }
@@ -1064,6 +1203,51 @@ impl Verifier {
             }
         }
 
+        // The power meter and the running-power flag, where the snapshot
+        // records them (many older records leave the meter maps empty).
+        // Charge was banked from the recorded combat outcomes, so this is a
+        // luck-free check of the accrual arithmetic itself.
+        for p in &self.replay.players {
+            let Some(index) = self.players.index(p.id) else {
+                continue;
+            };
+            let key = p.id.to_string();
+            let player = &state.players[index as usize];
+            if let Some(&recorded) = next.co_power.get(&key) {
+                if loaded.meter_known.contains(&index) {
+                    report.checks += 1;
+                    let slack = loaded.charge_slack.get(&index).copied().unwrap_or(0);
+                    if (player.charge as i64 - recorded).unsigned_abs() > slack as u64 {
+                        report.divergences.push(Divergence {
+                            turn_index,
+                            day,
+                            kind: "power-charge",
+                            detail: format!(
+                                "player {}: engine {} (+-{slack}), AWBW {recorded}",
+                                p.id, player.charge
+                            ),
+                        });
+                    }
+                }
+            }
+            if let Some(on) = next.co_power_on.get(&key) {
+                report.checks += 1;
+                let ours = match player.active_power {
+                    ActivePower::None => "N",
+                    ActivePower::Cop => "Y",
+                    ActivePower::Scop => "S",
+                };
+                if ours != on {
+                    report.divergences.push(Divergence {
+                        turn_index,
+                        day,
+                        kind: "power-active",
+                        detail: format!("player {}: engine {ours}, AWBW {on}", p.id),
+                    });
+                }
+            }
+        }
+
         // Units: presence, position, and HP.
         let mut recorded_by_id: HashMap<i64, &UnitRec> = HashMap::new();
         for rec in &next.units {
@@ -1183,6 +1367,37 @@ enum ActionOutcome {
 
 /// Moves a unit regardless of legality, so a rejected order does not derail the
 /// rest of the turn. The legality check has already been recorded by then.
+/// Banks power charge for one recorded strike: `victim` was left at
+/// `after_display` HP by `dealer`.
+///
+/// Nominal is the displayed-HP difference. The record carries only displayed
+/// HP, and the server's own arithmetic runs on precise damage the record
+/// does not preserve, so any strike whose precise numbers could round either
+/// way is uncertain by one displayed point — the victim's cost on one meter,
+/// half on the other, accumulated in `charge_slack`. Only a kill of a
+/// whole-tens victim with an exact "before" is beyond doubt.
+fn bank_combat(loaded: &mut Loaded, dealer_id: UnitId, victim_id: UnitId, after_display: i64) {
+    let approx_before = loaded.approximate_hp.contains(&victim_id);
+    let Some(victim) = loaded.engine.state.unit(victim_id).copied() else {
+        return;
+    };
+    let Some(dealer) = loaded.engine.state.unit(dealer_id).copied() else {
+        return;
+    };
+    let before = combat::display_hp(victim.hp100 as i32);
+    let points = (before - after_display.clamp(0, 10) as i32).max(0) as u32;
+    let cost = victim.typ.stats().cost;
+    let state = &mut loaded.engine.state;
+    state.add_combat_charge(victim.owner, points * cost);
+    state.add_combat_charge(dealer.owner, points * cost / 2);
+    let ambiguous =
+        points > 0 && (after_display > 0 || approx_before || victim.hp100 % 10 != 0);
+    if ambiguous {
+        *loaded.charge_slack.entry(victim.owner).or_insert(0) += cost;
+        *loaded.charge_slack.entry(dealer.owner).or_insert(0) += cost / 2;
+    }
+}
+
 fn force_move(engine: &mut Engine, unit: UnitId, route: &[Pos]) {
     let Some(&dest) = route.last() else { return };
     let cost = route_cost(&engine.state, unit, route);

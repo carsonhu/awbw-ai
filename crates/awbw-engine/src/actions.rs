@@ -516,18 +516,22 @@ impl Engine {
         report
     }
 
-    /// Banks power charge for one strike: `victim` fell from full health to
-    /// `hp_after`. Both meters fill on the *displayed*-HP damage priced in
-    /// the victim's cost — full rate for the side that took it, half for the
-    /// side that dealt it. (5 HP off an infantry: 5,000 units and 2,500.)
+    /// Banks power charge for one strike that took `victim` to `hp_after`.
+    ///
+    /// AWBW banks whole displayed points of *precise* damage —
+    /// `floor(hp100 lost / 10)`, not the difference of displayed HPs — priced
+    /// in the victim's cost: full rate for the side that took it, half for
+    /// the side that dealt it. (5.0 HP off an infantry: 5,000 units and
+    /// 2,500; a hit from 7.2 to 7.0 displayed banks nothing.) Pinned against
+    /// recorded meters in `docs/log/2026-08-26-adder-powers-phase0.md`.
     fn charge_meters(
         &mut self,
         dealer: &crate::state::Unit,
         victim: &crate::state::Unit,
         hp_after: i32,
     ) {
-        let dhp = combat::display_hp(victim.hp100 as i32) - combat::display_hp(hp_after.max(0));
-        let value = dhp.max(0) as u32 * victim.typ.stats().cost;
+        let damage = victim.hp100 as i32 - hp_after.max(0);
+        let value = (damage.max(0) / 10) as u32 * victim.typ.stats().cost;
         self.state.add_combat_charge(victim.owner, value);
         self.state.add_combat_charge(dealer.owner, value / 2);
     }
@@ -1092,10 +1096,10 @@ mod tests {
             })
             .unwrap();
 
-        // Displayed-HP damage, priced in the victim's cost: full rate to the
-        // side that took it, half to the side that dealt it.
-        let dealt = 10 - combat::display_hp(100 - report.damage_dealt as i32) as u32;
-        let taken = 10 - combat::display_hp(100 - report.damage_taken as i32) as u32;
+        // Whole displayed points of precise damage, priced in the victim's
+        // cost: full rate to the side that took it, half to the dealer.
+        let dealt = report.damage_dealt as u32 / 10;
+        let taken = report.damage_taken as u32 / 10;
         let cost = UnitType::Tank.stats().cost;
         assert_eq!(e.state.players[1].charge, dealt * cost + taken * cost / 2);
         assert_eq!(e.state.players[0].charge, taken * cost + dealt * cost / 2);

@@ -47,8 +47,9 @@ roads, Jake on plains, Lash per terrain star), Sami's capture rate and
 transport movement, Rachel's extra repair, Sasha's property income, Eagle's air
 fuel saving, and luck ranges.
 
-**The CO power meter**, for every CO: charge from combat at displayed-HP funds
-value — full rate for damage taken, half for dealt — 9,000-fund stars, the
+**The CO power meter**, for every CO: charge from combat in whole displayed
+points of precise damage — full rate for damage taken, half for dealt —
+9,000-fund stars, the
 per-activation star-cost escalation, activation that spends the cost and keeps
 the change, no accrual while a power runs, expiry at the owner's next turn
 start, and the universal +10 attack / +10 defence while any power is active.

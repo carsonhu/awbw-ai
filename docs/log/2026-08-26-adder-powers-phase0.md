@@ -10,9 +10,9 @@ Meter arithmetic, in the server's own units (the corpus records these):
 
 - **One star is 90,000 units** — 9,000 funds x 10. Confirmed twice over:
   Jess's COP threshold is 270,000 (3 stars), Adder's 180,000 (2 stars).
-- **Charge gained from combat** is *displayed*-HP damage priced in funds —
-  full rate for damage taken, half for dealt — x10 for server units
-  (DefendPeace's `calculateCombatCharge`; the phase-2 oracle re-checks it).
+- **Charge gained from combat**: whole displayed points of precise damage in
+  the victim's funds cost — full for the taker, half for the dealer — x10
+  for server units. Fine print: `log/2026-08-26-power-oracle.md`.
 - **No charge accrues while your own power is active.**
 - **Each activation raises every star by 1/5 of its base cost**, settling at
   3x base after 10 activations. Watched directly: Adder's COP threshold walks

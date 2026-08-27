@@ -183,10 +183,11 @@ pub enum ActivePower {
     Scop,
 }
 
-/// The power meter's units: displayed-HP damage priced in funds, x10 — what
-/// AWBW's server records. One base star is [`STAR_CHARGE`] of these; dealing
-/// 5 HP to an infantry banks 2,500 for the dealer (half rate) and 5,000 for
-/// the victim. Decoded from the corpus in
+/// The power meter's units: funds x10 — what AWBW's server records. Combat
+/// banks whole displayed points of *precise* damage (`floor(hp100 lost/10)`)
+/// priced in the victim's cost; one base star is [`STAR_CHARGE`] units, and
+/// dealing 5.0 HP to an infantry banks 2,500 for the dealer (half rate) and
+/// 5,000 for the victim. Decoded from the corpus in
 /// `docs/log/2026-08-26-adder-powers-phase0.md`.
 pub const STAR_CHARGE: u32 = 90_000;
 /// Each activation raises every star by a fifth of its base cost...

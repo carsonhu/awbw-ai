@@ -29,18 +29,32 @@ divergences to none.
 | meter written, thresholds static | 31 (99.57%) |
 | meter written, thresholds live | **0 (100.00%)** |
 
-**What the batch found.** Ten recorded games, five with powers:
+**What the batch found: a bug in the verifier itself.** Ten games, five
+with powers, threw 187 `move-over-budget` divergences — "route costs 4,
+engine allows 3" — clustered where JakeMan pops on sight. Not the
+writer, and not the timing it looked like: the verifier keeps *its own
+copy* of the movement-budget sum, and that copy was never taught about
+powers.
 
-| | agreement | clean |
+```rust
+// crates/awbw-replay/src/lib.rs, before
+let move_points = (stats.move_points + co_move).clamp(0, 255)
+// crates/awbw-engine/src/movement.rs, all along
+let move_points = (stats.move_points + co_move
+                   + state.power_move_bonus(unit.owner)).clamp(0, 255)
+```
+
+So every move a popped Adder made was marked over budget by a verifier
+that was measuring the wrong thing. With the third term restored:
+
+| ten recorded games | agreement | clean |
 |---|---|---|
+| powers used | **100.000%** | 5 of 5 |
 | power-free | 99.992% | 4 of 5 |
-| powers used | 99.288% | 1 of 5 |
 
-Every remaining divergence in the power games is one kind —
-`move-over-budget`, e.g. "route costs 4, engine allows 3" — and they
-cluster in the games against JakeMan, which pops on sight. A re-read
-game is not granting Adder's `+1`/`+2` movement where the original did,
-so the activation and the movement bonus disagree about *when* the power
-is on. That is a real defect and it is not the meter's: the meter is now
-verified exact. Whether it sits in the writer's ordering, the reader, or
-`power_move_bonus` at a turn boundary is open.
+**Nothing else moved.** Full corpus after the fix: power-free games
+99.982%, 683 of 780 clean — the same figure as before it, since a game
+with no power has no bonus to add. The two remaining divergences in the
+recorded set are one `funds` disagreement and the rejected build that
+follows from it, which is the corpus's own largest power-free class (93)
+and not new here.

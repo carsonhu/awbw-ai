@@ -606,9 +606,15 @@ impl Verifier {
             return;
         }
 
+        // The same three terms the engine's own budget uses, the third of
+        // which is easy to forget here: a running power can extend movement
+        // (Adder's), and leaving it out marks every move a popped Adder makes
+        // as over budget — a divergence in the verifier, not in the engine.
         let co_move = state.co_of(actor.owner).move_delta[actor.typ as usize] as i32;
-        let move_points =
-            (actor.typ.stats().move_points as i32 + co_move).clamp(0, 255) as u8;
+        let move_points = (actor.typ.stats().move_points as i32
+            + co_move
+            + state.power_move_bonus(actor.owner))
+        .clamp(0, 255) as u8;
         let budget = move_points.min(actor.fuel) as u32;
         if cost > budget {
             report.divergences.push(Divergence {

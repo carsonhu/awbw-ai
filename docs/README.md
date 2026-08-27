@@ -38,10 +38,11 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (17)
+## Log (18)
 
 | date | entry | what it found |
 |---|---|---|
+| 2026-08-27 | [Self-play's missing rows are not missing](log/2026-08-27-row-share-retired.md) | `2026-08-26-selfplay-drift.md` closed on a 46.1% learner row share — "unexplained, reproducible, start here". Re-measured on the powers-era build it is 50.3%, and it decomposes exactly as that log argued it must. |
 | 2026-08-27 | [The advantage floor does not stop the from-ahead decay](log/2026-08-27-adv-floor-null.md) | Run 2 re-ran the Adder climb with `--adv-floor 0.3` armed and falsified the noise-inflation story: the collapse arrived on schedule anyway. Spread collapse is a symptom of the crashed regime, not its cause. |
 | 2026-08-26 | [A dead attacker that would not disappear, and JakeMan's missing precedence](log/2026-08-26-two-fixes.md) | Both found by watching a replay rather than reading a number. `combatInfo` was carrying the whole unit row where AWBW carries five fields, and the port let a walk outbid an attack. JakeMan is stronger for it: 67.2% -> 58.4%. |
 | 2026-08-26 | [Self-play drifts below its own frozen copy, and three fixes did nothing](log/2026-08-26-selfplay-drift.md) | The learner loses to a snapshot of itself at 35-41% across every configuration tried. Recalibration, step size and shaping are all cleared. The one path the working control never exercises is the two-player advantage. |

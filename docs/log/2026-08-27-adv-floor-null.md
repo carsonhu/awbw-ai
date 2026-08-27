@@ -26,15 +26,16 @@ clamped.
 
 **The hypothesis is dead; the suspects that remain.** The decay begins
 while spread is healthy, so normalising a noise-dominated batch is not
-what starts it. Left standing, from run 1's own telemetry over the fall
-(iterations 60–80): KL spiking to 0.034 with clip 0.27 while *winning*
-— large steps taken on saturated-opponent batches; entropy rising
-monotonically 2.5 → 3.4 across the climb — the entropy bonus diffusing
-the policy once the win-rate gradient flattens; and plain opponent
-saturation — at 75% vs greedy the from-behind signal the run was built
-on is spent, and continuing to train on it is all downside. The
-cheapest discriminating experiment: stop or switch opponents at
-saturation (curriculum to JakeMan-under-Adder or self-play) rather than
-grinding 130 more iterations against a beaten opponent; second, try
-decaying the entropy bonus. Keep-best already fences the damage, so the
-floor stays available but is no longer load-bearing.
+what starts it. This also retires the floor as an explanation of
+`2026-08-26-selfplay-drift.md`, where it was tried at 0.12 and likewise
+changed nothing — two settings, two eras, same null. Two candidates,
+noted here and *not* tested by this run: KL spiking to 0.034 with clip
+0.27 while *winning* — large steps taken on saturated-opponent batches;
+and plain saturation — at 75% vs greedy the from-behind signal is spent,
+so the run has nothing left to learn and 130 iterations left to run.
+(Not a candidate: the entropy bonus. `--entropy-coef` is 0.0 and was
+never passed. The reported entropy rises through any rollout regardless
+of the policy — it tracks midgame positions holding more choices, as
+`ppo.py` warns.) Cheapest next test: switch opponents at saturation
+rather than grinding a beaten one. Keep-best already fences the damage,
+so the floor stays available but is no longer load-bearing.

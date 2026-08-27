@@ -113,6 +113,11 @@ class Trainer:
             decide_cap=args.decide_cap, co=args.co,
             opponent=None if args.selfplay else args.opponent,
         )
+        # Source indices at or past this fire a CO power. Imitation leaves
+        # zero mass there (213 labels in 1.9M orders), so whether PPO lifts
+        # activation off the floor is a headline metric, not a curiosity.
+        h, w = self.env.board_shape
+        self.pop_floor = h * w + 1
         self.policy = self.load_policy()
         # A frozen copy of the policy holds the other seat. Not the live policy
         # on both sides: its transitions would be off-policy for the update, and
@@ -593,9 +598,13 @@ def main() -> int:
 
     start = time.perf_counter()
     seen = (0, 0, 0)
+    pops = seen_pops = 0
     best = -1.0
     for iteration in range(1, args.iterations + 1):
         last, last_actor = trainer.collect()
+        # The learner's own power activations this rollout.
+        pops += int(((trainer.buffer.actions[..., 0] >= trainer.pop_floor)
+                     & trainer.buffer.mine.bool()).sum())
         adv, returns = trainer.advantages(last, last_actor)
         # Cloning never trains the value head -- its loss is four
         # cross-entropies and nothing else -- so PPO inherits a *random* critic.
@@ -629,10 +638,12 @@ def main() -> int:
             games = played - seen[0]
             stalled = (drawn - seen[2]) / max(games, 1)
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
+            pop_rate = (pops - seen_pops) / max(games, 1)
             needed = args.refresh_games if args.selfplay else args.min_games
             closed = games >= needed
             if closed:
                 seen = (played, won, drawn)
+                seen_pops = pops
             rate = iteration * per / (time.perf_counter() - start)
             if args.selfplay:
                 # The score is against a moving opponent, so a high one means
@@ -669,6 +680,7 @@ def main() -> int:
             # runs that came apart.
             print(f"  {iteration:>4}/{args.iterations}  "
                   f"score {score:.1%} over {games} games  cut {stalled:.0%}  "
+                  f"pop {pop_rate:.2f}/g  "
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']} "

@@ -38,11 +38,12 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (19)
+## Log (20)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-27 | [Self-play's missing rows are not missing](log/2026-08-27-row-share-retired.md) | `2026-08-26-selfplay-drift.md` closed on a 46.1% learner row share — "unexplained, reproducible, start here". Re-measured on the powers-era build it is 50.3%, and it decomposes exactly as that log argued it must. |
+| 2026-08-27 | [Recalibration defaulted on, and ran in every powers-era run](log/2026-08-27-recalibration-ran-again.md) | `2026-08-26-recalibration.md` measured seventeen points of damage from refitting batch-norm and closed with "run with `--recalibrate 0`". It was never made the default, so it ran in `ppo-adder1`, `ppo-adder2`, `ppo-adder3` and the first self-play attempt. The default is now 0. |
 | 2026-08-27 | [The curriculum rung holds, and `greedy` stops being able to see it](log/2026-08-27-jakeman-under-adder.md) | `ppo-adder3` climbed 2.5% -> 15.5% against JakeMan-under-Adder over 200 iterations without ever decaying — behind the whole way, which is the point. It beats its own parent 84.6%. Against `greedy` the two are indistinguishable, which is a fact about `greedy`. |
 | 2026-08-27 | [The advantage floor does not stop the from-ahead decay](log/2026-08-27-adv-floor-null.md) | Run 2 re-ran the Adder climb with `--adv-floor 0.3` armed and falsified the noise-inflation story: the collapse arrived on schedule anyway. Spread collapse is a symptom of the crashed regime, not its cause. |
 | 2026-08-26 | [A dead attacker that would not disappear, and JakeMan's missing precedence](log/2026-08-26-two-fixes.md) | Both found by watching a replay rather than reading a number. `combatInfo` was carrying the whole unit row where AWBW carries five fields, and the port let a walk outbid an attack. JakeMan is stronger for it: 67.2% -> 58.4%. |

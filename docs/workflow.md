@@ -58,12 +58,11 @@ py -3.12 python/panel.py --checkpoint checkpoints/ppo.pt  # the fixed panel
 py -3.12 python/order_diag.py                        # ordering vs judgement
 ```
 
-`--amp` is off by default: without fp16 tensor cores it is four times *slower*. In
-PPO read `kl` and `clip`, never entropy; `--recalibrate` defaults off because
-refitting costs seventeen points `kl` cannot see. Rate at 1.0 (0.3 flatters a
-clone threefold) through `panel.py`: `greedy` is saturated and a ladder's own
-head-to-head only proves it beats itself. `--selfplay` needs recalibration off,
-and a comma-separated `--frozen-init` makes it a league.
+`--amp` is off: without fp16 tensor cores it is four times *slower*. Read `kl` and
+`clip`, never entropy; leave `--recalibrate` off — seventeen points `kl` cannot
+see. Rate at 1.0 (0.3 flatters a clone threefold) through `panel.py`, since
+`greedy` is saturated and a ladder's head-to-head only proves it beats itself;
+give `--frozen-init` a comma-separated list to make self-play a league.
 
 Three PPO defaults are Atari's units, not this game's. `--turn-discount`
 discounts once per *turn*: `1/(1 - gamma*lam)` is 19 orders and a turn is 17, so

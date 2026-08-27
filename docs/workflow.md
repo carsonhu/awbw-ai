@@ -62,7 +62,7 @@ py -3.12 python/order_diag.py                        # ordering vs judgement
 PPO read `kl` and `clip`, never entropy; `--recalibrate` defaults off because
 refitting costs seventeen points `kl` cannot see. Rate at 1.0 — 0.3 flatters a
 clone threefold — and with `--versus`, since `greedy` is saturated. `--selfplay`
-wants `--frozen-init` on a *stronger* opponent: level it decays, behind it climbs.
+works plainly once recalibration is off; `--frozen-init` only starts it behind.
 
 Three PPO defaults are Atari's units, not this game's. `--turn-discount`
 discounts once per *turn*: `1/(1 - gamma*lam)` is 19 orders and a turn is 17, so

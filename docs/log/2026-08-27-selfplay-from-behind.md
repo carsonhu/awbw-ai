@@ -1,5 +1,10 @@
 # Self-play works from behind, and the policy starts pressing the button
 
+> **Corrected the same day by `2026-08-27-parity-was-never-the-problem.md`:
+> the opening is not what fixed this. A parity control with recalibration
+> off promotes too, and beats this lineage. The measurements below stand;
+> the credit assigned to `--frozen-init` does not.**
+
 > The same run that collapsed to 0.0% with recalibration on climbs
 > 20.8% -> 52.8% with it off, against a frozen opponent that beat its
 > starting weights 84.6/15.4. And activations rise from 0.02/g to a

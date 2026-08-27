@@ -129,7 +129,17 @@ class Trainer:
         self.refreshes = 0
         self.recalibrating = 0
         if args.selfplay:
-            self.frozen = copy.deepcopy(self.policy).eval()
+            # A copy of the learner unless told otherwise, which starts the run
+            # at parity -- the one regime every run in this project has decayed
+            # in (`log/2026-08-26-ppo-only-climbs-from-behind.md`). Given other
+            # weights the learner starts *behind* its opponent instead, which is
+            # the regime the runs that gained were all in, and promotion turns
+            # it back into a ladder from there.
+            if getattr(args, "frozen_init", None):
+                self.frozen = self.load_policy(args.frozen_init, remember=False)
+                self.frozen.eval()
+            else:
+                self.frozen = copy.deepcopy(self.policy).eval()
             self.frozen.requires_grad_(False)
         self.seat = torch.from_numpy(self.env.agent_seat()).to(device)
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=args.lr,
@@ -148,9 +158,9 @@ class Trainer:
                                    pin_memory=device.type == "cuda")
         self.view = self.staging.numpy()
 
-    def load_policy(self):
-        saved = torch.load(ROOT / self.args.init, map_location=self.device,
-                           weights_only=True)
+    def load_policy(self, path=None, remember=True):
+        saved = torch.load(ROOT / (path or self.args.init),
+                           map_location=self.device, weights_only=True)
         config = saved["config"]
         policy = netmod.Policy(
             planes=config["planes"], globals_=config["globals"],
@@ -159,7 +169,13 @@ class Trainer:
             blocks=config["blocks"],
         ).to(self.device)
         policy.load_state_dict(saved["policy"])
-        self.config = config
+        if remember:
+            self.config = config
+        elif config != self.config:
+            # The two sides share one environment and one action space, so a
+            # frozen side from another era would read a different board.
+            raise SystemExit(f"{path} was built for a different network: "
+                             f"{config} against {self.config}")
         return policy
 
     def observe(self):
@@ -502,6 +518,13 @@ def main() -> int:
     # left to beat.
     parser.add_argument("--selfplay", action="store_true",
                         help="play a frozen copy of the policy, not a bot")
+    # Which weights the frozen side starts on. Empty means a copy of the
+    # learner, so the run opens at parity. Naming a *stronger* checkpoint opens
+    # it from behind instead -- the only regime anything here has ever gained
+    # in -- and the first promotion is then a real rung climbed, not a snapshot
+    # going stale. Must be the same network as `--init`.
+    parser.add_argument("--frozen-init", default=None,
+                        help="weights for the opponent seat (default: a copy)")
     parser.add_argument("--refresh-at", type=float, default=0.7,
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,
@@ -592,7 +615,11 @@ def main() -> int:
     per = args.envs * args.steps
     print(f"device {device}, {sum(p.numel() for p in trainer.policy.parameters())/1e6:.2f}M "
           f"parameters, from {args.init}")
-    against = "a frozen copy of itself" if args.selfplay else args.opponent
+    if args.selfplay:
+        against = (f"frozen {args.frozen_init}" if args.frozen_init
+                   else "a frozen copy of itself")
+    else:
+        against = args.opponent
     print(f"vs {against}, {args.envs} envs x {args.steps} steps = "
           f"{per} orders per iteration, shaping {args.shaping}")
 

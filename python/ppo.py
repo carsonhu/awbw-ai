@@ -147,10 +147,14 @@ class Trainer:
             # five sampled per env would be five forward passes a step.
             names = [n for n in (getattr(args, "frozen_init", "") or "").split(",") if n]
             self.pool = [self.load_policy(n, remember=False).state_dict() for n in names]
+            # Where each member came from, and how the learner has fared
+            # against it: [games, score]. Both drive who gets seated next.
+            self.pool_origin = ["seed"] * len(self.pool)
+            self.pool_stats = [[0.0, 0.0] for _ in self.pool]
             self.frozen = (copy.deepcopy(self.policy).eval() if not self.pool
                            else self.load_policy(names[0], remember=False).eval())
             self.frozen.requires_grad_(False)
-            self.opponents_seen = 0
+            self.current_member = None
         self.seat = torch.from_numpy(self.env.agent_seat()).to(device)
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=args.lr,
                                            weight_decay=0.0)
@@ -498,8 +502,21 @@ class Trainer:
         """
         if self.pool:
             # The generation just made joins the league rather than replacing
-            # it, so what the learner beat two rungs ago keeps coming back.
-            self.pool.append(copy.deepcopy(self.policy.state_dict()))
+            # it, so what the learner beat two rungs ago keeps coming back --
+            # but only up to a share of the pool. Appending every promotion put
+            # seven of twelve members in one lineage and the run spent itself
+            # playing its own recent past (`log/2026-08-27-the-first-league-
+            # drifted.md`); past that share the oldest of its own replaces it.
+            mine = [i for i, o in enumerate(self.pool_origin) if o == "self"]
+            allowed = max(1, int(self.args.pool_self_cap * (len(self.pool) + 1)))
+            fresh = copy.deepcopy(self.policy.state_dict())
+            if len(mine) >= allowed:
+                self.pool[mine[0]] = fresh
+                self.pool_stats[mine[0]] = [0.0, 0.0]
+            else:
+                self.pool.append(fresh)
+                self.pool_origin.append("self")
+                self.pool_stats.append([0.0, 0.0])
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
@@ -507,14 +524,47 @@ class Trainer:
         self.recalibrating = self.args.refresh_warmup
 
     def take_opponent(self, iteration):
-        """Seats the next league member, round robin. No-op without a pool."""
+        """Seats a league member, favouring the ones beating us.
+
+        Round robin gives a member that wins 90% of the time exactly as many
+        iterations as one that loses 90% of the time, and the first league run
+        spent itself on the latter. This weights by `(1 - score)^2`, so the
+        members the learner cannot beat get most of the run and the ones it has
+        solved keep a small share rather than none -- prioritised fictitious
+        self-play. A member never played is optimistic, so everything is tried.
+        """
         if not self.pool:
             return None
-        which = iteration % len(self.pool)
+        weights = []
+        for games, score in self.pool_stats:
+            rate = (score / games) if games >= 20 else 0.0
+            weights.append(max(1.0 - rate, 0.05) ** 2)
+        total = sum(weights)
+        draw = torch.rand(1).item() * total
+        which = len(self.pool) - 1
+        for i, w in enumerate(weights):
+            draw -= w
+            if draw <= 0:
+                which = i
+                break
         self.frozen.load_state_dict(self.pool[which])
         self.frozen.eval()
         self.frozen.requires_grad_(False)
+        self.current_member = which
         return which
+
+    def credit(self, before, after):
+        """Books a rollout's games against whichever member played them."""
+        if self.current_member is None:
+            return
+        games = after[0] - before[0]
+        if games <= 0:
+            return
+        won = after[1] - before[1]
+        drawn = after[2] - before[2]
+        stats = self.pool_stats[self.current_member]
+        stats[0] += games
+        stats[1] += won + 0.5 * drawn
 
     def save(self, path):
         path = ROOT / path
@@ -553,6 +603,9 @@ def main() -> int:
     parser.add_argument("--frozen-init", default=None,
                         help="weights for the opponent seat, comma-separated "
                              "for a league (default: a copy of the learner)")
+    parser.add_argument("--pool-self-cap", type=float, default=0.5,
+                        help="most of the league that may be the learner's "
+                             "own promoted lineage")
     parser.add_argument("--refresh-at", type=float, default=0.7,
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,
@@ -665,7 +718,9 @@ def main() -> int:
     best = -1.0
     for iteration in range(1, args.iterations + 1):
         trainer.take_opponent(iteration)
+        before_games = trainer.env.results
         last, last_actor = trainer.collect()
+        trainer.credit(before_games, trainer.env.results)
         # The learner's own power activations this rollout.
         pops += int(((trainer.buffer.actions[..., 0] >= trainer.pop_floor)
                      & trainer.buffer.mine.bool()).sum())
@@ -750,6 +805,18 @@ def main() -> int:
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']} "
                   f"spread {stats['spread']:.4f}  "
                   f"{rate:,.0f}/s{mark}")
+            # Who the run is actually spending itself on. A league that has
+            # quietly filled with the learner's own generations reads as a
+            # row of high scores against `self` members and nothing else.
+            if len(trainer.pool) > 1:
+                members = []
+                for i, origin in enumerate(trainer.pool_origin):
+                    played_vs, scored_vs = trainer.pool_stats[i]
+                    seat = "*" if i == trainer.current_member else ""
+                    rate_vs = (f"{scored_vs / played_vs:.0%}"
+                               if played_vs >= 20 else "-")
+                    members.append(f"{origin[0]}{seat}{rate_vs}")
+                print(f"        league {' '.join(members)}")
 
     last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")
     trainer.save(last)

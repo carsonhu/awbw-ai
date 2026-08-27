@@ -1147,6 +1147,39 @@ impl Verifier {
                 u.moved = true;
             }
         }
+        // A Black Boat's repair, which the engine does not model: it mends an
+        // adjacent unit and its owner pays, so an unmodelled one leaves the
+        // engine richer by whole displayed points and reports it as a `funds`
+        // bug — 83 of the 88 that survived the join-refund fix. The record
+        // carries both halves, so adopt them rather than simulate a rule the
+        // engine has not got. `rules.md` lists it with the other omissions.
+        if let Some(rec) = action.get("Repair") {
+            let repaired = rec.get("repaired").and_then(|r| unwrap_vision(r));
+            if let Some(target) = repaired {
+                if let Some(awbw_id) = as_num(target.get("units_id")) {
+                    if let Some(id) = loaded.unit_for(awbw_id) {
+                        if let Some(hp) = as_num(target.get("units_hit_points")) {
+                            if let Some(u) = loaded.engine.state.unit_mut(id) {
+                                u.hp100 = (hp.clamp(0, 10) as u8) * 10;
+                            }
+                        }
+                    }
+                }
+            }
+            // The repairer is named inside the record and `Move` is empty, so
+            // there is no acting unit to read an owner from; a repair is always
+            // the mover's own.
+            let recorded = rec
+                .get("funds")
+                .and_then(|f| unwrap_vision(f))
+                .and_then(|f| as_num(Some(f)))
+                .or_else(|| as_num(rec.get("funds")));
+            if let Some(n) = recorded {
+                let owner = loaded.engine.state.current;
+                report.checks += 1;
+                loaded.engine.state.players[owner as usize].funds = n.max(0) as u32;
+            }
+        }
         ActionOutcome::Applied
     }
 

@@ -68,6 +68,9 @@ Deliberate. Divergences involving these are expected, not bugs.
 - **Mid-game weather**, including powers that cause it (Drake's Typhoon), and
   Olaf's weather remap.
 - **Lab-gated units.** Labs are capturable and repair, but do not unlock units.
+- **The Black Boat's repair.** It mends one adjacent unit for a displayed
+  point, and the owner pays for it like any repair. The verifier adopts the
+  recorded outcome; the engine has no such order, so self-play never uses it.
 - **Sonja's fog effects** and **Javier's defence against indirects** — the
   latter is conditional on the *attacker* being indirect, which the per-unit
   CO table cannot express.

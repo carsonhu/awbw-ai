@@ -174,6 +174,26 @@ impl Building {
     }
 }
 
+/// Which of a player's CO powers is running right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActivePower {
+    #[default]
+    None,
+    Cop,
+    Scop,
+}
+
+/// The power meter's units: displayed-HP damage priced in funds, x10 — what
+/// AWBW's server records. One base star is [`STAR_CHARGE`] of these; dealing
+/// 5 HP to an infantry banks 2,500 for the dealer (half rate) and 5,000 for
+/// the victim. Decoded from the corpus in
+/// `docs/log/2026-08-26-adder-powers-phase0.md`.
+pub const STAR_CHARGE: u32 = 90_000;
+/// Each activation raises every star by a fifth of its base cost...
+pub const STAR_CHARGE_STEP: u32 = STAR_CHARGE / 5;
+/// ...until ten activations in, where it settles at triple.
+pub const STAR_COST_ESCALATIONS: u32 = 10;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Player {
     pub funds: u32,
@@ -182,12 +202,13 @@ pub struct Player {
     /// Day-to-day ability. Defaults to the ability-free CO, which is what
     /// self-play uses; the replay harness sets the real one.
     pub co: &'static CoData,
-    /// How close this CO is to firing a power, 0..=1.
-    ///
-    /// The engine does not model powers, so nothing reads this — but human play
-    /// revolves around power timing, and a policy cloned from human games needs
-    /// to see what those players were reacting to. Self-play leaves it at zero.
-    pub power_charge: f32,
+    /// Power meter, in [`STAR_CHARGE`] units. Charges from combat, runs past
+    /// the COP threshold toward the SCOP, and activation subtracts the cost
+    /// and keeps the leftover.
+    pub charge: u32,
+    pub active_power: ActivePower,
+    /// Lifetime activations, for the star-cost escalation.
+    pub power_uses: u32,
 }
 
 impl Player {
@@ -197,13 +218,39 @@ impl Player {
             team,
             eliminated: false,
             co: &CoData::VANILLA,
-            power_charge: 0.0,
+            charge: 0,
+            active_power: ActivePower::None,
+            power_uses: 0,
         }
     }
 
     pub fn with_co(mut self, co: &'static CoData) -> Self {
         self.co = co;
         self
+    }
+
+    /// What one star costs this player now, after escalation.
+    pub fn star_cost(&self) -> u32 {
+        STAR_CHARGE + STAR_CHARGE_STEP * self.power_uses.min(STAR_COST_ESCALATIONS)
+    }
+
+    /// Full cost of the given power, or `None` if this CO lacks it.
+    pub fn power_cost(&self, kind: ActivePower) -> Option<u32> {
+        let stars = match kind {
+            ActivePower::None => return None,
+            ActivePower::Cop => self.co.cop_stars,
+            ActivePower::Scop => self.co.scop_stars,
+        };
+        (stars >= 0).then(|| stars as u32 * self.star_cost())
+    }
+
+    /// How full the bar reads, 0..=1 against the COP threshold — the same
+    /// normalisation the recorded games use, kept for the observation.
+    pub fn charge_fraction(&self) -> f32 {
+        match self.power_cost(ActivePower::Cop) {
+            Some(cost) if cost > 0 => (self.charge as f32 / cost as f32).clamp(0.0, 1.0),
+            _ => 0.0,
+        }
     }
 }
 
@@ -535,6 +582,61 @@ impl GameState {
             * 10
     }
 
+    /// The power running for `player` right now, if any.
+    pub fn active_power(&self, player: PlayerId) -> ActivePower {
+        self.players[player as usize].active_power
+    }
+
+    /// Movement every unit of `player` gains from a running power (Adder).
+    pub fn power_move_bonus(&self, player: PlayerId) -> i32 {
+        let p = &self.players[player as usize];
+        match p.active_power {
+            ActivePower::None => 0,
+            ActivePower::Cop => p.co.cop_move_bonus as i32,
+            ActivePower::Scop => p.co.scop_move_bonus as i32,
+        }
+    }
+
+    /// Whether `player` may fire this power: the CO has it, nothing is
+    /// already running, and the bar covers the cost.
+    pub fn can_activate_power(&self, player: PlayerId, kind: ActivePower) -> bool {
+        let p = &self.players[player as usize];
+        p.active_power == ActivePower::None
+            && p.power_cost(kind).is_some_and(|cost| p.charge >= cost)
+    }
+
+    /// Fires a power: the cost comes off the bar — the leftover stays, the
+    /// recorded games show it kept to the digit — and future stars cost more.
+    /// The effect runs through the opponent's turn and expires when this
+    /// player's next one begins.
+    pub fn activate_power(&mut self, player: PlayerId, kind: ActivePower) -> bool {
+        if !self.can_activate_power(player, kind) {
+            return false;
+        }
+        let p = &mut self.players[player as usize];
+        let cost = p.power_cost(kind).expect("checked by can_activate_power");
+        p.charge -= cost;
+        p.active_power = kind;
+        p.power_uses += 1;
+        true
+    }
+
+    /// Banks combat charge, in [`STAR_CHARGE`] units. Nothing accrues while
+    /// the player's own power runs — the corpus shows the bar frozen through
+    /// the opponent's turn — and the bar stops at the SCOP cost (assumed;
+    /// replay verification will check the cap).
+    pub fn add_combat_charge(&mut self, player: PlayerId, units: u32) {
+        let p = &mut self.players[player as usize];
+        if p.active_power != ActivePower::None {
+            return;
+        }
+        let cap = p
+            .power_cost(ActivePower::Scop)
+            .or_else(|| p.power_cost(ActivePower::Cop))
+            .unwrap_or(0);
+        p.charge = (p.charge + units).min(cap);
+    }
+
     fn reset_capture_at(&mut self, pos: Pos) {
         if let Some(b) = self.building_at_mut(pos) {
             b.capture_remaining = CAPTURE_FULL;
@@ -583,6 +685,9 @@ impl GameState {
     /// Turn-start bookkeeping for `self.current`.
     pub fn begin_turn(&mut self) {
         let player = self.current;
+        // A power fired last turn has now covered the opponent's whole turn:
+        // it expires here, which is where the recorded games clear it.
+        self.players[player as usize].active_power = ActivePower::None;
         self.players[player as usize].funds += self.income(player);
 
         let owned: Vec<(Pos, TerrainKind)> = self
@@ -774,6 +879,46 @@ mod tests {
         ];
         // properties() is in row-major order: OS base, city, BM base.
         GameState::new(map, GameSettings::default(), players, &[Some(0), None, Some(1)])
+    }
+
+    #[test]
+    fn power_meter_charges_activates_and_escalates() {
+        let mut state = two_player_state();
+        state.players[0].co = crate::co_data::co_by_name("Adder").unwrap();
+
+        // The vanilla default has no powers, so its bar never fills.
+        state.add_combat_charge(1, 50_000);
+        assert_eq!(state.players[1].charge, 0);
+
+        // Two base stars fire the COP; the leftover stays on the bar.
+        state.add_combat_charge(0, 200_000);
+        assert!(state.can_activate_power(0, ActivePower::Cop));
+        assert!(!state.can_activate_power(0, ActivePower::Scop));
+        assert!(state.activate_power(0, ActivePower::Cop));
+        assert_eq!(state.players[0].charge, 20_000);
+        assert_eq!(state.active_power(0), ActivePower::Cop);
+        assert_eq!(state.power_move_bonus(0), 1);
+
+        // Nothing accrues while the power runs, and nothing double-fires.
+        state.add_combat_charge(0, 50_000);
+        assert_eq!(state.players[0].charge, 20_000);
+        assert!(!state.activate_power(0, ActivePower::Cop));
+
+        // One use in, each star costs a fifth more: the COP is now 216,000.
+        assert_eq!(state.players[0].power_cost(ActivePower::Cop), Some(216_000));
+
+        // The power expires when its owner's next turn begins.
+        state.current = 0;
+        state.begin_turn();
+        assert_eq!(state.active_power(0), ActivePower::None);
+
+        // The bar stops at the SCOP cost — five escalated stars, 540,000 —
+        // and the SCOP spends all of it.
+        state.add_combat_charge(0, 10_000_000);
+        assert_eq!(state.players[0].charge, 540_000);
+        assert!(state.activate_power(0, ActivePower::Scop));
+        assert_eq!(state.players[0].charge, 0);
+        assert_eq!(state.power_move_bonus(0), 2);
     }
 
     #[test]

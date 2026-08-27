@@ -84,9 +84,11 @@ impl Reach {
         }
 
         let stats = unit.typ.stats();
-        // Some COs extend movement for particular units (Sami's transports).
+        // Some COs extend movement for particular units (Sami's transports),
+        // and a running power can extend it for all of them (Adder's).
         let move_points = (stats.move_points as i32
-            + state.co_of(unit.owner).move_delta[unit.typ as usize] as i32)
+            + state.co_of(unit.owner).move_delta[unit.typ as usize] as i32
+            + state.power_move_bonus(unit.owner))
             .clamp(0, 255) as u8;
         let budget = move_points.min(unit.fuel);
         let move_type = stats.move_type;
@@ -276,6 +278,24 @@ mod tests {
         state.spawn(UnitType::Infantry, 0, Pos::new(2, 0));
         reach.compute(&state, mover);
         assert_eq!(reach.cost_to(&state, Pos::new(3, 0)), Some(3));
+    }
+
+    #[test]
+    fn an_active_power_extends_movement() {
+        use crate::state::ActivePower;
+        let mut state = plain_state(9, 1);
+        state.players[0].co = crate::co_data::co_by_name("Adder").unwrap();
+        let id = state.spawn(UnitType::Infantry, 0, Pos::new(0, 0));
+        let mut reach = Reach::new();
+        reach.compute(&state, id);
+        assert_eq!(reach.cost_to(&state, Pos::new(3, 0)), Some(3));
+        assert_eq!(reach.cost_to(&state, Pos::new(4, 0)), None);
+
+        // Sidewinder: +2 movement for every unit.
+        state.players[0].charge = 450_000;
+        assert!(state.activate_power(0, ActivePower::Scop));
+        reach.compute(&state, id);
+        assert_eq!(reach.cost_to(&state, Pos::new(5, 0)), Some(5));
     }
 
     #[test]

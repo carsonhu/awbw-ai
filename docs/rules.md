@@ -47,12 +47,21 @@ roads, Jake on plains, Lash per terrain star), Sami's capture rate and
 transport movement, Rachel's extra repair, Sasha's property income, Eagle's air
 fuel saving, and luck ranges.
 
+**The CO power meter**, for every CO: charge from combat at displayed-HP funds
+value — full rate for damage taken, half for dealt — 9,000-fund stars, the
+per-activation star-cost escalation, activation that spends the cost and keeps
+the change, no accrual while a power runs, expiry at the owner's next turn
+start, and the universal +10 attack / +10 defence while any power is active.
+The numbers were pinned against recorded meters:
+`log/2026-08-26-adder-powers-phase0.md`.
+
 ## Not implemented
 
 Deliberate. Divergences involving these are expected, not bugs.
 
-- **CO powers.** The largest known gap. The agent will never use one and their
-  absence is symmetric in self-play.
+- **CO power effects, other than Adder's.** The meter and the universal
+  +10/+10 work for every CO, and Adder's +1/+2 movement is real; every other
+  CO's listed power effect is still absent.
 - **Missile silos, pipe-seam destruction, teleporters.** Absent from the
   competitive map pool sampled so far.
 - **Mid-game weather**, including powers that cause it (Drake's Typhoon), and

@@ -19,6 +19,7 @@
 
 use crate::co_data::{AttackCondition, CoData};
 use crate::data;
+use crate::state::ActivePower;
 use crate::types::{MoveType, TerrainKind, UnitType};
 
 /// CO attack/defence hooks. Vanilla (no CO abilities) is all-100s; real COs
@@ -51,7 +52,16 @@ pub const VANILLA_GOOD_LUCK_MAX: i32 = 9;
 /// terrain-conditional COs key off: Kindle on properties, Koal on roads, Jake
 /// on plains, and Lash scaling with the tile's own defence stars. It has no
 /// bearing on the defence half, so passing the defender's tile is harmless.
-pub fn co_modifiers(co: &CoData, unit: UnitType, terrain: TerrainKind) -> CoModifiers {
+///
+/// `power` is whichever of this CO's powers is running: any power grants +10
+/// attack and +10 defence on top of its listed effect. (CO-specific combat
+/// boosts beyond the universal +10 are not modelled yet.)
+pub fn co_modifiers(
+    co: &CoData,
+    unit: UnitType,
+    terrain: TerrainKind,
+    power: ActivePower,
+) -> CoModifiers {
     let index = unit as usize;
     let conditional = match co.condition {
         AttackCondition::Always => 0,
@@ -81,12 +91,12 @@ pub fn co_modifiers(co: &CoData, unit: UnitType, terrain: TerrainKind) -> CoModi
         }
     };
 
+    let boost = if power == ActivePower::None { 100 } else { 110 };
     CoModifiers {
         attack: 100 + co.attack[index] as i32 + conditional,
         defense: 100 + co.defense[index] as i32,
-        // Powers are not modelled; they stay neutral.
-        attack_power: 100,
-        defense_power: 100,
+        attack_power: boost,
+        defense_power: boost,
     }
 }
 
@@ -236,6 +246,24 @@ pub fn damage_spread(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn any_active_power_grants_ten_and_ten() {
+        let off = co_modifiers(
+            &CoData::VANILLA,
+            UnitType::Infantry,
+            TerrainKind::Plain,
+            ActivePower::None,
+        );
+        let on = co_modifiers(
+            &CoData::VANILLA,
+            UnitType::Infantry,
+            TerrainKind::Plain,
+            ActivePower::Cop,
+        );
+        assert_eq!((off.attack_power, off.defense_power), (100, 100));
+        assert_eq!((on.attack_power, on.defense_power), (110, 110));
+    }
 
     #[test]
     fn infantry_vs_infantry_on_plain() {

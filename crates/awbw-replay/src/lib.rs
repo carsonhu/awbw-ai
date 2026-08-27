@@ -23,7 +23,8 @@ use awbw_engine::combat;
 use awbw_engine::map::{Map, Pos};
 use awbw_engine::movement::Reach;
 use awbw_engine::state::{
-    GameSettings, GameState, Player, PlayerId, UnitId, CAPTURE_FULL,
+    ActivePower, GameSettings, GameState, Player, PlayerId, UnitId, CAPTURE_FULL,
+    STAR_CHARGE, STAR_CHARGE_STEP,
 };
 use awbw_engine::types::{UnitType, Weather};
 use awbw_engine::data;
@@ -274,13 +275,23 @@ impl Verifier {
                     player.co = co;
                 }
                 let key = p.id.to_string();
-                let charge = turn.co_power.get(&key).copied().unwrap_or(0);
-                let full = turn.co_max_power.get(&key).copied().unwrap_or(0);
-                player.power_charge = if full > 0 {
-                    (charge as f32 / full as f32).clamp(0.0, 1.0)
-                } else {
-                    0.0
+                player.charge =
+                    turn.co_power.get(&key).copied().unwrap_or(0).max(0) as u32;
+                player.active_power = match turn.co_power_on.get(&key).map(String::as_str)
+                {
+                    Some("Y") => ActivePower::Cop,
+                    Some("S") => ActivePower::Scop,
+                    _ => ActivePower::None,
                 };
+                // The snapshot's COP threshold carries the star-cost
+                // escalation baked in; back the use count out of it so the
+                // engine's costs keep agreeing from this state onward.
+                let full = turn.co_max_power.get(&key).copied().unwrap_or(0);
+                if full > 0 && player.co.cop_stars > 0 {
+                    let per_star = full as u32 / player.co.cop_stars as u32;
+                    player.power_uses =
+                        per_star.saturating_sub(STAR_CHARGE) / STAR_CHARGE_STEP;
+                }
                 player
             })
             .collect();

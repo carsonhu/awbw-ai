@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (12)
+## Log (13)
 
 | date | entry | what it found |
 |---|---|---|
@@ -50,6 +50,7 @@ Then `python tools/docs.py index`.
 | 2026-08-26 | [The recipe that beat greedy goes backwards against JakeMan](log/2026-08-26-jakeman-ppo.md) | The RL checkpoints survived the opening fix, and PPO from the best of them never beat its own start against JakeMan, decaying to 7.6%. Two lessons. |
 | 2026-08-26 | [JakeMan beaten, by running yesterday's experiment without the bug](log/2026-08-26-jakeman-beaten.md) | The same run that scored 7.6% scores 67.2% with recalibration off. A sixty point swing from one default, and the first policy here to beat the strongest scripted opponent. |
 | 2026-08-26 | [PPO's defaults are in the wrong units for this game, and one of them mattered](log/2026-08-26-awbw-units.md) | The credit horizon was one turn. Widening it stops the decay that four runs showed. Two other candidates — a day cap scored as a real result, and a potential that cannot see money — were wrong and unmeasured respectively. |
+| 2026-08-26 | [The CO power meter, pinned from three sources before any code](log/2026-08-26-adder-powers-phase0.md) | Phase 0 of Adder-vs-Adder powers: the charge rules, cross-checked between DefendPeace's AWBW port and the recorded meters in the corpus, which agree to the digit. Plus the supply count: 68 Adder mirrors, 852 tier-4-only games. |
 | 2026-08-25 | [An order-invariant target for the source head](log/2026-08-25-source-set.md) | Training the source head on the whole turn's set of units instead of the next one. The mechanism worked; play did not move. Null result. |
 | 2026-08-25 | [PPO's first real run, and why it came apart at the top](log/2026-08-25-ppo-first-run.md) | 5.5% to 96.2% against `greedy`. It saturated the opponent by iteration 110, then unlearned itself back to 80% — with a traceable cause, and a fix. |
 | 2026-08-25 | [Which DefendPeace AI is worth porting](log/2026-08-25-defendpeace-ai-ranking.md) | Ran their own AIs against each other before porting one. The 2,537-line WallyAI came fourth of five; JakeMan won. Sample size flipped the answer once. |

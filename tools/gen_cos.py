@@ -1,9 +1,11 @@
 """Generate crates/awbw-engine/src/co_data.rs from the AWBW-Replay-Player's
 COs.json, which encodes each CO's day-to-day ability in machine-readable form.
 
-Only day-to-day abilities are generated. CO powers change stats mid-turn and the
-engine does not model them; the replay harness excludes power-affected turns
-from strict checks instead.
+Day-to-day abilities are fully generated. Of powers, the *meter* is generated
+for every CO (COP/SCOP star counts; -1 when the CO lacks that power), while
+power *effects* are modelled only for the COs in POWER_MOVE below — the
+engine's universal +10/+10 during any power needs no data. The replay harness
+still excludes power-affected turns for unmodelled COs.
 """
 
 import json
@@ -40,6 +42,14 @@ MANUAL = {
     # Adder, Rachel, Javier and Andy have no day-to-day combat effect we model.
     # (Javier's +20% defence against indirects is conditional on the *attacker*
     # being indirect, which the current per-unit table cannot express.)
+}
+
+# All-unit movement gained during (COP, SCOP), for the COs whose power effects
+# the engine models. COs.json records only star counts; effects live in its
+# comments, so they are transcribed here from co.php. Powers whose movement is
+# restricted to some units (Jess, Jake's SCOP) need a finer shape than this.
+POWER_MOVE = {
+    "Adder": (1, 2),  # Sideslip / Sidewinder
 }
 
 
@@ -95,6 +105,13 @@ def build(co):
         if bonus is not None:
             conditional = [bonus] * N
 
+    def stars(section):
+        if not section:
+            return -1
+        return int(section.get("PowerStars", -1))
+
+    cop_move, scop_move = POWER_MOVE.get(co["Name"], (0, 0))
+
     luck = d2d.get("LuckRange")
     luck_bad, luck_good = 0, 9
     if isinstance(luck, dict):
@@ -119,6 +136,10 @@ def build(co):
         "capture_pct": (manual or {}).get("capture_pct", 100),
         "move_delta": move_delta,
         "repair_bonus": (manual or {}).get("repair_bonus_hp100", 0),
+        "cop_stars": stars(co.get("NormalPower")),
+        "scop_stars": stars(co.get("SuperPower")),
+        "cop_move": cop_move,
+        "scop_move": scop_move,
     }
 
 
@@ -182,6 +203,15 @@ def main():
     w("    pub move_delta: [i8; NUM_UNIT_TYPES],")
     w("    /// Extra HP repaired per turn, on the 0..=100 scale (Rachel).")
     w("    pub repair_bonus_hp100: u8,")
+    w("    /// Stars a COP costs; -1 when the CO has no COP (Von Bolt).")
+    w("    pub cop_stars: i8,")
+    w("    /// Stars a SCOP costs; -1 when the CO has no SCOP.")
+    w("    pub scop_stars: i8,")
+    w("    /// All-unit movement gained during the COP / SCOP, for the COs")
+    w("    /// whose power effects the engine models (Adder). Zero elsewhere;")
+    w("    /// the universal +10/+10 during any power needs no data.")
+    w("    pub cop_move_bonus: i8,")
+    w("    pub scop_move_bonus: i8,")
     w("}")
     w("")
     w("impl CoData {")
@@ -202,6 +232,10 @@ def main():
     w("        capture_multiplier_pct: 100,")
     w("        move_delta: [0; NUM_UNIT_TYPES],")
     w("        repair_bonus_hp100: 0,")
+    w("        cop_stars: -1,")
+    w("        scop_stars: -1,")
+    w("        cop_move_bonus: 0,")
+    w("        scop_move_bonus: 0,")
     w("    };")
     w("}")
     w("")
@@ -220,6 +254,8 @@ def main():
         w(f'        capture_multiplier_pct: {c["capture_pct"]},')
         w(f'        move_delta: {arr(c["move_delta"], "i8")},')
         w(f'        repair_bonus_hp100: {c["repair_bonus"]},')
+        w(f'        cop_stars: {c["cop_stars"]}, scop_stars: {c["scop_stars"]}, '
+          f'cop_move_bonus: {c["cop_move"]}, scop_move_bonus: {c["scop_move"]},')
         w("    },")
     w("];")
     w("")
@@ -255,9 +291,12 @@ def main():
             effects.append("transports +1 move")
         if c["repair_bonus"]:
             effects.append(f"repair +{c['repair_bonus']//10} HP")
+        if c["cop_move"] or c["scop_move"]:
+            effects.append(f"power move +{c['cop_move']}/+{c['scop_move']}")
         if not effects:
             effects.append("none modelled")
-        print(f"  {c['name']:12} {', '.join(effects)}")
+        stars = f"{c['cop_stars']}/{c['scop_stars']}*"
+        print(f"  {c['name']:12} {stars:7} {', '.join(effects)}")
 
 
 if __name__ == "__main__":

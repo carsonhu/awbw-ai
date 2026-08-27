@@ -480,6 +480,7 @@ impl Engine {
         report.damage_dealt = damage as u8;
 
         let defender_hp = defender.hp100 as i32 - damage;
+        self.charge_meters(&attacker, &defender, defender_hp);
         if defender_hp <= 0 {
             report.defender_destroyed = true;
             self.state.destroy(defender_id);
@@ -505,6 +506,7 @@ impl Engine {
         report.damage_taken = counter as u8;
 
         let attacker_hp = attacker.hp100 as i32 - counter;
+        self.charge_meters(&defender, &attacker, attacker_hp);
         if attacker_hp <= 0 {
             report.attacker_destroyed = true;
             self.state.destroy(attacker_id);
@@ -512,6 +514,22 @@ impl Engine {
             self.state.unit_mut(attacker_id).unwrap().hp100 = attacker_hp as u8;
         }
         report
+    }
+
+    /// Banks power charge for one strike: `victim` fell from full health to
+    /// `hp_after`. Both meters fill on the *displayed*-HP damage priced in
+    /// the victim's cost — full rate for the side that took it, half for the
+    /// side that dealt it. (5 HP off an infantry: 5,000 units and 2,500.)
+    fn charge_meters(
+        &mut self,
+        dealer: &crate::state::Unit,
+        victim: &crate::state::Unit,
+        hp_after: i32,
+    ) {
+        let dhp = combat::display_hp(victim.hp100 as i32) - combat::display_hp(hp_after.max(0));
+        let value = dhp.max(0) as u32 * victim.typ.stats().cost;
+        self.state.add_combat_charge(victim.owner, value);
+        self.state.add_combat_charge(dealer.owner, value / 2);
     }
 
     /// One luck roll of AWBW's damage formula for a concrete pairing.
@@ -540,8 +558,18 @@ impl Engine {
             attacker.hp100 as i32,
             defender.hp100 as i32,
             terrain_defense,
-            combat::co_modifiers(attacker_co, attacker.typ, attacker_terrain),
-            combat::co_modifiers(defender_co, defender.typ, terrain),
+            combat::co_modifiers(
+                attacker_co,
+                attacker.typ,
+                attacker_terrain,
+                self.state.active_power(attacker.owner),
+            ),
+            combat::co_modifiers(
+                defender_co,
+                defender.typ,
+                terrain,
+                self.state.active_power(defender.owner),
+            ),
             self.state.com_tower_bonus(attacker.owner),
             good_luck,
             bad_luck,
@@ -917,8 +945,18 @@ impl Engine {
             defender_hp100,
             attacker.hp100 as i32,
             combat::effective_terrain_defense(attacker.move_type(), terrain),
-            combat::co_modifiers(defender_co, defender.typ, self.state.map.terrain_at(defender.pos)),
-            combat::co_modifiers(attacker_co, attacker.typ, terrain),
+            combat::co_modifiers(
+                defender_co,
+                defender.typ,
+                self.state.map.terrain_at(defender.pos),
+                self.state.active_power(defender.owner),
+            ),
+            combat::co_modifiers(
+                attacker_co,
+                attacker.typ,
+                terrain,
+                self.state.active_power(attacker.owner),
+            ),
             self.state.com_tower_bonus(defender.owner),
             defender_co.luck_good_max,
             defender_co.luck_bad_max,
@@ -949,8 +987,18 @@ impl Engine {
             attacker.hp100 as i32,
             defender_hp100,
             combat::effective_terrain_defense(defender.move_type(), terrain),
-            combat::co_modifiers(attacker_co, attacker.typ, attacker_terrain),
-            combat::co_modifiers(defender_co, defender.typ, terrain),
+            combat::co_modifiers(
+                attacker_co,
+                attacker.typ,
+                attacker_terrain,
+                self.state.active_power(attacker.owner),
+            ),
+            combat::co_modifiers(
+                defender_co,
+                defender.typ,
+                terrain,
+                self.state.active_power(defender.owner),
+            ),
             self.state.com_tower_bonus(attacker.owner),
             attacker_co.luck_good_max,
             attacker_co.luck_bad_max,
@@ -1026,6 +1074,32 @@ mod tests {
         assert!(e.state.unit(attacker).unwrap().hp100 < 100);
         // Both spent a round of primary ammo.
         assert_eq!(e.state.unit(attacker).unwrap().ammo, UnitType::Tank.stats().max_ammo - 1);
+    }
+
+    #[test]
+    fn combat_charges_both_power_meters() {
+        use crate::state::ActivePower;
+        let mut e = plains(5, 1);
+        e.state.players[0].co = crate::co_data::co_by_name("Adder").unwrap();
+        e.state.players[1].co = crate::co_data::co_by_name("Adder").unwrap();
+        let attacker = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        e.state.spawn(UnitType::Tank, 1, Pos::new(3, 0));
+        let report = e
+            .apply(Action::Attack {
+                unit: attacker,
+                dest: Pos::new(2, 0),
+                target: Pos::new(3, 0),
+            })
+            .unwrap();
+
+        // Displayed-HP damage, priced in the victim's cost: full rate to the
+        // side that took it, half to the side that dealt it.
+        let dealt = 10 - combat::display_hp(100 - report.damage_dealt as i32) as u32;
+        let taken = 10 - combat::display_hp(100 - report.damage_taken as i32) as u32;
+        let cost = UnitType::Tank.stats().cost;
+        assert_eq!(e.state.players[1].charge, dealt * cost + taken * cost / 2);
+        assert_eq!(e.state.players[0].charge, taken * cost + dealt * cost / 2);
+        assert_eq!(e.state.active_power(0), ActivePower::None);
     }
 
     #[test]

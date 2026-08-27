@@ -153,7 +153,12 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
         // identical-looking boards can call for opposite trades and a cloned
         // policy learns the average of both.
         let co = state.co_of(unit.owner);
-        let mods = crate::combat::co_modifiers(co, unit.typ, terrain);
+        let mods = crate::combat::co_modifiers(
+            co,
+            unit.typ,
+            terrain,
+            state.active_power(unit.owner),
+        );
         at(plane::CO_ATTACK, index, (mods.attack - 100) as f32 / 100.0);
         at(plane::CO_DEFENSE, index, (mods.defense - 100) as f32 / 100.0);
     }
@@ -180,7 +185,7 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
         globals[slot] = co.price_multiplier_pct as f32 / 100.0;
         globals[slot + 1] = co.capture_multiplier_pct as f32 / 100.0;
         globals[slot + 2] = co.property_fund_bonus as f32 / 1_000.0;
-        globals[slot + 3] = state.players[player as usize].power_charge.clamp(0.0, 1.0);
+        globals[slot + 3] = state.players[player as usize].charge_fraction();
     }
 }
 
@@ -714,9 +719,9 @@ mod tests {
         let mut vanilla = vec![0.0; observation_len(&e.state)];
         encode_observation(&e.state, e.vision(), &mut vanilla);
 
-        // Kanbei: +30% attack and defence.
+        // Kanbei: +30% attack and defence, and a 4-star COP (360,000 units).
         e.state.players[0].co = crate::co_data::co_by_name("Kanbei").expect("Kanbei exists");
-        e.state.players[0].power_charge = 0.75;
+        e.state.players[0].charge = 270_000;
         let mut kanbei = vec![0.0; observation_len(&e.state)];
         encode_observation(&e.state, e.vision(), &mut kanbei);
 

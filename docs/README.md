@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (26)
+## Log (27)
 
 | date | entry | what it found |
 |---|---|---|
@@ -50,6 +50,7 @@ Then `python tools/docs.py index`.
 | 2026-08-27 | [Recalibration defaulted on, and ran in every powers-era run](log/2026-08-27-recalibration-ran-again.md) | `2026-08-26-recalibration.md` measured seventeen points of damage from refitting batch-norm and closed with "run with `--recalibrate 0`". It was never made the default, so it ran in `ppo-adder1`, `ppo-adder2`, `ppo-adder3` and the first self-play attempt. The default is now 0. |
 | 2026-08-27 | [Parity was never the problem — recalibration was](log/2026-08-27-parity-was-never-the-problem.md) | The control that should have drifted promoted three times and produced the strongest policy of the night: 90.3% against `ppo-adder3`, and 84.0% against the from-behind ladder that took twice the compute to get to 87.0%. `--frozen-init` bought nothing. Correcting today's claim. |
 | 2026-08-27 | [A second rung, powers everywhere, and the ladder is not transitive](log/2026-08-27-ladder-rung-two-and-the-cycle.md) | Four more generations. The new top beats the old top 82.5% and `ppo-adder3` 87.0% — but only 72.0% against a generation the old top beat 93.5%. Strength here is not a total order, and a ladder that keeps only its newest weights will not notice. |
+| 2026-08-27 | [Join refunds are counted on screen, not in hundredths](log/2026-08-27-join-refunds-in-displayed-hp.md) | The `funds` class was the largest power-free divergence in the corpus. Part of it was a real rule error: joining refunded the overflow computed from summed hundredths, where AWBW rounds each unit to displayed HP first. Fixing it: 93 -> 88 funds, 683 -> 687 clean, `build-illegal` to 0. |
 | 2026-08-27 | [The curriculum rung holds, and `greedy` stops being able to see it](log/2026-08-27-jakeman-under-adder.md) | `ppo-adder3` climbed 2.5% -> 15.5% against JakeMan-under-Adder over 200 iterations without ever decaying — behind the whole way, which is the point. It beats its own parent 84.6%. Against `greedy` the two are indistinguishable, which is a fact about `greedy`. |
 | 2026-08-27 | [The advantage floor does not stop the from-ahead decay](log/2026-08-27-adv-floor-null.md) | Run 2 re-ran the Adder climb with `--adv-floor 0.3` armed and falsified the noise-inflation story: the collapse arrived on schedule anyway. Spread collapse is a symptom of the crashed regime, not its cause. |
 | 2026-08-26 | [A dead attacker that would not disappear, and JakeMan's missing precedence](log/2026-08-26-two-fixes.md) | Both found by watching a replay rather than reading a number. `combatInfo` was carrying the whole unit row where AWBW carries five fields, and the port let a walk outbid an attack. JakeMan is stronger for it: 67.2% -> 58.4%. |

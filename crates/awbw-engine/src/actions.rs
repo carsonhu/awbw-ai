@@ -632,10 +632,15 @@ impl Engine {
         let stats = unit.typ.stats();
 
         let combined = unit.hp100 as u16 + other.hp100 as u16;
-        // HP above 10 is refunded at the unit's per-HP value.
-        let overflow = combined.saturating_sub(100);
-        if overflow > 0 {
-            let display_overflow = (overflow as u32 + 9) / 10;
+        // HP above 10 is refunded at the unit's per-HP value — counted in
+        // *displayed* HP, each unit rounded up before they are added, which is
+        // the arithmetic AWBW does: its records carry HP as 1-10 and nothing
+        // finer ever reaches the funds. Summing hp100 first and rounding the
+        // overflow once agrees whenever either unit is whole and drifts
+        // otherwise: 4.5 joining 7.5 refunds three displayed HP, not two.
+        let display = |hp100: u8| (hp100 as u32 + 9) / 10;
+        let display_overflow = (display(unit.hp100) + display(other.hp100)).saturating_sub(10);
+        if display_overflow > 0 {
             self.state.players[unit.owner as usize].funds += display_overflow * (stats.cost / 10);
         }
 
@@ -1353,6 +1358,24 @@ mod tests {
         assert_eq!(e.state.unit(b).unwrap().hp100, 100);
         // 2 HP over the cap, refunded at 100 funds each.
         assert_eq!(e.state.player(0).funds, funds + 200);
+    }
+
+    #[test]
+    fn join_refunds_in_displayed_hp_not_hundredths() {
+        // 4.5 HP into 7.5 reads as 5 and 8 on screen, and AWBW refunds what is
+        // on screen: three points, not the two that summing hundredths and
+        // rounding once would give. Every funds number in a replay is downstream
+        // of this, so the two are not interchangeable.
+        let mut e = plains(5, 1);
+        let a = e.state.spawn(UnitType::Tank, 0, Pos::new(0, 0));
+        let b = e.state.spawn(UnitType::Tank, 0, Pos::new(1, 0));
+        e.state.unit_mut(a).unwrap().hp100 = 45;
+        e.state.unit_mut(b).unwrap().hp100 = 75;
+        let funds = e.state.player(0).funds;
+
+        e.apply(Action::Join { unit: a, dest: Pos::new(1, 0) }).unwrap();
+        assert_eq!(e.state.unit(b).unwrap().hp100, 100);
+        assert_eq!(e.state.player(0).funds, funds + 3 * 700);
     }
 
     #[test]

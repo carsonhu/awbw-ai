@@ -61,17 +61,17 @@ capture, build, load, unload, join and supply. Two enumeration paths:
 **Observations** are written from the moving player's side — ownership channels
 are *mine* and *theirs*, not seat 0 and seat 1 — so one policy plays either seat.
 Under fog only what that player sees is written, so it is exactly what the agent
-may act on. 64 planes plus 19 globals; layout in `plane::`. Two planes carry the
+may act on. 64 planes plus 23 globals; layout in `plane::`. Two planes carry the
 acting CO's per-unit attack and defence, and the globals carry each side's build
-cost, capture rate, property income and power charge — so a policy trained on
-mixed-CO human games can tell whose numbers it is looking at.
+cost, capture rate, income, power charge and running power — so a policy trained
+on mixed-CO human games can tell whose numbers it is looking at.
 
 **Actions** are four masked choices — `source -> dest -> kind -> param` —
 rather than one flat index, whose product is enormous and almost all illegal.
-`source` is a tile (a unit or a production property) plus one index meaning
-end-turn; `param` carries the attack target, the unit type to build, or which
-passenger to drop where. Three of the four are board-shaped, which is what a
-convolutional policy emits anyway.
+`source` is a tile (a unit or a production property) plus off-board indices for
+end-turn, COP and SCOP; `param` carries the attack target, the unit type to
+build, or which passenger to drop where. Three of the four are board-shaped,
+which is what a convolutional policy emits anyway.
 
 `ActionMasks` is **staged**: the source mask scans units and properties, and
 only the chosen tile's orders get enumerated — building them from the full

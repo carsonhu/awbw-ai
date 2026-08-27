@@ -21,7 +21,7 @@
 use awbw_engine::actions::{Action, Engine};
 use awbw_engine::encoding::{
     decode, encode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
-    ActionMasks,
+    ActionMasks, EXTRA_SOURCES,
 };
 use awbw_engine::rng::Rng;
 use awbw_engine::state::{GameState, Outcome, PlayerId};
@@ -524,9 +524,9 @@ impl VecEnv {
             .into_pyarray(py)
     }
 
-    /// Which tiles can act, plus the end-turn index.
+    /// Which tiles can act, plus the end-turn and power indices.
     fn source_mask<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
-        let width = self.tiles() + 1;
+        let width = self.tiles() + EXTRA_SOURCES;
         let mut data = vec![false; self.games.len() * width];
         let mut scratch = Vec::new();
         for (i, game) in self.games.iter_mut().enumerate() {
@@ -1373,7 +1373,7 @@ impl ReplayTeacher {
     /// under play conditions — and so a uniform draw over it is a meaningful
     /// baseline rather than a draw over the whole board.
     fn source_mask<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
-        let width = self.shape.0 as usize * self.shape.1 as usize + 1;
+        let width = self.shape.0 as usize * self.shape.1 as usize + EXTRA_SOURCES;
         let mut data = vec![false; self.slots.len() * width];
         let mut scratch = Vec::new();
         for (i, slot) in self.slots.iter_mut().enumerate() {
@@ -1395,7 +1395,7 @@ impl ReplayTeacher {
     /// thing every turn does, so leaving it in would put it in every target
     /// set, and a policy could satisfy the loss by ending every turn at once.
     fn source_targets<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
-        let width = self.shape.0 as usize * self.shape.1 as usize + 1;
+        let width = self.shape.0 as usize * self.shape.1 as usize + EXTRA_SOURCES;
         let end = self.end_turn;
         let mut data = vec![false; self.slots.len() * width];
         for (i, slot) in self.slots.iter().enumerate() {

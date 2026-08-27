@@ -258,6 +258,7 @@ impl Recorder {
             }
             Action::Build { .. } => json!({}),
             Action::Unload { .. } => json!({}),
+            Action::Activate { .. } => json!({}),
             Action::EndTurn => json!({"day": state.day, "player": state.current}),
         }
     }
@@ -354,6 +355,22 @@ impl Recorder {
             Action::Supply { unit, .. } => json!({
                 "kind": "Supply", "path": path, "unit": self.unit_json(state, unit),
             }),
+            Action::Activate { power } => {
+                // Shaped like AWBW's own Power record: the flag, and the
+                // meter after the cost came off.
+                let player = state.current;
+                json!({
+                    "kind": "Power",
+                    "playerID": player,
+                    "coName": state.co_of(player).name,
+                    "coPower": if power == awbw_engine::state::ActivePower::Scop {
+                        "S"
+                    } else {
+                        "Y"
+                    },
+                    "playersCOP": state.players[player as usize].charge,
+                })
+            }
             Action::EndTurn => json!({
                 "kind": "End",
                 "day": state.day,

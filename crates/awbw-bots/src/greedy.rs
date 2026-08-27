@@ -11,7 +11,7 @@
 
 use awbw_engine::actions::{Action, Engine};
 use awbw_engine::map::Pos;
-use awbw_engine::state::{PlayerId, Unit};
+use awbw_engine::state::{ActivePower, PlayerId, Unit};
 use awbw_engine::types::{TerrainKind, UnitType};
 
 use crate::Bot;
@@ -176,6 +176,13 @@ impl GreedyBot {
         let me = state.current;
         match action {
             Action::EndTurn => IDLE,
+
+            // Fire the biggest charged power immediately — RizeBot's
+            // milestone-1 policy. Only ever offered when legal.
+            Action::Activate { power } => match power {
+                ActivePower::Scop => f32::MAX,
+                _ => f32::MAX / 2.0,
+            },
 
             Action::Build { at, typ } => {
                 let _ = at;

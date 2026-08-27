@@ -82,8 +82,9 @@ class Policy(nn.Module):
         self.body = nn.Sequential(*[Residual(channels) for _ in range(blocks)])
 
         self.source_tile = nn.Conv2d(channels, 1, 1)
-        # End-turn is not a tile, so it gets its own logit off pooled features.
-        self.source_end = nn.Linear(channels, 1)
+        # End-turn and the CO powers are not tiles, so they get their own
+        # logits off pooled features — however many the encoding declares.
+        self.source_end = nn.Linear(channels, self.head_sizes[0] - self.tiles)
 
         self.dest_key = nn.Conv2d(channels, channels, 1)
         self.dest_query = nn.Linear(2 * channels, channels)

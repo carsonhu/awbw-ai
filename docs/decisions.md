@@ -314,3 +314,10 @@ held near 58% while outright wins fell 51.0% -> 39.0% and draws doubled.
 `--decide-cap` settles a capped game as AWBW settles a turn-limited one:
 income, then property count (Com Towers and labs count, material never does),
 then a draw. Built, never trained against.
+
+**The powers encoding break kills every checkpoint before it.** COP and SCOP
+became source-head indices beside end-turn and four globals now carry each
+side's running power, so head sizes and the observation changed together —
+one break, everything bundled. Every earlier checkpoint is unloadable, every
+earlier rating is of a different game, and BC restarts from scratch. The
+third such generation; the JakeMan fix ended the second.

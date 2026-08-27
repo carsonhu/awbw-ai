@@ -10,7 +10,8 @@ use crate::map::Pos;
 use crate::movement::Reach;
 use crate::rng::Rng;
 use crate::state::{
-    can_carry, cargo_capacity, GameState, PlayerId, UnitId, CAPTURE_FULL, MAX_CARGO,
+    can_carry, cargo_capacity, ActivePower, GameState, PlayerId, UnitId, CAPTURE_FULL,
+    MAX_CARGO,
 };
 use crate::types::{TerrainKind, UnitType};
 use crate::vision::Vision;
@@ -47,6 +48,9 @@ pub enum Action {
     Join { unit: UnitId, dest: Pos },
     /// Move an APC to `dest` and resupply every adjacent ally.
     Supply { unit: UnitId, dest: Pos },
+    /// Fire the current player's CO power. Costs no unit's turn; the effect
+    /// runs until this player's next turn begins.
+    Activate { power: ActivePower },
     EndTurn,
 }
 
@@ -70,6 +74,7 @@ pub enum ActionError {
     CannotJoinThat,
     NotATransport,
     NotASupplier,
+    PowerNotReady,
 }
 
 impl std::fmt::Display for ActionError {
@@ -179,6 +184,13 @@ impl Engine {
             } => self.check_unload(transport, cargo, drop_at),
             Action::Join { unit, dest } => self.check_join(unit, dest),
             Action::Supply { unit, dest } => self.check_supply(unit, dest),
+            Action::Activate { power } => {
+                if self.state.can_activate_power(self.state.current, power) {
+                    Ok(())
+                } else {
+                    Err(ActionError::PowerNotReady)
+                }
+            }
         }
     }
 
@@ -365,6 +377,9 @@ impl Engine {
         match action {
             Action::EndTurn => {
                 self.state.end_turn();
+            }
+            Action::Activate { power } => {
+                self.state.activate_power(self.state.current, power);
             }
             Action::Move { unit, dest } => {
                 let stop = self.ambush_stop(unit, dest);
@@ -728,6 +743,11 @@ impl Engine {
         sites.clear();
         self.sites = sites;
 
+        for power in [ActivePower::Cop, ActivePower::Scop] {
+            if self.state.can_activate_power(player, power) {
+                out.push(Action::Activate { power });
+            }
+        }
         out.push(Action::EndTurn);
     }
 

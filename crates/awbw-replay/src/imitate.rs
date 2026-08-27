@@ -445,6 +445,16 @@ fn force(loaded: &mut Loaded, action: Action) {
         Action::EndTurn => {
             engine.state.end_turn();
         }
+        Action::Activate { power } => {
+            let player = engine.state.current;
+            if !engine.state.activate_power(player, power) {
+                // The recorded player fired it, so it runs regardless.
+                let p = &mut engine.state.players[player as usize];
+                p.active_power = power;
+                p.power_uses += 1;
+                p.charge = 0;
+            }
+        }
         Action::Build { at, typ } => {
             let owner = engine.state.current;
             if engine.state.unit_id_at(at).is_none() {

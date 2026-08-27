@@ -23,7 +23,7 @@
 
 use crate::actions::{Action, Engine};
 use crate::map::Pos;
-use crate::state::{GameState, PlayerId, MAX_CARGO};
+use crate::state::{ActivePower, GameState, PlayerId, MAX_CARGO};
 use crate::types::{TerrainKind, UnitType};
 use crate::vision::Vision;
 
@@ -65,9 +65,10 @@ pub mod plane {
     pub const COUNT: usize = LIT + 1;
 }
 
-/// Non-spatial features: funds, day, weather, army sizes, and the CO effects
-/// that are not per-unit — build cost, capture rate, income, power charge.
-pub const GLOBAL_FEATURES: usize = 19;
+/// Non-spatial features: funds, day, weather, army sizes, the CO effects
+/// that are not per-unit — build cost, capture rate, income, power charge —
+/// and which of each side's powers is running right now.
+pub const GLOBAL_FEATURES: usize = 23;
 
 /// Floats one observation needs for a given board.
 pub fn observation_len(state: &GameState) -> usize {
@@ -187,6 +188,16 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
         globals[slot + 2] = co.property_fund_bonus as f32 / 1_000.0;
         globals[slot + 3] = state.players[player as usize].charge_fraction();
     }
+    // A running power changes what units can do mid-observation — without
+    // this flag, a board played under Sideslip contradicts the same board
+    // played without it and a cloned policy learns the average of the two.
+    for (slot, player) in [(19, me), (21, them)] {
+        match state.active_power(player) {
+            ActivePower::None => {}
+            ActivePower::Cop => globals[slot] = 1.0,
+            ActivePower::Scop => globals[slot + 1] = 1.0,
+        }
+    }
 }
 
 // --- actions --------------------------------------------------------------
@@ -263,11 +274,25 @@ pub fn end_turn_source(state: &GameState) -> u32 {
     state.map.tile_count() as u32
 }
 
+/// The `source` value meaning "fire the CO power". Two indices past the
+/// board, after end-turn: the COP, then the SCOP.
+pub fn power_source(state: &GameState, power: ActivePower) -> Option<u32> {
+    let tiles = state.map.tile_count() as u32;
+    match power {
+        ActivePower::None => None,
+        ActivePower::Cop => Some(tiles + 1),
+        ActivePower::Scop => Some(tiles + 2),
+    }
+}
+
+/// Off-board source indices: end-turn, COP, SCOP.
+pub const EXTRA_SOURCES: usize = 3;
+
 /// Number of logits each head needs.
 pub fn head_sizes(state: &GameState) -> [usize; 4] {
     let tiles = state.map.tile_count();
     [
-        tiles + 1,
+        tiles + EXTRA_SOURCES,
         tiles,
         ORDER_KINDS,
         tiles.max(UNIT_TYPE_PLANES).max(MAX_CARGO * 4),
@@ -283,6 +308,12 @@ pub fn encode(state: &GameState, action: Action) -> Option<ActionCode> {
     Some(match action {
         Action::EndTurn => ActionCode {
             source: end_turn_source(state),
+            dest: 0,
+            kind: OrderKind::Wait as u8,
+            param: 0,
+        },
+        Action::Activate { power } => ActionCode {
+            source: power_source(state, power)?,
             dest: 0,
             kind: OrderKind::Wait as u8,
             param: 0,
@@ -359,6 +390,11 @@ pub fn decode(state: &GameState, code: ActionCode) -> Option<Action> {
     if code.source == end_turn_source(state) {
         return Some(Action::EndTurn);
     }
+    for power in [ActivePower::Cop, ActivePower::Scop] {
+        if Some(code.source) == power_source(state, power) {
+            return Some(Action::Activate { power });
+        }
+    }
     let tiles = state.map.tile_count() as u32;
     if code.source >= tiles || code.dest >= tiles {
         return None;
@@ -424,12 +460,12 @@ impl ActionMasks {
         ActionMasks::default()
     }
 
-    /// Which tiles can act, plus the end-turn index.
+    /// Which tiles can act, plus the end-turn and power indices.
     pub fn source_mask(&mut self, engine: &mut Engine, out: &mut Vec<bool>) {
         self.cached = None;
         let tiles = engine.state.map.tile_count();
         out.clear();
-        out.resize(tiles + 1, false);
+        out.resize(tiles + EXTRA_SOURCES, false);
 
         for unit in engine.movable_units() {
             if let Some(u) = engine.state.unit(unit) {
@@ -454,6 +490,14 @@ impl ActionMasks {
         }
         // Ending the turn is always available, so no mask is ever empty.
         out[tiles] = true;
+        let current = engine.state.current;
+        for power in [ActivePower::Cop, ActivePower::Scop] {
+            if engine.state.can_activate_power(current, power) {
+                if let Some(index) = power_source(&engine.state, power) {
+                    out[index as usize] = true;
+                }
+            }
+        }
     }
 
     /// Caches the orders available from one tile. Later masks filter this.
@@ -462,6 +506,13 @@ impl ActionMasks {
             self.codes.clear();
             if source == end_turn_source(&engine.state) {
                 if let Some(code) = encode(&engine.state, Action::EndTurn) {
+                    self.codes.push(code);
+                }
+            } else if let Some(&power) = [ActivePower::Cop, ActivePower::Scop]
+                .iter()
+                .find(|&&p| Some(source) == power_source(&engine.state, p))
+            {
+                if let Some(code) = encode(&engine.state, Action::Activate { power }) {
                     self.codes.push(code);
                 }
             } else if (source as usize) < engine.state.map.tile_count() {
@@ -560,6 +611,48 @@ mod tests {
         e.state.spawn(UnitType::Tank, 1, Pos::new(3, 3));
         e.refresh_vision();
         e
+    }
+
+    #[test]
+    fn a_charged_power_flows_through_masks_and_codec() {
+        let mut e = board(false);
+        e.state.players[0].co = crate::co_data::co_by_name("Adder").expect("Adder exists");
+        let tiles = e.state.map.tile_count();
+        let mut masks = ActionMasks::new();
+        let mut sources = Vec::new();
+
+        // Empty bar: only end-turn among the off-board indices.
+        masks.source_mask(&mut e, &mut sources);
+        assert_eq!(sources.len(), tiles + EXTRA_SOURCES);
+        assert!(sources[tiles]);
+        assert!(!sources[tiles + 1] && !sources[tiles + 2]);
+
+        // Two stars: the COP lights up; five would light both.
+        e.state.players[0].charge = 180_000;
+        masks.source_mask(&mut e, &mut sources);
+        assert!(sources[tiles + 1], "COP charged");
+        assert!(!sources[tiles + 2], "SCOP not yet");
+
+        // The staged path yields exactly the activation order, it round-trips,
+        // and the engine takes it.
+        let codes = masks.select_source(&mut e, tiles as u32 + 1).to_vec();
+        assert_eq!(codes.len(), 1);
+        let action = decode(&e.state, codes[0]).expect("decodes");
+        assert_eq!(action, Action::Activate { power: ActivePower::Cop });
+        assert_eq!(encode(&e.state, action), Some(codes[0]));
+        e.apply(action).expect("legal");
+        assert_eq!(e.state.active_power(0), ActivePower::Cop);
+
+        // While it runs, neither power is offered again.
+        masks.source_mask(&mut e, &mut sources);
+        assert!(!sources[tiles + 1] && !sources[tiles + 2]);
+
+        // And the running power is visible in the globals.
+        let mut obs = vec![0.0; observation_len(&e.state)];
+        encode_observation(&e.state, e.vision(), &mut obs);
+        let globals = plane::COUNT * tiles;
+        assert_eq!(obs[globals + 19], 1.0, "own COP running");
+        assert_eq!(obs[globals + 20], 0.0);
     }
 
     #[test]
@@ -743,6 +836,9 @@ mod tests {
         let tiles = e.state.map.tile_count();
         assert_eq!(observation_len(&e.state), plane::COUNT * tiles + GLOBAL_FEATURES);
         assert_eq!(plane::COUNT, 64);
-        assert_eq!(head_sizes(&e.state), [tiles + 1, tiles, ORDER_KINDS, tiles]);
+        assert_eq!(
+            head_sizes(&e.state),
+            [tiles + EXTRA_SOURCES, tiles, ORDER_KINDS, tiles]
+        );
     }
 }

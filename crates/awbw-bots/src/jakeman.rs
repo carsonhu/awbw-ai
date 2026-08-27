@@ -33,7 +33,7 @@ use awbw_engine::combat;
 use awbw_engine::map::Pos;
 use awbw_engine::movement::Reach;
 use awbw_engine::rng::Rng;
-use awbw_engine::state::{GameState, PlayerId, Unit, UnitId};
+use awbw_engine::state::{ActivePower, GameState, PlayerId, Unit, UnitId};
 use awbw_engine::types::{TerrainKind, UnitType};
 
 use crate::Bot;
@@ -403,6 +403,12 @@ impl JakeManBot {
         let me = state.current;
         match action {
             Action::EndTurn => IDLE,
+            // Fire the biggest charged power immediately — RizeBot's
+            // milestone-1 policy. Only ever offered when legal.
+            Action::Activate { power } => match power {
+                ActivePower::Scop => f32::MAX,
+                _ => f32::MAX / 2.0,
+            },
             Action::Build { typ, .. } => self.build_score(engine, typ, me),
 
             Action::Attack { unit, dest, target } => {

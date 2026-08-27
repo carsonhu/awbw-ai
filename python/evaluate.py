@@ -219,6 +219,9 @@ def main() -> int:
     parser.add_argument("--games", type=int, default=200)
     parser.add_argument("--envs", type=int, default=50)
     parser.add_argument("--max-day", type=int, default=60)
+    # Which CO both seats play (a mirror). None is the ability-free vanilla
+    # CO, which has no powers.
+    parser.add_argument("--co", default=None)
     # Must match the training run being rated. A capped game is half a point
     # undecided and a whole one either way decided, so the two settings put a
     # stalling policy several points apart.
@@ -238,7 +241,7 @@ def main() -> int:
         # the board and the seating are fair before reading anything into a
         # policy's number.
         env = awbw.TeacherEnv(num_envs=args.envs, teacher=args.policy,
-                              seed=args.seed, max_day=args.max_day)
+                              seed=args.seed, max_day=args.max_day, co=args.co)
         start = time.perf_counter()
         while env.stats[0] < args.games:
             env.act()
@@ -250,7 +253,7 @@ def main() -> int:
     # With a checkpoint on the other seat there is no scripted opponent at all:
     # the caller moves both sides, and `agent_seat` says which rows are ours.
     env = awbw.VecEnv(num_envs=args.envs, seed=args.seed, max_day=args.max_day,
-                      decide_cap=args.decide_cap,
+                      decide_cap=args.decide_cap, co=args.co,
                       opponent=None if args.versus else args.opponent)
     if args.policy == "net":
         agent = Net(load(ROOT / args.checkpoint, env, device), device,

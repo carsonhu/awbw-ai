@@ -140,6 +140,7 @@ def build(co):
         "scop_stars": stars(co.get("SuperPower")),
         "cop_move": cop_move,
         "scop_move": scop_move,
+        "modelled": co["Name"] in POWER_MOVE,
     }
 
 
@@ -212,6 +213,9 @@ def main():
     w("    /// the universal +10/+10 during any power needs no data.")
     w("    pub cop_move_bonus: i8,")
     w("    pub scop_move_bonus: i8,")
+    w("    /// Whether this CO's power *effects* are modelled. The meter and")
+    w("    /// the universal +10/+10 work for every CO regardless.")
+    w("    pub power_effects_modelled: bool,")
     w("}")
     w("")
     w("impl CoData {")
@@ -236,6 +240,7 @@ def main():
     w("        scop_stars: -1,")
     w("        cop_move_bonus: 0,")
     w("        scop_move_bonus: 0,")
+    w("        power_effects_modelled: false,")
     w("    };")
     w("}")
     w("")
@@ -256,6 +261,7 @@ def main():
         w(f'        repair_bonus_hp100: {c["repair_bonus"]},')
         w(f'        cop_stars: {c["cop_stars"]}, scop_stars: {c["scop_stars"]}, '
           f'cop_move_bonus: {c["cop_move"]}, scop_move_bonus: {c["scop_move"]},')
+        w(f'        power_effects_modelled: {"true" if c["modelled"] else "false"},')
         w("    },")
     w("];")
     w("")

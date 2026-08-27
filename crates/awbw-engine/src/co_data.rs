@@ -54,6 +54,9 @@ pub struct CoData {
     /// the universal +10/+10 during any power needs no data.
     pub cop_move_bonus: i8,
     pub scop_move_bonus: i8,
+    /// Whether this CO's power *effects* are modelled. The meter and
+    /// the universal +10/+10 work for every CO regardless.
+    pub power_effects_modelled: bool,
 }
 
 impl CoData {
@@ -78,6 +81,7 @@ impl CoData {
         scop_stars: -1,
         cop_move_bonus: 0,
         scop_move_bonus: 0,
+        power_effects_modelled: false,
     };
 }
 
@@ -95,6 +99,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Grit", awbw_id: 2, price_multiplier_pct: 100,
@@ -109,6 +114,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Kanbei", awbw_id: 3, price_multiplier_pct: 120,
@@ -123,6 +129,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 4, scop_stars: 7, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Drake", awbw_id: 5, price_multiplier_pct: 100,
@@ -137,6 +144,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 4, scop_stars: 7, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Max", awbw_id: 7, price_multiplier_pct: 100,
@@ -151,6 +159,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Sami", awbw_id: 8, price_multiplier_pct: 100,
@@ -165,6 +174,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 8, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Olaf", awbw_id: 9, price_multiplier_pct: 100,
@@ -179,6 +189,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 7, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Eagle", awbw_id: 10, price_multiplier_pct: 100,
@@ -193,6 +204,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 9, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Adder", awbw_id: 11, price_multiplier_pct: 100,
@@ -207,6 +219,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 2, scop_stars: 5, cop_move_bonus: 1, scop_move_bonus: 2,
+        power_effects_modelled: true,
     },
     CoData {
         name: "Hawke", awbw_id: 12, price_multiplier_pct: 100,
@@ -221,6 +234,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 5, scop_stars: 9, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Sensei", awbw_id: 13, price_multiplier_pct: 100,
@@ -235,6 +249,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 2, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Jess", awbw_id: 14, price_multiplier_pct: 100,
@@ -249,6 +264,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Colin", awbw_id: 15, price_multiplier_pct: 80,
@@ -263,6 +279,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 2, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Lash", awbw_id: 16, price_multiplier_pct: 100,
@@ -277,6 +294,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 4, scop_stars: 7, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Hachi", awbw_id: 17, price_multiplier_pct: 90,
@@ -291,6 +309,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 5, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Sonja", awbw_id: 18, price_multiplier_pct: 100,
@@ -305,6 +324,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 5, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Sasha", awbw_id: 19, price_multiplier_pct: 100,
@@ -319,6 +339,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 2, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Grimm", awbw_id: 20, price_multiplier_pct: 100,
@@ -333,6 +354,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Koal", awbw_id: 21, price_multiplier_pct: 100,
@@ -347,6 +369,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 5, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Jake", awbw_id: 22, price_multiplier_pct: 100,
@@ -361,6 +384,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Kindle", awbw_id: 23, price_multiplier_pct: 100,
@@ -375,6 +399,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Nell", awbw_id: 24, price_multiplier_pct: 100,
@@ -389,6 +414,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Flak", awbw_id: 25, price_multiplier_pct: 100,
@@ -403,6 +429,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Jugger", awbw_id: 26, price_multiplier_pct: 100,
@@ -417,6 +444,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 7, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Javier", awbw_id: 27, price_multiplier_pct: 100,
@@ -431,6 +459,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Rachel", awbw_id: 28, price_multiplier_pct: 100,
@@ -445,6 +474,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 10,
         cop_stars: 3, scop_stars: 6, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Sturm", awbw_id: 29, price_multiplier_pct: 100,
@@ -459,6 +489,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: 6, scop_stars: 10, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "Von Bolt", awbw_id: 30, price_multiplier_pct: 100,
@@ -473,6 +504,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: -1, scop_stars: 10, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
     CoData {
         name: "No CO", awbw_id: 31, price_multiplier_pct: 100,
@@ -487,6 +519,7 @@ pub static COS: [CoData; 29] = [
         move_delta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         repair_bonus_hp100: 0,
         cop_stars: -1, scop_stars: -1, cop_move_bonus: 0, scop_move_bonus: 0,
+        power_effects_modelled: false,
     },
 ];
 

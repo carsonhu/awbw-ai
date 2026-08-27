@@ -159,10 +159,13 @@ pub struct VecEnv {
     shaping: f32,
     /// What that advantage is measured by.
     potential: Potential,
-    /// Whether the day cap is settled on properties and material rather than
-    /// left undecided. Off keeps every rating on this environment comparable
-    /// with the ones already recorded.
+    /// Whether the day cap is settled the way AWBW settles a turn-limited
+    /// game rather than left undecided. Off keeps every rating on this
+    /// environment comparable with the ones already recorded.
     decide_cap: bool,
+    /// The CO both seats play, when set — a mirror. `None` is the ability-free
+    /// vanilla CO, which has no powers.
+    co: Option<&'static awbw_engine::co_data::CoData>,
     episodes: u64,
     /// A scripted opponent, one per game, playing the seat the agent does not.
     ///
@@ -191,7 +194,12 @@ pub struct VecEnv {
 
 impl VecEnv {
     fn new_game(&self, index: usize, episode: u64) -> Game {
-        let state = self.board.new_state(self.fog);
+        let mut state = self.board.new_state(self.fog);
+        if let Some(co) = self.co {
+            for p in state.players.iter_mut() {
+                p.co = co;
+            }
+        }
         let seed = self
             .seed
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
@@ -312,6 +320,7 @@ impl VecEnv {
     #[pyo3(signature = (
         num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None,
         opponent=None, record=false, potential="material", decide_cap=false,
+        co=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -325,11 +334,20 @@ impl VecEnv {
         record: bool,
         potential: &str,
         decide_cap: bool,
+        co: Option<&str>,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
         }
         let potential = Potential::parse(potential)?;
+        // Both seats get the same CO: a mirror, so the absence of per-seat
+        // tuning stays symmetric. The default is the ability-free vanilla CO.
+        let co = co
+            .map(|name| {
+                awbw_engine::co_data::co_by_name(name)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown CO {name:?}")))
+            })
+            .transpose()?;
         let board = match map_path.as_deref() {
             Some("synthetic") => Board::default(),
             other => {
@@ -348,6 +366,7 @@ impl VecEnv {
             shaping,
             potential,
             decide_cap,
+            co,
             episodes: 0,
             opponents: Vec::new(),
             agent_seats: (0..num_envs).map(|i| (i % 2) as PlayerId).collect(),
@@ -363,7 +382,12 @@ impl VecEnv {
             },
         };
         for i in 0..num_envs {
-            let state = env.board.new_state(fog);
+            let mut state = env.board.new_state(fog);
+            if let Some(co) = env.co {
+                for p in state.players.iter_mut() {
+                    p.co = co;
+                }
+            }
             let engine = Engine::new(state, seed.wrapping_add(i as u64));
             let last_advantage =
                 advantage(&engine.state, engine.state.current, potential, max_day);
@@ -769,13 +793,14 @@ impl VecEnv {
     fn __repr__(&self) -> String {
         let (h, w) = self.board_shape();
         format!(
-            "VecEnv(num_envs={}, map={:?} {h}x{w}, fog={}, max_day={}, shaping={} {:?})",
+            "VecEnv(num_envs={}, map={:?} {h}x{w}, fog={}, max_day={}, shaping={} {:?}, co={})",
             self.games.len(),
             self.board.name(),
             self.fog,
             self.max_day,
             self.shaping,
-            self.potential
+            self.potential,
+            self.co.map(|c| c.name).unwrap_or("vanilla"),
         )
     }
 }
@@ -823,7 +848,7 @@ impl TeacherEnv {
     #[new]
     #[pyo3(signature = (
         num_envs, teacher="greedy", seed=0, max_day=60, fog=false, map_path=None,
-        opponent=None, record=false,
+        opponent=None, record=false, co=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -835,11 +860,13 @@ impl TeacherEnv {
         map_path: Option<String>,
         opponent: Option<&str>,
         record: bool,
+        co: Option<&str>,
     ) -> PyResult<Self> {
         // Shaping is zero here, so the potential never contributes and which one
         // it is cannot matter.
         let inner = VecEnv::new(
             num_envs, seed, max_day, fog, 0.0, map_path, None, record, "material", false,
+            co,
         )?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
@@ -1018,11 +1045,13 @@ impl TeacherEnv {
 /// own currency — a position and the order a person gave in it — while
 /// `TeacherEnv` supplies unlimited weaker data from the same interface.
 ///
-/// Two filters matter, both on by default. Orders played while a CO power was
-/// running are dropped: the engine does not model powers, so the position does
-/// not explain the choice. Orders the engine rejects are dropped too, since an
-/// order the engine cannot even reproduce is not something a masked policy
-/// could ever emit.
+/// Two filters matter, both on by default. Orders played while an *unmodelled*
+/// CO power was running are dropped — the position does not explain the choice.
+/// Power turns of COs the engine models (Adder) are served whole, activation
+/// orders included. Orders the engine rejects are dropped too, since an order
+/// the engine cannot even reproduce is not something a masked policy could
+/// ever emit — which quietly also drops activations in games too old to
+/// record the meter, where the observation could not justify them either.
 ///
 /// Every game must be on the same map — observations are board-shaped, so a
 /// batch cannot mix sizes.

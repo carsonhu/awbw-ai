@@ -39,8 +39,9 @@ pub struct Sample {
     /// under the engine's own masks could actually emit it. A label that fails
     /// this teaches the network to reach for something it can never say.
     pub emittable: bool,
-    /// A CO power was active. The engine does not model powers, so the position
-    /// does not explain the choice; drop these from the loss.
+    /// An *unmodelled* CO power was active, so the position does not explain
+    /// the choice; drop these from the loss. Power turns of modelled COs
+    /// (Adder) are served normally, activation orders included.
     pub power_active: bool,
 }
 
@@ -84,6 +85,14 @@ pub fn translate(loaded: &Loaded, action: &serde_json::Value) -> Option<Action> 
     let kind = action.get("action")?.as_str()?;
     match kind {
         "End" => Some(Action::EndTurn),
+
+        "Power" => {
+            let power = match action.get("coPower").and_then(|v| v.as_str()) {
+                Some("S") => awbw_engine::state::ActivePower::Scop,
+                _ => awbw_engine::state::ActivePower::Cop,
+            };
+            Some(Action::Activate { power })
+        }
 
         "Build" => {
             let rec = action.get("newUnit").and_then(unwrap_vision)?;
@@ -202,8 +211,12 @@ pub struct Cursor {
     turn: usize,
     order: usize,
     loaded: Option<Loaded>,
-    /// A power fired earlier in this turn, so the rest of it is off-model.
+    /// An *unmodelled* power fired earlier in this turn, so the rest of it is
+    /// off-model. Stays false in games whose COs' power effects the engine
+    /// models — their power turns are ordinary training data.
     power_active: bool,
+    /// Every player's CO has modelled power effects (Adder, today).
+    powers_modelled: bool,
     vision: Vision,
     /// The source tile of every order in the current turn, filled ahead of
     /// serving them. `u32::MAX` where an order carries no source.
@@ -230,6 +243,10 @@ impl Cursor {
     /// replay of every turn, so it is off unless asked for.
     pub fn with_lookahead(verifier: Verifier, lookahead: bool) -> Cursor {
         let replay = verifier.replay().clone();
+        let powers_modelled = replay.players.iter().all(|p| {
+            awbw_engine::co_data::co_by_name(&p.co_name)
+                .is_some_and(|co| co.power_effects_modelled)
+        });
         let mut cursor = Cursor {
             verifier,
             replay,
@@ -239,6 +256,7 @@ impl Cursor {
             order: 0,
             loaded: None,
             power_active: false,
+            powers_modelled,
             vision: Vision::new(),
         };
         cursor.open_turn();
@@ -373,7 +391,10 @@ impl Cursor {
             let loaded = self.loaded.as_mut()?;
 
             let kind = raw.get("action").and_then(|v| v.as_str()).unwrap_or("");
-            if kind == "Power" {
+            if kind == "Power" && !self.powers_modelled {
+                // The flag is raised before this record is served, so the
+                // activation itself is dropped along with the rest of the
+                // turn it distorts.
                 self.power_active = true;
             }
 

@@ -110,7 +110,7 @@ class Trainer:
         self.env = awbw.VecEnv(
             num_envs=args.envs, seed=args.seed, max_day=args.max_day,
             shaping=args.shaping, potential=args.potential,
-            decide_cap=args.decide_cap,
+            decide_cap=args.decide_cap, co=args.co,
             opponent=None if args.selfplay else args.opponent,
         )
         self.policy = self.load_policy()
@@ -573,6 +573,9 @@ def main() -> int:
     parser.add_argument("--decide-cap", action="store_true",
                         help="settle a day-capped game instead of drawing it")
     parser.add_argument("--max-day", type=int, default=60)
+    # Which CO both seats play (a mirror). None is the ability-free vanilla
+    # CO, which has no powers; "Adder" is the powers ruleset's first rung.
+    parser.add_argument("--co", default=None)
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--report-every", type=int, default=10)
     args = parser.parse_args()

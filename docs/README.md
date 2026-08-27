@@ -38,12 +38,13 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (29)
+## Log (30)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-27 | [The self-play ladder turns over, four generations in one run](log/2026-08-27-the-ladder-turns-over.md) | Continuing the from-behind run promoted four times. Rated, not windowed: the learner went from losing to `ppo-adder3` 15.4% to beating it **62.5% ±3.4**, and the fourth generation beats the first **93.5% ±1.7**. Self-play produces something for the first time in this project. |
 | 2026-08-27 | [The funds class was a Black Boat all along](log/2026-08-27-the-funds-class-was-a-black-boat.md) | `funds` was the largest power-free divergence class. It is now 5, and power-free agreement is **99.993% with 732 of 780 games clean** — the best measured here. The cause was not arithmetic: the engine has no Black Boat repair, and its cost was surfacing as a funds bug. |
+| 2026-08-27 | [The first league drifted, because promotion refilled it with cousins](log/2026-08-27-the-first-league-drifted.md) | Seven promotions, 200 iterations, and the result is worse than the checkpoint it started from against every opponent outside the pool — and exactly level with that checkpoint head to head. A league of near-neighbours is not diversity. |
 | 2026-08-27 | [The decay was the bug, and the climb that replaced it is specialisation](log/2026-08-27-the-decay-was-the-bug-the-climb-is-specialisation.md) | Recalibration off, and the run that used to peak at 75% and collapse now holds 73-93% for a hundred and forty iterations. The rule this project ran on — climbs from behind, decays from level — is an artifact of a batch-norm bug. And the held score is worth almost nothing: the same policy loses to the imitation clone 84/16. |
 | 2026-08-27 | [Self-play works from behind, and the policy starts pressing the button](log/2026-08-27-selfplay-from-behind.md) | **Corrected the same day by `2026-08-27-parity-was-never-the-problem.md`: the opening is not what fixed this. A parity control with recalibration off promotes too, and beats this lineage. The measurements below stand; the credit assigned to `--frozen-init` does not.** |
 | 2026-08-27 | [The self-play gains do not transfer, and head-to-head hid it](log/2026-08-27-selfplay-does-not-transfer.md) | `sp-parity-gen3` beats `ppo-adder3` 90.3% head to head — and scores **22.8% against `greedy`, where `ppo-adder3` scores 65.1%**. The ladder has been producing counter-lineage specialists, not stronger play, and every measurement that would have caught it was inside the lineage. |

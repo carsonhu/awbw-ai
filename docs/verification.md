@@ -22,7 +22,7 @@ fall inside, and HP is resynced from the record afterwards.
 
 ```
 python tools/prepare_replay.py --glob '<replays>\*\*STD*.zip' --limit 400
-cargo run --release -p awbw-replay -- data/prepared --no-fog
+cargo run --release -p awbw-replay --bin verify-replays -- data/prepared --no-fog
 cargo run --release -p awbw-replay --bin check-fog -- data/prepared
 ```
 
@@ -36,15 +36,15 @@ deliberately left out rather than correctness.
 
 | subset | games | exact | assertions | agreement |
 |---|---|---|---|---|
-| no powers, no fog | 127 | 108 (85%) | 147k | 99.979% |
-| powers used | 239 | 2 | 721k | 98.81% |
+| no powers, no fog | 780 | 732 (94%) | 886k | 99.993% |
+| powers used | 1,789 | 142 (8%) | 5.20M | 99.115% |
 
 Fog visibility, judged per path step: **99.39%** of 6,035 steps. Of the
 mismatches, 31 are the engine seeing too much — almost all on the single turn
 Drake fires Typhoon — and 6 are unexplained.
 
-Residual in the clean subset is 31 divergences over 1,916 turns: 13 funds, 13
-unit HP, 5 stragglers. No common cause found; diminishing returns.
+Residual in the clean subset is 62 divergences over 11,578 turns: 29 unit HP,
+12 damage-range, 10 move-fuel, 5 funds, 6 stragglers — all luck-adjacent.
 
 ## Imitation data
 

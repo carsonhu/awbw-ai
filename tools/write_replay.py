@@ -451,15 +451,17 @@ class Writer:
             # the cost came off, and `unitReplace` — which carries the HP a
             # power *changed*, so a power that changes none writes both seats
             # empty rather than omitting the key a viewer expects.
-            seat = order["playerID"]
+            # `playerID` is the *player* id, not the account: a reader resolves
+            # it against the players table, and an account id there drops the
+            # action on the floor with no error anywhere.
             return {
                 "action": "Power",
-                "playerID": self.user(seat),
+                "playerID": player_id(order["playerID"]),
                 "coName": order["coName"],
                 "coPower": order["coPower"],
                 "powerName": self.co["power"].get(order["coPower"]),
                 "playersCOP": order["playersCOP"],
-                "unitReplace": {str(self.user(s)): {"units": None}
+                "unitReplace": {str(player_id(s)): {"units": None}
                                 for s in self.seats},
             }
         if kind == "End":
@@ -490,7 +492,7 @@ class Writer:
             "users_id": self.user(seat),
             "games_id": self.game_id,
             "countries_id": COUNTRY_ID[COUNTRIES[seat]],
-            "co_id": 1,
+            "co_id": self.co["id"],
             "funds": turn["funds"][seat],
             "turn": None,
             "email": None,
@@ -500,13 +502,18 @@ class Writer:
             "last_read_broadcasts": None,
             "emailpress": None,
             "signature": None,
+            # The meter itself is not recorded per turn — the snapshot carries
+            # funds, units and buildings and no charge — so every turn writes
+            # zero and a verifier reads a disagreement on each one. Fixing that
+            # means snapshotting the meter in `record.rs`; the activations
+            # themselves are faithful, and carry their own `playersCOP`.
             "co_power": 0,
             "co_power_on": "N",
             "order": seat + 1,
             "accept_draw": "N",
-            "co_max_power": 90000,
-            "co_max_spower": 180000,
-            "co_image": "andy.png",
+            "co_max_power": self.co["cop"] * STAR_CHARGE,
+            "co_max_spower": self.co["scop"] * STAR_CHARGE,
+            "co_image": self.co["image"],
             "team": str(player_id(seat)),
             "aet_count": 0,
             "turn_start": STAMP,

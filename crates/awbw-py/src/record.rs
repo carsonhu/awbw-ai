@@ -121,10 +121,42 @@ impl Recorder {
             })
             .collect();
         let funds: Vec<u32> = state.players.iter().map(|p| p.funds).collect();
+        // The power meter, per player, as AWBW's own player row carries it: the
+        // raw charge and the flag for a power running right now. Without these
+        // a written replay has to say the bar is empty on every turn, which is
+        // a disagreement on every turn for anything that re-reads it.
+        let charge: Vec<u32> = state.players.iter().map(|p| p.charge).collect();
+        // The thresholds as they stand *now*: each activation raises a star's
+        // price, so a fixed pair taken from the CO's star counts is right only
+        // until the first power is fired, and anything reading the bar back
+        // reconstructs the wrong number of uses from it afterwards.
+        let cop_cost: Vec<u32> = state
+            .players
+            .iter()
+            .map(|p| p.power_cost(awbw_engine::state::ActivePower::Cop).unwrap_or(0))
+            .collect();
+        let scop_cost: Vec<u32> = state
+            .players
+            .iter()
+            .map(|p| p.power_cost(awbw_engine::state::ActivePower::Scop).unwrap_or(0))
+            .collect();
+        let power: Vec<&str> = state
+            .players
+            .iter()
+            .map(|p| match p.active_power {
+                awbw_engine::state::ActivePower::None => "N",
+                awbw_engine::state::ActivePower::Cop => "Y",
+                awbw_engine::state::ActivePower::Scop => "S",
+            })
+            .collect();
         self.snapshot = Some(json!({
             "day": state.day,
             "active": state.current,
             "funds": funds,
+            "charge": charge,
+            "power": power,
+            "cop_cost": cop_cost,
+            "scop_cost": scop_cost,
             "units": units,
             "buildings": buildings,
         }));

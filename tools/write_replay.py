@@ -502,17 +502,20 @@ class Writer:
             "last_read_broadcasts": None,
             "emailpress": None,
             "signature": None,
-            # The meter itself is not recorded per turn — the snapshot carries
-            # funds, units and buildings and no charge — so every turn writes
-            # zero and a verifier reads a disagreement on each one. Fixing that
-            # means snapshotting the meter in `record.rs`; the activations
-            # themselves are faithful, and carry their own `playersCOP`.
-            "co_power": 0,
-            "co_power_on": "N",
+            # Straight from the snapshot. Logs recorded before the meter was
+            # snapshotted have neither key, and write the empty bar they used
+            # to — wrong, but no worse than they already were.
+            "co_power": turn.get("charge", [0] * len(self.seats))[seat],
+            "co_power_on": turn.get("power", ["N"] * len(self.seats))[seat],
             "order": seat + 1,
             "accept_draw": "N",
-            "co_max_power": self.co["cop"] * STAR_CHARGE,
-            "co_max_spower": self.co["scop"] * STAR_CHARGE,
+            # Escalated, as the snapshot has them — a star costs more after
+            # every activation, so the CO's star counts are only the opening
+            # price. Older logs fall back to that opening price.
+            "co_max_power": turn.get(
+                "cop_cost", [self.co["cop"] * STAR_CHARGE] * len(self.seats))[seat],
+            "co_max_spower": turn.get(
+                "scop_cost", [self.co["scop"] * STAR_CHARGE] * len(self.seats))[seat],
             "co_image": self.co["image"],
             "team": str(player_id(seat)),
             "aet_count": 0,

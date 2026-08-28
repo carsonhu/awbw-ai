@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (30)
+## Log (31)
 
 | date | entry | what it found |
 |---|---|---|
@@ -51,6 +51,7 @@ Then `python tools/docs.py index`.
 | 2026-08-27 | [Self-play's missing rows are not missing](log/2026-08-27-row-share-retired.md) | `2026-08-26-selfplay-drift.md` closed on a 46.1% learner row share — "unexplained, reproducible, start here". Re-measured on the powers-era build it is 50.3%, and it decomposes exactly as that log argued it must. |
 | 2026-08-27 | [Written replays carry the power meter, and a movement bug falls out](log/2026-08-27-replays-carry-the-meter.md) | A game where a power fired could not be written at all. It now writes, and one round-tripped power game verifies **100.0% over 7,255 assertions**. Batch-verifying ten turned up a separate defect: the movement a power grants does not survive the trip. |
 | 2026-08-27 | [Recalibration defaulted on, and ran in every powers-era run](log/2026-08-27-recalibration-ran-again.md) | `2026-08-26-recalibration.md` measured seventeen points of damage from refitting batch-norm and closed with "run with `--recalibrate 0`". It was never made the default, so it ran in `ppo-adder1`, `ppo-adder2`, `ppo-adder3` and the first self-play attempt. The default is now 0. |
+| 2026-08-27 | [PFSP made the best checkpoint yet, then spent 120 iterations eating it](log/2026-08-27-pfsp-peaks-at-gen3-then-eats-itself.md) | One run, one pool, two verdicts: at generation three the league rates 19.0% against JakeMan — the best this project has scored — and by generation six it rates 1.5%. Seating by loss rate concentrates the run on whoever beats the learner, and past the first promotions that is always its own newest generation. |
 | 2026-08-27 | [Parity was never the problem — recalibration was](log/2026-08-27-parity-was-never-the-problem.md) | The control that should have drifted promoted three times and produced the strongest policy of the night: 90.3% against `ppo-adder3`, and 84.0% against the from-behind ladder that took twice the compute to get to 87.0%. `--frozen-init` bought nothing. Correcting today's claim. |
 | 2026-08-27 | [A second rung, powers everywhere, and the ladder is not transitive](log/2026-08-27-ladder-rung-two-and-the-cycle.md) | Four more generations. The new top beats the old top 82.5% and `ppo-adder3` 87.0% — but only 72.0% against a generation the old top beat 93.5%. Strength here is not a total order, and a ladder that keeps only its newest weights will not notice. |
 | 2026-08-27 | [Join refunds are counted on screen, not in hundredths](log/2026-08-27-join-refunds-in-displayed-hp.md) | The `funds` class was the largest power-free divergence in the corpus. Part of it was a real rule error: joining refunded the overflow computed from summed hundredths, where AWBW rounds each unit to displayed HP first. Fixing it: 93 -> 88 funds, 683 -> 687 clean, `build-illegal` to 0. |

@@ -98,6 +98,34 @@ class Net:
         return s, d, k, p
 
 
+class PlaneSlice:
+    """An old-layout policy reading a superset observation.
+
+    The threat planes are appended after the base planes, and the base
+    planes are written identically either way — so a checkpoint from
+    before them plays on a threat-emitting board by dropping the channels
+    it was never trained on. Only `trunk` sees raw observations; every
+    other head takes trunk features, so one override covers Net and Duel.
+    """
+
+    def __init__(self, policy, tiles):
+        self._policy = policy
+        self._tiles = tiles
+
+    def trunk(self, obs):
+        total = obs.shape[1]
+        # Globals are fewer than a board of tiles, so the floor is the
+        # emitting layout's plane count.
+        emitted = total // self._tiles
+        keep = self._policy.planes * self._tiles
+        globals_start = emitted * self._tiles
+        return self._policy.trunk(
+            torch.cat([obs[:, :keep], obs[:, globals_start:]], dim=1))
+
+    def __getattr__(self, name):
+        return getattr(self._policy, name)
+
+
 class Duel:
     """Two checkpoints sharing a board, one to a seat.
 
@@ -262,10 +290,10 @@ def main() -> int:
     threat = False
     if args.policy == "net":
         want = peek_planes(args.checkpoint)
-        if args.versus and peek_planes(args.versus) != want:
-            raise SystemExit(
-                "--checkpoint and --versus were trained on different "
-                "observation layouts; they cannot share a board")
+        if args.versus:
+            # A mixed pairing plays on the superset layout; whichever side
+            # predates the threat planes reads through a PlaneSlice.
+            want = max(want, peek_planes(args.versus))
         probe = awbw.VecEnv(num_envs=1)
         tiles = probe.board_shape[0] * probe.board_shape[1]
         # Globals are fewer than a board of tiles, so this floor is exactly
@@ -278,15 +306,23 @@ def main() -> int:
                       decide_cap=args.decide_cap, co=args.co,
                       threat=threat,
                       opponent=None if args.versus else args.opponent)
+    board_tiles = env.board_shape[0] * env.board_shape[1]
+    emitted = env.observation_size // board_tiles
+
+    def fit(policy):
+        if policy.planes < emitted:
+            return PlaneSlice(policy, board_tiles)
+        return policy
+
     if args.policy == "net":
-        agent = Net(load(ROOT / args.checkpoint, env, device), device,
+        agent = Net(fit(load(ROOT / args.checkpoint, env, device)), device,
                     args.temperature)
     else:
         agent = Uniform()
     if args.versus:
         if args.policy != "net":
             raise SystemExit("--versus needs --policy net on this seat")
-        other = Net(load(ROOT / args.versus, env, device), device,
+        other = Net(fit(load(ROOT / args.versus, env, device)), device,
                     args.versus_temperature
                     if args.versus_temperature is not None else args.temperature)
         agent = Duel(agent, other, env, device)

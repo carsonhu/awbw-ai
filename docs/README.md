@@ -38,7 +38,7 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (31)
+## Log (32)
 
 | date | entry | what it found |
 |---|---|---|
@@ -56,6 +56,7 @@ Then `python tools/docs.py index`.
 | 2026-08-27 | [A second rung, powers everywhere, and the ladder is not transitive](log/2026-08-27-ladder-rung-two-and-the-cycle.md) | Four more generations. The new top beats the old top 82.5% and `ppo-adder3` 87.0% — but only 72.0% against a generation the old top beat 93.5%. Strength here is not a total order, and a ladder that keeps only its newest weights will not notice. |
 | 2026-08-27 | [Join refunds are counted on screen, not in hundredths](log/2026-08-27-join-refunds-in-displayed-hp.md) | The `funds` class was the largest power-free divergence in the corpus. Part of it was a real rule error: joining refunded the overflow computed from summed hundredths, where AWBW rounds each unit to displayed HP first. Fixing it: 93 -> 88 funds, 683 -> 687 clean, `build-illegal` to 0. |
 | 2026-08-27 | [The curriculum rung holds, and `greedy` stops being able to see it](log/2026-08-27-jakeman-under-adder.md) | `ppo-adder3` climbed 2.5% -> 15.5% against JakeMan-under-Adder over 200 iterations without ever decaying — behind the whole way, which is the point. It beats its own parent 84.6%. Against `greedy` the two are indistinguishable, which is a fact about `greedy`. |
+| 2026-08-27 | [An exploiter from the clone cracks the league's best in one run](log/2026-08-27-an-exploiter-cracks-the-league-best.md) | Fifteen policy iterations to reach the 60% bar against `league2-gen3`, seven promotions in 200, and a final head-to-head of 78.5%. The strongest checkpoint in the project loses four games in five to a line that started from the imitation clone the same afternoon. |
 | 2026-08-27 | [The advantage floor does not stop the from-ahead decay](log/2026-08-27-adv-floor-null.md) | Run 2 re-ran the Adder climb with `--adv-floor 0.3` armed and falsified the noise-inflation story: the collapse arrived on schedule anyway. Spread collapse is a symptom of the crashed regime, not its cause. |
 | 2026-08-26 | [A dead attacker that would not disappear, and JakeMan's missing precedence](log/2026-08-26-two-fixes.md) | Both found by watching a replay rather than reading a number. `combatInfo` was carrying the whole unit row where AWBW carries five fields, and the port let a walk outbid an attack. JakeMan is stronger for it: 67.2% -> 58.4%. |
 | 2026-08-26 | [Self-play drifts below its own frozen copy, and three fixes did nothing](log/2026-08-26-selfplay-drift.md) | The learner loses to a snapshot of itself at 35-41% across every configuration tried. Recalibration, step size and shaping are all cleared. The one path the working control never exercises is the two-player advantage. |

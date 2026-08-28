@@ -151,6 +151,7 @@ class Trainer:
             # against it: [games, score]. Both drive who gets seated next.
             self.pool_origin = ["seed"] * len(self.pool)
             self.pool_stats = [[0.0, 0.0] for _ in self.pool]
+            self.pool_seatings = [0] * len(self.pool)
             self.frozen = (copy.deepcopy(self.policy).eval() if not self.pool
                            else self.load_policy(names[0], remember=False).eval())
             self.frozen.requires_grad_(False)
@@ -513,10 +514,12 @@ class Trainer:
             if len(mine) >= allowed:
                 self.pool[mine[0]] = fresh
                 self.pool_stats[mine[0]] = [0.0, 0.0]
+                self.pool_seatings[mine[0]] = 0
             else:
                 self.pool.append(fresh)
                 self.pool_origin.append("self")
                 self.pool_stats.append([0.0, 0.0])
+                self.pool_seatings.append(0)
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
@@ -535,14 +538,28 @@ class Trainer:
         """
         if not self.pool:
             return None
+        # The seat cap, if set: a member at the cap weighs nothing until every
+        # member is there, and then the counts reset -- a new round. Without
+        # it, the member beating the learner is seated almost exclusively, and
+        # past the first promotions that member is always the learner's own
+        # newest generation (`log/2026-08-27-pfsp-peaks-at-gen3-then-eats-
+        # itself.md`).
+        cap = self.args.seat_cap
+        if cap and all(s >= cap for s in self.pool_seatings):
+            self.pool_seatings = [0] * len(self.pool)
         weights = []
-        for games, score in self.pool_stats:
+        for i, (games, score) in enumerate(self.pool_stats):
+            if cap and self.pool_seatings[i] >= cap:
+                weights.append(0.0)
+                continue
             rate = (score / games) if games >= 20 else 0.0
             weights.append(max(1.0 - rate, 0.05) ** 2)
         total = sum(weights)
         draw = torch.rand(1).item() * total
-        which = len(self.pool) - 1
+        which = max(i for i, w in enumerate(weights) if w > 0)
         for i, w in enumerate(weights):
+            if w <= 0:
+                continue
             draw -= w
             if draw <= 0:
                 which = i
@@ -551,6 +568,7 @@ class Trainer:
         self.frozen.eval()
         self.frozen.requires_grad_(False)
         self.current_member = which
+        self.pool_seatings[which] += 1
         return which
 
     def credit(self, before, after):
@@ -606,6 +624,17 @@ def main() -> int:
     parser.add_argument("--pool-self-cap", type=float, default=0.5,
                         help="most of the league that may be the learner's "
                              "own promoted lineage")
+    # Loss-rate seating has a failure the lineage cap cannot touch: past the
+    # first promotions, whoever beats the learner is its own newest
+    # generation, so the seating concentrates the run on its own recent past
+    # by *attention* rather than composition -- one league collapsed from its
+    # best panel rating to its worst in 120 iterations this way
+    # (`log/2026-08-27-pfsp-peaks-at-gen3-then-eats-itself.md`). The cap
+    # bounds any one member's share of the run; when everyone is capped the
+    # counts reset and the next round starts.
+    parser.add_argument("--seat-cap", type=int, default=0,
+                        help="most iterations one league member may be seated "
+                             "before the rest catch up (0: unbounded)")
     parser.add_argument("--refresh-at", type=float, default=0.7,
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,

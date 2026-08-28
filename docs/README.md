@@ -38,11 +38,12 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (35)
+## Log (36)
 
 | date | entry | what it found |
 |---|---|---|
 | 2026-08-27 | [The species league holds: every number up, nothing eaten](log/2026-08-27-the-species-league-holds.md) | The same 200 iterations that consumed league2 produce the best checkpoint the project has: 24.5% against JakeMan, 95.0% against `ppo-adder3`, the exploiter flipped from 21.5% to 54.0% — and the `greedy` number held instead of collapsing. |
+| 2026-08-27 | [The second exploiter finds less, which is the loop working](log/2026-08-27-the-second-exploiter-finds-less.md) | Same recipe, harder target: exploit2 needed 80 iterations to crack `league3` where exploit1 needed 40 against `league2-gen3`, promoted twice where exploit1 promoted seven times, and finished at 60.0% head-to-head where exploit1 finished at 78.5%. The exploitable surface shrank by every measure at once. |
 | 2026-08-27 | [The self-play ladder turns over, four generations in one run](log/2026-08-27-the-ladder-turns-over.md) | Continuing the from-behind run promoted four times. Rated, not windowed: the learner went from losing to `ppo-adder3` 15.4% to beating it **62.5% ±3.4**, and the fourth generation beats the first **93.5% ±1.7**. Self-play produces something for the first time in this project. |
 | 2026-08-27 | [The funds class was a Black Boat all along](log/2026-08-27-the-funds-class-was-a-black-boat.md) | `funds` was the largest power-free divergence class. It is now 5, and power-free agreement is **99.993% with 732 of 780 games clean** — the best measured here. The cause was not arithmetic: the engine has no Black Boat repair, and its cost was surfacing as a funds bug. |
 | 2026-08-27 | [The first league drifted, because promotion refilled it with cousins](log/2026-08-27-the-first-league-drifted.md) | Seven promotions, 200 iterations, and the result is worse than the checkpoint it started from against every opponent outside the pool — and exactly level with that checkpoint head to head. A league of near-neighbours is not diversity. |

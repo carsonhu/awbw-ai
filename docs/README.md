@@ -38,10 +38,11 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (40)
+## Log (41)
 
 | date | entry | what it found |
 |---|---|---|
+| 2026-08-28 | [Two threat-lineage rungs beat the old ladder end to end](log/2026-08-28-two-rungs-beat-the-old-ladder.md) | The JakeMan rung on the threat lineage rates 37.5% — the old lineage's same rung managed 15.5%, and its best checkpoint after seven runs of laddering managed 24.5%. The greedy gain held through it (89.5%), and the two-rung product beats the old three-rung veteran 82/18. |
 | 2026-08-28 | [Threat planes point the Anti-Airs, and the clone wins the mirror](log/2026-08-28-threat-planes-point-the-anti-airs.md) | The pre-registered criterion was engagement pricing, not accuracy — and that is what moved. Same recipe, same data, four extra planes of applied damage-chart arithmetic: the clone's Anti-Airs fire at aircraft 30% of the time against the copter exploiter where the baseline manages 14%, and it beats that baseline 55.5% head-to-head. |
 | 2026-08-28 | [The threat rung blows through the greedy ceiling](log/2026-08-28-the-threat-rung-blows-through-the-greedy-ceiling.md) | Every checkpoint of the old lineage saturated against `greedy` in the low sixties — 63.2% for `ppo-adder1`, 65.1% after two more rungs, so stable it retired `greedy` as an instrument. The same recipe on the threat-plane clone rates **93.0% ±1.8**, and the climb took ~65 policy iterations, not 200. |
 | 2026-08-28 | [The seat hold fixed the measurement; the regime was the disease](log/2026-08-28-the-hold-fixed-the-measurement-not-the-regime.md) | League4 rerun with games played against single members, exactly as the blend diagnosis prescribed — and the product still loses 77/23 to its init. Two failures with one shape: a league whose learner opens ahead of its pool decays, exactly as every from-ahead run in this project has, and no seating scheme can fix who is ahead. |

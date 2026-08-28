@@ -129,6 +129,17 @@ class Trainer:
         self.frozen = None
         self.refreshes = 0
         self.recalibrating = 0
+        # Empty outside self-play, so the main loop can call take_opponent
+        # and credit unconditionally -- both no-op on an empty pool. They
+        # were selfplay-only attributes once, and the first scripted-opponent
+        # run after the league code landed crashed on the very first
+        # iteration for it.
+        self.pool = []
+        self.pool_origin = []
+        self.pool_stats = []
+        self.pool_seatings = []
+        self.current_member = None
+        self.held = 0
         if args.selfplay:
             # A copy of the learner unless told otherwise, which starts the run
             # at parity -- the one regime every run in this project has decayed

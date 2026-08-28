@@ -193,12 +193,16 @@ pub fn damage_roll(
     d3.clamp(0.0, 100.0).trunc() as i32
 }
 
-/// Min / max / expected damage across a luck range (both bounds inclusive).
+/// Min / max / expected damage across a luck range (both bounds inclusive),
+/// and the share of rolls that kill outright — the number a player actually
+/// weighs before committing to an attack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DamageSpread {
     pub min: i32,
     pub max: i32,
     pub expected: f64,
+    /// P(damage >= the defender's remaining hp100) over the same rolls.
+    pub kill_chance: f64,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -217,6 +221,7 @@ pub fn damage_spread(
     let mut max = i32::MIN;
     let mut total = 0i64;
     let mut count = 0i64;
+    let mut kills = 0i64;
     for bad in 0..=bad_luck_max {
         for good in 0..=good_luck_max {
             let d = damage_roll(
@@ -234,12 +239,14 @@ pub fn damage_spread(
             max = max.max(d);
             total += d as i64;
             count += 1;
+            kills += (d >= defender_hp100) as i64;
         }
     }
     DamageSpread {
         min,
         max,
         expected: total as f64 / count as f64,
+        kill_chance: kills as f64 / count as f64,
     }
 }
 

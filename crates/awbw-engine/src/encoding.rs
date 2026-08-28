@@ -74,23 +74,33 @@ pub const GLOBAL_FEATURES: usize = 23;
 /// opts in. The damage chart is a known closed-form function the trunk
 /// otherwise has to rediscover from outcomes — and three RL stages deep a
 /// policy still pointed its Anti-Airs at the wrong targets
-/// (`docs/log/2026-08-27-the-exploit-is-legible.md`). All four planes are
-/// written at the *defender's* tile, both sides read from the mover's view:
-/// what the unit standing here could suffer, and what that is worth.
-pub const THREAT_PLANES: usize = 4;
+/// (`docs/log/2026-08-27-the-exploit-is-legible.md`). Version 2 carries the
+/// *distribution*, not the zero-luck floor: the tactics humans play by are
+/// probabilities over the luck rolls — a ~98% two-unit KO is taken, a 33%
+/// 2HKO is set up with a chip attack first — and the observation refreshes
+/// after every order, so correct per-attack numbers make those combos greedy
+/// steps rather than a search. All planes sit at the *defender's* tile, read
+/// from the mover's side: what the unit standing here stands to suffer.
+pub const THREAT_PLANES: usize = 6;
 
 pub mod threat_plane {
     use super::plane;
 
-    /// Worst damage fraction the unit here could take from the other side —
-    /// next turn for my units, this turn (unmoved attackers only) for theirs.
-    pub const INCOMING: usize = plane::COUNT;
-    /// That damage priced: fraction × the defender's cost / 20,000.
-    pub const INCOMING_VALUE: usize = plane::COUNT + 1;
-    /// As INCOMING but dealt by *my* units: on an enemy unit's tile, the best
-    /// I could still do to it this turn.
-    pub const OUTGOING: usize = plane::COUNT + 2;
-    pub const OUTGOING_VALUE: usize = plane::COUNT + 3;
+    /// Expected damage fraction of the best attack the other side could make
+    /// on the unit here — next turn for my units, this turn (unmoved
+    /// attackers only) for theirs. Expectation over the attacking CO's own
+    /// luck range.
+    pub const IN_EXPECTED: usize = plane::COUNT;
+    /// The chance the unit here dies to the best single attack — the highest
+    /// kill probability over attackers, which may come from a different
+    /// attacker than the highest expectation.
+    pub const IN_KO: usize = plane::COUNT + 1;
+    /// Expected damage priced: fraction × the defender's cost / 20,000.
+    pub const IN_VALUE: usize = plane::COUNT + 2;
+    /// The mirror three, dealt by *my* units to the enemy standing here.
+    pub const OUT_EXPECTED: usize = plane::COUNT + 3;
+    pub const OUT_KO: usize = plane::COUNT + 4;
+    pub const OUT_VALUE: usize = plane::COUNT + 5;
 }
 
 /// Floats one observation needs for a given board.
@@ -244,12 +254,12 @@ pub fn encode_observation_with(state: &GameState, vision: &Vision, out: &mut [f3
     }
 }
 
-/// The one-ply engagement chart, applied. For every visible attacker/defender
-/// pair, the deterministic damage the engine itself would roll (zero luck,
-/// both COs' modifiers, the defender's terrain) if the attacker can bring the
-/// defender's tile into range — this turn for the mover's unmoved units, next
-/// turn for the other side's. Written at the defender's tile as a fraction
-/// and as funds destroyed / 20,000.
+/// The one-ply engagement chart, applied — as a distribution. For every
+/// visible attacker/defender pair the attacker could bring into range (this
+/// turn for the mover's unmoved units, next turn for the other side's), the
+/// exact damage spread over the attacking CO's luck range: expected damage,
+/// the share of rolls that kill outright, and the expected funds destroyed.
+/// Written at the defender's tile, maximum over attackers per quantity.
 ///
 /// Estimates, on purpose: reachability treats every reachable tile as a
 /// firing position (stop-on-occupied is not re-checked), enemy reach is
@@ -322,7 +332,8 @@ fn write_threat_planes(state: &GameState, vision: &Vision, planes: &mut [f32], t
                 terrain,
                 state.active_power(defender.owner),
             );
-            let damage = combat::damage_roll(
+            let attacker_co = state.co_of(attacker.owner);
+            let spread = combat::damage_spread(
                 pct,
                 attacker.hp100 as i32,
                 defender.hp100 as i32,
@@ -330,18 +341,19 @@ fn write_threat_planes(state: &GameState, vision: &Vision, planes: &mut [f32], t
                 attacker_mods,
                 defender_mods,
                 0,
-                0,
-                0,
+                attacker_co.luck_good_max.max(0),
+                attacker_co.luck_bad_max.max(0),
             );
-            let fraction = damage as f32 / 100.0;
+            let fraction = spread.expected as f32 / 100.0;
             let value = fraction * defender.typ.stats().cost as f32 / 20_000.0;
             let index = state.map.index(defender.pos);
-            let (dmg_plane, val_plane) = if mine {
-                (threat_plane::OUTGOING, threat_plane::OUTGOING_VALUE)
+            let (exp_plane, ko_plane, val_plane) = if mine {
+                (threat_plane::OUT_EXPECTED, threat_plane::OUT_KO, threat_plane::OUT_VALUE)
             } else {
-                (threat_plane::INCOMING, threat_plane::INCOMING_VALUE)
+                (threat_plane::IN_EXPECTED, threat_plane::IN_KO, threat_plane::IN_VALUE)
             };
-            at(dmg_plane, index, fraction);
+            at(exp_plane, index, fraction);
+            at(ko_plane, index, spread.kill_chance as f32);
             at(val_plane, index, value);
         }
     }
@@ -804,7 +816,7 @@ mod tests {
 
     #[test]
     fn threat_planes_apply_the_chart_where_units_stand() {
-        let e = board(false);
+        let mut e = board(false);
         let tiles = e.state.map.tile_count();
 
         // Opting out is byte-identical to the old layout.
@@ -819,32 +831,46 @@ mod tests {
 
         let mut obs = vec![0.0; observation_len_with(&e.state, true)];
         encode_observation_with(&e.state, e.vision(), &mut obs, true);
-        let read = |channel: usize, pos: Pos| obs[channel * tiles + e.state.map.index(pos)];
+        // Index math inline, so `obs` and `e` stay free to mutate between
+        // reads: the board is 7 wide, index = y * 7 + x.
+        let read = |obs: &[f32], channel: usize, pos: Pos| {
+            obs[channel * tiles + (pos.y as usize) * 7 + pos.x as usize]
+        };
+        let close = |got: f32, want: f32| (got - want).abs() < 1e-4;
 
-        // P0 moves. The enemy Tank (3,3) reaches next to the Infantry (2,2):
-        // Tank->Infantry is 75 on the chart, and a foot unit on Plain keeps
-        // 200-(100+1*10) percent of that -- 67 after the roll's truncation.
-        assert_eq!(read(threat_plane::INCOMING, Pos::new(2, 2)), 0.67);
-        assert_eq!(
-            read(threat_plane::INCOMING_VALUE, Pos::new(2, 2)),
-            0.67 * 1_000.0 / 20_000.0
-        );
-        // Tank->Artillery is 70; treads on Plain keep the same 90%: 63.
-        assert_eq!(read(threat_plane::INCOMING, Pos::new(1, 1)), 0.63);
+        // P0 moves, vanilla COs, luck 0..=9. The enemy Tank (3,3) reaches
+        // next to the Infantry (2,2): Tank->Infantry is 75 on the chart, a
+        // foot unit on Plain keeps 90% of (75 + luck), and the ten rolls
+        // truncate to 67..=75 (72 twice) -- expected 71.1. It never reaches
+        // 100, so the infantry cannot be one-shot.
+        assert!(close(read(&obs, threat_plane::IN_EXPECTED, Pos::new(2, 2)), 0.711));
+        assert_eq!(read(&obs, threat_plane::IN_KO, Pos::new(2, 2)), 0.0);
+        assert!(close(
+            read(&obs, threat_plane::IN_VALUE, Pos::new(2, 2)),
+            0.711 * 1_000.0 / 20_000.0
+        ));
+        // Tank->Artillery is 70; the ten rolls truncate to 63..=71 -- 66.6.
+        assert!(close(read(&obs, threat_plane::IN_EXPECTED, Pos::new(1, 1)), 0.666));
 
         // The reply: only the Infantry can reach the Tank, with its 5%
-        // secondary -- and the Tank sits on the City (defense 3), so it
-        // keeps only 70%: 3 after truncation. The Artillery outranges
-        // nothing at distance 4, and the APC has no weapon at all.
-        assert_eq!(read(threat_plane::OUTGOING, Pos::new(3, 3)), 0.03);
-        assert_eq!(
-            read(threat_plane::OUTGOING_VALUE, Pos::new(3, 3)),
-            0.03 * 7_000.0 / 20_000.0
-        );
+        // secondary against the City's 70% -- rolls 3,4,4,5,6,7,7,8,9,9,
+        // expected 6.2, and no roll threatens a full-health Tank.
+        assert!(close(read(&obs, threat_plane::OUT_EXPECTED, Pos::new(3, 3)), 0.062));
+        assert_eq!(read(&obs, threat_plane::OUT_KO, Pos::new(3, 3)), 0.0);
+
+        // Chip the Tank to 5/100 and both KO channels open at once: the kill
+        // threshold drops to 5, AND the City's stars now scale by displayed
+        // HP 1 instead of 10 -- the defense multiplier goes from 70% to 97%,
+        // so the rolls run 4..=13 and nine of ten kill. This double effect is
+        // exactly why players chip before committing, and the plane prices it.
+        let tank_id = e.state.unit_at(Pos::new(3, 3)).unwrap().id;
+        e.state.unit_mut(tank_id).unwrap().hp100 = 5;
+        encode_observation_with(&e.state, e.vision(), &mut obs, true);
+        assert_eq!(read(&obs, threat_plane::OUT_KO, Pos::new(3, 3)), 0.9);
 
         // Threat lives only where units stand; an empty tile carries none.
-        assert_eq!(read(threat_plane::INCOMING, Pos::new(5, 5)), 0.0);
-        assert_eq!(read(threat_plane::OUTGOING, Pos::new(5, 5)), 0.0);
+        assert_eq!(read(&obs, threat_plane::IN_EXPECTED, Pos::new(5, 5)), 0.0);
+        assert_eq!(read(&obs, threat_plane::OUT_EXPECTED, Pos::new(5, 5)), 0.0);
 
         // The globals still land after the widened plane block.
         let flat = (plane::COUNT + THREAT_PLANES) * tiles;
@@ -1028,7 +1054,7 @@ mod tests {
 
     #[test]
     fn observation_length_matches_the_spec() {
-        let e = board(false);
+        let mut e = board(false);
         let tiles = e.state.map.tile_count();
         assert_eq!(observation_len(&e.state), plane::COUNT * tiles + GLOBAL_FEATURES);
         assert_eq!(plane::COUNT, 64);

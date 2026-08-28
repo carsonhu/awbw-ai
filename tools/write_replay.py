@@ -55,9 +55,10 @@ STAMP = "2026-01-01 00:00:00"
 # one — and are transcribed from the wiki.
 CO_ROWS = {
     None: {"id": 1, "image": "andy.png", "cop": 1, "scop": 2,
-           "power": {"Y": None, "S": None}},
+           "power": {"Y": None, "S": None}, "move_bonus": {"Y": 0, "S": 0}},
     "Adder": {"id": 11, "image": "adder.png", "cop": 2, "scop": 5,
-              "power": {"Y": "Sideslip", "S": "Sidewinder"}},
+              "power": {"Y": "Sideslip", "S": "Sidewinder"},
+              "move_bonus": {"Y": 1, "S": 2}},
 }
 STAR_CHARGE = 90_000
 
@@ -454,7 +455,7 @@ class Writer:
             # `playerID` is the *player* id, not the account: a reader resolves
             # it against the players table, and an account id there drops the
             # action on the floor with no error anywhere.
-            return {
+            record = {
                 "action": "Power",
                 "playerID": player_id(order["playerID"]),
                 "coName": order["coName"],
@@ -464,6 +465,15 @@ class Writer:
                 "unitReplace": {str(player_id(s)): {"units": None}
                                 for s in self.seats},
             }
+            # Field-wide effects ride in `global` -- a viewer reads the power's
+            # movement bonus from here, not from the CO's name, so a Sideslip
+            # without it renders every post-pop move as ordinary range. Only
+            # powers that grant one carry the key (the real Kindle record in
+            # `564287.json` has none).
+            bonus = self.co.get("move_bonus", {}).get(order["coPower"], 0)
+            if bonus:
+                record["global"] = {"units_movement_points": bonus}
+            return record
         if kind == "End":
             return {
                 "action": "End",

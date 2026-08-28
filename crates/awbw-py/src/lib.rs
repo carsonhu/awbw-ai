@@ -20,8 +20,7 @@
 
 use awbw_engine::actions::{Action, Engine};
 use awbw_engine::encoding::{
-    decode, encode, encode_observation, end_turn_source, head_sizes, observation_len, ActionCode,
-    ActionMasks, EXTRA_SOURCES,
+    decode, encode, end_turn_source, head_sizes, ActionCode, ActionMasks, EXTRA_SOURCES,
 };
 use awbw_engine::rng::Rng;
 use awbw_engine::state::{GameState, Outcome, PlayerId};
@@ -166,6 +165,10 @@ pub struct VecEnv {
     /// The CO both seats play, when set — a mirror. `None` is the ability-free
     /// vanilla CO, which has no powers.
     co: Option<&'static awbw_engine::co_data::CoData>,
+    /// Whether observations carry the one-ply threat planes. Versioned by
+    /// plane count: checkpoints trained either way keep running, and the
+    /// loader picks the flag from the checkpoint's stored config.
+    threat: bool,
     episodes: u64,
     /// A scripted opponent, one per game, playing the seat the agent does not.
     ///
@@ -220,7 +223,7 @@ impl VecEnv {
     }
 
     fn obs_len(&self) -> usize {
-        observation_len(&self.games[0].engine.state)
+        awbw_engine::encoding::observation_len_with(&self.games[0].engine.state, self.threat)
     }
 
     fn tiles(&self) -> usize {
@@ -230,10 +233,11 @@ impl VecEnv {
     fn write_obs(&self, data: &mut [f32]) {
         let len = self.obs_len();
         for (i, game) in self.games.iter().enumerate() {
-            encode_observation(
+            awbw_engine::encoding::encode_observation_with(
                 &game.engine.state,
                 game.engine.vision(),
                 &mut data[i * len..(i + 1) * len],
+                self.threat,
             );
         }
     }
@@ -320,7 +324,7 @@ impl VecEnv {
     #[pyo3(signature = (
         num_envs, seed=0, max_day=60, fog=false, shaping=0.0, map_path=None,
         opponent=None, record=false, potential="material", decide_cap=false,
-        co=None,
+        co=None, threat=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -335,6 +339,7 @@ impl VecEnv {
         potential: &str,
         decide_cap: bool,
         co: Option<&str>,
+        threat: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -367,6 +372,7 @@ impl VecEnv {
             potential,
             decide_cap,
             co,
+            threat,
             episodes: 0,
             opponents: Vec::new(),
             agent_seats: (0..num_envs).map(|i| (i % 2) as PlayerId).collect(),
@@ -848,7 +854,7 @@ impl TeacherEnv {
     #[new]
     #[pyo3(signature = (
         num_envs, teacher="greedy", seed=0, max_day=60, fog=false, map_path=None,
-        opponent=None, record=false, co=None,
+        opponent=None, record=false, co=None, threat=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -861,12 +867,13 @@ impl TeacherEnv {
         opponent: Option<&str>,
         record: bool,
         co: Option<&str>,
+        threat: bool,
     ) -> PyResult<Self> {
         // Shaping is zero here, so the potential never contributes and which one
         // it is cannot matter.
         let inner = VecEnv::new(
             num_envs, seed, max_day, fog, 0.0, map_path, None, record, "material", false,
-            co,
+            co, threat,
         )?;
         let teachers = (0..num_envs)
             .map(|i| make_teacher(teacher, seed.wrapping_add(i as u64)))
@@ -1086,6 +1093,8 @@ pub struct ReplayTeacher {
     /// Read each turn ahead so `source_targets` can answer. Costs a second load
     /// and replay of every turn, so it is off unless a trainer asks.
     lookahead: bool,
+    /// Observations carry the one-ply threat planes.
+    threat: bool,
     served: u64,
     skipped_power: u64,
     skipped_illegal: u64,
@@ -1213,6 +1222,7 @@ impl ReplayTeacher {
         holdout=0.0,
         validation=false,
         lookahead=false,
+        threat=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1225,6 +1235,7 @@ impl ReplayTeacher {
         holdout: f64,
         validation: bool,
         lookahead: bool,
+        threat: bool,
     ) -> PyResult<Self> {
         if num_envs == 0 {
             return Err(PyValueError::new_err("num_envs must be positive"));
@@ -1288,6 +1299,7 @@ impl ReplayTeacher {
             skip_powers,
             skip_illegal,
             lookahead,
+            threat,
             served: 0,
             skipped_power: 0,
             skipped_illegal: 0,
@@ -1307,7 +1319,7 @@ impl ReplayTeacher {
                 }
             )));
         };
-        teacher.obs_len = observation_len(state);
+        teacher.obs_len = awbw_engine::encoding::observation_len_with(state, threat);
         teacher.sizes = head_sizes(state);
         teacher.end_turn = end_turn_source(state);
         Ok(teacher)
@@ -1481,7 +1493,7 @@ impl ReplayTeacher {
         for (i, slot) in self.slots.iter_mut().enumerate() {
             let row = &mut data[i * len..(i + 1) * len];
             let written = match slot {
-                Some(cursor) => cursor.observe(row),
+                Some(cursor) => cursor.observe_with(row, self.threat),
                 None => false,
             };
             if !written {
@@ -1495,9 +1507,10 @@ impl ReplayTeacher {
     fn observe<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<f32>> {
         let len = self.obs_len;
         let mut data = vec![0.0f32; self.slots.len() * len];
+        let threat = self.threat;
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if let Some(cursor) = slot {
-                cursor.observe(&mut data[i * len..(i + 1) * len]);
+                cursor.observe_with(&mut data[i * len..(i + 1) * len], threat);
             }
         }
         Array2::from_shape_vec((self.slots.len(), len), data)

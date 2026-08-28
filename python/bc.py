@@ -93,6 +93,7 @@ def make_source(args, batch: int, validation: bool) -> Source:
             holdout=args.holdout,
             validation=validation,
             lookahead=wants_set,
+            threat=args.threat_planes,
         )
         return Source(env, batch, source_set=wants_set)
     else:
@@ -101,6 +102,7 @@ def make_source(args, batch: int, validation: bool) -> Source:
             teacher=args.teacher,
             seed=args.seed + (10_000 if validation else 0),
             max_day=args.max_day,
+            threat=args.threat_planes,
         )
     return Source(env, batch)
 
@@ -257,6 +259,12 @@ def main() -> int:
     # repeating if the encoding or the head design changes.
     parser.add_argument("--source-set", type=float, default=0.0,
                         help="0 exact label, 1 the whole turn's set")
+    # The observation grows four planes of applied damage-chart arithmetic;
+    # the checkpoint's stored plane count is what versions the layout, and
+    # evaluate.py reconstructs its env to match. A/B against the same recipe
+    # without the flag -- the success criterion is engagement pricing
+    # (`log/2026-08-27-the-exploit-is-legible.md`), not accuracy alone.
+    parser.add_argument("--threat-planes", action="store_true")
     parser.add_argument("--out", default="checkpoints/bc.pt")
     parser.add_argument("--init", default=None,
                         help="checkpoint to start from, for staged training")

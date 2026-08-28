@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use awbw_engine::actions::{Action, Engine};
 use awbw_engine::encoding::{
-    decode, encode, encode_observation, observation_len, ActionCode,
+    decode, encode, observation_len, ActionCode,
 };
 use awbw_engine::map::Pos;
 use awbw_engine::state::{GameState, PlayerId, UnitId};
@@ -354,12 +354,19 @@ impl Cursor {
     /// Encodes the position the next order was played in, from the acting
     /// player's side. False if the cursor has run out of game.
     pub fn observe(&mut self, out: &mut [f32]) -> bool {
+        self.observe_with(out, false)
+    }
+
+    /// As [`Cursor::observe`], optionally with the threat planes — the
+    /// caller owns the observation layout, so the flag rides on every call
+    /// rather than on the cursor.
+    pub fn observe_with(&mut self, out: &mut [f32], threat: bool) -> bool {
         let Some(loaded) = self.loaded.as_ref() else {
             return false;
         };
         let player = loaded.state().current;
         self.vision.compute(loaded.state(), player);
-        encode_observation(loaded.state(), &self.vision, out);
+        awbw_engine::encoding::encode_observation_with(loaded.state(), &self.vision, out, threat);
         true
     }
 

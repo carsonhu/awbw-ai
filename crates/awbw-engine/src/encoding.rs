@@ -70,20 +70,64 @@ pub mod plane {
 /// and which of each side's powers is running right now.
 pub const GLOBAL_FEATURES: usize = 23;
 
+/// One-ply engagement planes, appended after [`plane::COUNT`] when a caller
+/// opts in. The damage chart is a known closed-form function the trunk
+/// otherwise has to rediscover from outcomes — and three RL stages deep a
+/// policy still pointed its Anti-Airs at the wrong targets
+/// (`docs/log/2026-08-27-the-exploit-is-legible.md`). All four planes are
+/// written at the *defender's* tile, both sides read from the mover's view:
+/// what the unit standing here could suffer, and what that is worth.
+pub const THREAT_PLANES: usize = 4;
+
+pub mod threat_plane {
+    use super::plane;
+
+    /// Worst damage fraction the unit here could take from the other side —
+    /// next turn for my units, this turn (unmoved attackers only) for theirs.
+    pub const INCOMING: usize = plane::COUNT;
+    /// That damage priced: fraction × the defender's cost / 20,000.
+    pub const INCOMING_VALUE: usize = plane::COUNT + 1;
+    /// As INCOMING but dealt by *my* units: on an enemy unit's tile, the best
+    /// I could still do to it this turn.
+    pub const OUTGOING: usize = plane::COUNT + 2;
+    pub const OUTGOING_VALUE: usize = plane::COUNT + 3;
+}
+
 /// Floats one observation needs for a given board.
 pub fn observation_len(state: &GameState) -> usize {
-    plane::COUNT * state.map.tile_count() + GLOBAL_FEATURES
+    observation_len_with(state, false)
+}
+
+/// As [`observation_len`], with the threat planes included when `threat` is
+/// set. The flag exists so checkpoints trained on either layout keep running:
+/// the observation is versioned by its plane count.
+pub fn observation_len_with(state: &GameState, threat: bool) -> usize {
+    let planes = plane::COUNT + if threat { THREAT_PLANES } else { 0 };
+    planes * state.map.tile_count() + GLOBAL_FEATURES
 }
 
 /// Writes the moving player's view of `state` into `out`, which must be
 /// [`observation_len`] long. Planes come first, channel-major, then globals.
 pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
+    encode_observation_with(state, vision, out, false)
+}
+
+/// As [`encode_observation`], optionally appending the threat planes.
+pub fn encode_observation_with(state: &GameState, vision: &Vision, out: &mut [f32], threat: bool) {
     let tiles = state.map.tile_count();
-    assert_eq!(out.len(), observation_len(state), "observation buffer size");
+    assert_eq!(
+        out.len(),
+        observation_len_with(state, threat),
+        "observation buffer size"
+    );
     out.fill(0.0);
+    let plane_count = plane::COUNT + if threat { THREAT_PLANES } else { 0 };
 
     let me = state.current;
-    let (planes, globals) = out.split_at_mut(plane::COUNT * tiles);
+    let (planes, globals) = out.split_at_mut(plane_count * tiles);
+    if threat {
+        write_threat_planes(state, vision, planes, tiles);
+    }
     let mut at = |channel: usize, index: usize, value: f32| {
         planes[channel * tiles + index] = value;
     };
@@ -196,6 +240,109 @@ pub fn encode_observation(state: &GameState, vision: &Vision, out: &mut [f32]) {
             ActivePower::None => {}
             ActivePower::Cop => globals[slot] = 1.0,
             ActivePower::Scop => globals[slot + 1] = 1.0,
+        }
+    }
+}
+
+/// The one-ply engagement chart, applied. For every visible attacker/defender
+/// pair, the deterministic damage the engine itself would roll (zero luck,
+/// both COs' modifiers, the defender's terrain) if the attacker can bring the
+/// defender's tile into range — this turn for the mover's unmoved units, next
+/// turn for the other side's. Written at the defender's tile as a fraction
+/// and as funds destroyed / 20,000.
+///
+/// Estimates, on purpose: reachability treats every reachable tile as a
+/// firing position (stop-on-occupied is not re-checked), enemy reach is
+/// computed from the board as it stands, and Com Tower bonuses are omitted
+/// exactly as they are from the CO_ATTACK plane. Advisory arithmetic, not
+/// legality — the masks stay the authority on what is legal.
+fn write_threat_planes(state: &GameState, vision: &Vision, planes: &mut [f32], tiles: usize) {
+    use crate::combat;
+    use crate::movement::Reach;
+
+    let me = state.current;
+    let mut reach = Reach::new();
+    let mut at = |channel: usize, index: usize, value: f32| {
+        let slot = &mut planes[channel * tiles + index];
+        *slot = slot.max(value);
+    };
+
+    for attacker in state.units() {
+        if attacker.carried_by.is_some() || !vision.sees_unit(state, attacker) {
+            continue;
+        }
+        let mine = state.are_allied(me, attacker.owner);
+        // My units that have acted threaten nothing more this turn; the other
+        // side's refresh next turn, moved or not.
+        if mine && attacker.moved {
+            continue;
+        }
+        let (range_min, range_max) =
+            combat::effective_range(state.co_of(attacker.owner), attacker.typ);
+        // Indirect fire cannot follow a move, so its threat is the ring it
+        // stands in; direct fire threatens everything adjacent to its reach.
+        let indirect = range_min > 1;
+        if !indirect {
+            reach.compute(state, attacker.id);
+        }
+        let attacker_mods = combat::co_modifiers(
+            state.co_of(attacker.owner),
+            attacker.typ,
+            state.map.terrain_at(attacker.pos),
+            state.active_power(attacker.owner),
+        );
+
+        for defender in state.units() {
+            if defender.carried_by.is_some()
+                || !state.are_enemies(attacker.owner, defender.owner)
+                || !vision.sees_unit(state, defender)
+            {
+                continue;
+            }
+            let Some((pct, _weapon)) =
+                combat::base_percentage(attacker.typ, defender.typ, attacker.ammo)
+            else {
+                continue;
+            };
+            let in_range = if indirect {
+                let d = attacker.pos.distance(defender.pos);
+                d >= range_min && d <= range_max
+            } else {
+                reach
+                    .reachable(state)
+                    .any(|tile| tile.distance(defender.pos) == 1)
+            };
+            if !in_range {
+                continue;
+            }
+            let terrain = state.map.terrain_at(defender.pos);
+            let defender_mods = combat::co_modifiers(
+                state.co_of(defender.owner),
+                defender.typ,
+                terrain,
+                state.active_power(defender.owner),
+            );
+            let damage = combat::damage_roll(
+                pct,
+                attacker.hp100 as i32,
+                defender.hp100 as i32,
+                combat::effective_terrain_defense(defender.typ.stats().move_type, terrain),
+                attacker_mods,
+                defender_mods,
+                0,
+                0,
+                0,
+            );
+            let fraction = damage as f32 / 100.0;
+            let value = fraction * defender.typ.stats().cost as f32 / 20_000.0;
+            let index = state.map.index(defender.pos);
+            let (dmg_plane, val_plane) = if mine {
+                (threat_plane::OUTGOING, threat_plane::OUTGOING_VALUE)
+            } else {
+                (threat_plane::INCOMING, threat_plane::INCOMING_VALUE)
+            };
+            at(dmg_plane, index, fraction);
+            at(val_plane, index, value);
         }
     }
 }
@@ -653,6 +800,55 @@ mod tests {
         let globals = plane::COUNT * tiles;
         assert_eq!(obs[globals + 19], 1.0, "own COP running");
         assert_eq!(obs[globals + 20], 0.0);
+    }
+
+    #[test]
+    fn threat_planes_apply_the_chart_where_units_stand() {
+        let e = board(false);
+        let tiles = e.state.map.tile_count();
+
+        // Opting out is byte-identical to the old layout.
+        assert_eq!(
+            observation_len_with(&e.state, false),
+            observation_len(&e.state)
+        );
+        assert_eq!(
+            observation_len_with(&e.state, true) - observation_len(&e.state),
+            THREAT_PLANES * tiles
+        );
+
+        let mut obs = vec![0.0; observation_len_with(&e.state, true)];
+        encode_observation_with(&e.state, e.vision(), &mut obs, true);
+        let read = |channel: usize, pos: Pos| obs[channel * tiles + e.state.map.index(pos)];
+
+        // P0 moves. The enemy Tank (3,3) reaches next to the Infantry (2,2):
+        // Tank->Infantry is 75 on the chart, and a foot unit on Plain keeps
+        // 200-(100+1*10) percent of that -- 67 after the roll's truncation.
+        assert_eq!(read(threat_plane::INCOMING, Pos::new(2, 2)), 0.67);
+        assert_eq!(
+            read(threat_plane::INCOMING_VALUE, Pos::new(2, 2)),
+            0.67 * 1_000.0 / 20_000.0
+        );
+        // Tank->Artillery is 70; treads on Plain keep the same 90%: 63.
+        assert_eq!(read(threat_plane::INCOMING, Pos::new(1, 1)), 0.63);
+
+        // The reply: only the Infantry can reach the Tank, with its 5%
+        // secondary -- and the Tank sits on the City (defense 3), so it
+        // keeps only 70%: 3 after truncation. The Artillery outranges
+        // nothing at distance 4, and the APC has no weapon at all.
+        assert_eq!(read(threat_plane::OUTGOING, Pos::new(3, 3)), 0.03);
+        assert_eq!(
+            read(threat_plane::OUTGOING_VALUE, Pos::new(3, 3)),
+            0.03 * 7_000.0 / 20_000.0
+        );
+
+        // Threat lives only where units stand; an empty tile carries none.
+        assert_eq!(read(threat_plane::INCOMING, Pos::new(5, 5)), 0.0);
+        assert_eq!(read(threat_plane::OUTGOING, Pos::new(5, 5)), 0.0);
+
+        // The globals still land after the widened plane block.
+        let flat = (plane::COUNT + THREAT_PLANES) * tiles;
+        assert_eq!(obs[flat], 2.0, "own funds global follows the planes");
     }
 
     #[test]

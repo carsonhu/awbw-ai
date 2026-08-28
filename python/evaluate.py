@@ -250,10 +250,33 @@ def main() -> int:
               f"({time.perf_counter() - start:.0f}s)")
         return 0
 
+    # The observation layout is versioned by the checkpoint's stored plane
+    # count: a clone trained with the threat planes needs an env that emits
+    # them, and one trained without needs one that does not. Peek before
+    # constructing, and refuse a duel across layouts -- the two seats share
+    # one observation buffer.
+    def peek_planes(path):
+        saved = torch.load(ROOT / path, map_location="cpu", weights_only=True)
+        return saved["config"]["planes"]
+
+    threat = False
+    if args.policy == "net":
+        want = peek_planes(args.checkpoint)
+        if args.versus and peek_planes(args.versus) != want:
+            raise SystemExit(
+                "--checkpoint and --versus were trained on different "
+                "observation layouts; they cannot share a board")
+        probe = awbw.VecEnv(num_envs=1)
+        tiles = probe.board_shape[0] * probe.board_shape[1]
+        # Globals are fewer than a board of tiles, so this floor is exactly
+        # the plane count of the flag-off layout.
+        threat = want > probe.observation_size // tiles
+
     # With a checkpoint on the other seat there is no scripted opponent at all:
     # the caller moves both sides, and `agent_seat` says which rows are ours.
     env = awbw.VecEnv(num_envs=args.envs, seed=args.seed, max_day=args.max_day,
                       decide_cap=args.decide_cap, co=args.co,
+                      threat=threat,
                       opponent=None if args.versus else args.opponent)
     if args.policy == "net":
         agent = Net(load(ROOT / args.checkpoint, env, device), device,

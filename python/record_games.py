@@ -68,16 +68,39 @@ def main() -> int:
     rng = np.random.default_rng(args.seed)
     torch.manual_seed(args.seed)
 
+    # Same layout logic as evaluate.py: the env emits whichever observation
+    # the newest checkpoint expects, and an older policy on the other seat
+    # reads through a PlaneSlice.
+    def peek(path):
+        saved = torch.load(ROOT / path, map_location="cpu", weights_only=True)
+        return saved["config"]["planes"]
+
+    probe = awbw.VecEnv(num_envs=1)
+    tiles = probe.board_shape[0] * probe.board_shape[1]
+    want = peek(args.checkpoint)
+    if args.versus:
+        want = max(want, peek(args.versus))
+    threat = want > probe.observation_size // tiles
+
     env = awbw.VecEnv(
         num_envs=args.envs, seed=args.seed, max_day=args.max_day,
         opponent=None if args.versus else args.opponent, record=True,
-        co=args.co,
+        co=args.co, threat=threat,
     )
+    emitted = env.observation_size // tiles
+
+    def fit(policy):
+        if policy.planes < emitted:
+            return evaluate.PlaneSlice(policy, tiles)
+        return policy
+
     agent = evaluate.Net(
-        evaluate.load(ROOT / args.checkpoint, env, device), device, args.temperature)
+        fit(evaluate.load(ROOT / args.checkpoint, env, device)), device,
+        args.temperature)
     if args.versus:
         other = evaluate.Net(
-            evaluate.load(ROOT / args.versus, env, device), device, args.temperature)
+            fit(evaluate.load(ROOT / args.versus, env, device)), device,
+            args.temperature)
         agent = evaluate.Duel(agent, other, env, device)
 
     label = Path(args.checkpoint).stem

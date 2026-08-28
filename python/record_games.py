@@ -88,11 +88,19 @@ def main() -> int:
         co=args.co, threat=threat,
     )
     emitted = env.observation_size // tiles
+    base_planes = probe.observation_size // tiles
 
     def fit(policy):
-        if policy.planes < emitted:
+        if policy.planes == emitted:
+            return policy
+        # Only a no-threat checkpoint may be sliced onto a threat board; a
+        # different threat *version* would read scrambled channels. Same
+        # guard as evaluate.py.
+        if policy.planes == base_planes:
             return evaluate.PlaneSlice(policy, tiles)
-        return policy
+        raise SystemExit(
+            f"checkpoint has {policy.planes} planes but the env emits "
+            f"{emitted}; threat-plane versions differ and cannot be mixed")
 
     agent = evaluate.Net(
         fit(evaluate.load(ROOT / args.checkpoint, env, device)), device,

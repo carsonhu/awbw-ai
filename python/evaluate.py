@@ -308,11 +308,22 @@ def main() -> int:
                       opponent=None if args.versus else args.opponent)
     board_tiles = env.board_shape[0] * env.board_shape[1]
     emitted = env.observation_size // board_tiles
+    base_planes = awbw.VecEnv(num_envs=1).observation_size // board_tiles
 
     def fit(policy):
-        if policy.planes < emitted:
+        if policy.planes == emitted:
+            return policy
+        # Slicing is only sound for a checkpoint with NO threat planes: the
+        # base planes are a true prefix of every layout. A checkpoint from a
+        # *different threat version* would silently read channels with the
+        # wrong meaning -- a 68-plane v1 policy on a 70-plane v2 board played
+        # visibly degraded games before this guard existed.
+        if policy.planes == base_planes:
             return PlaneSlice(policy, board_tiles)
-        return policy
+        raise SystemExit(
+            f"checkpoint has {policy.planes} planes but the env emits "
+            f"{emitted}; threat-plane versions differ and cannot be mixed "
+            f"(rebuild the pyd from the checkpoint's era to rate it)")
 
     if args.policy == "net":
         agent = Net(fit(load(ROOT / args.checkpoint, env, device)), device,

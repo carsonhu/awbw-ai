@@ -156,6 +156,7 @@ class Trainer:
                            else self.load_policy(names[0], remember=False).eval())
             self.frozen.requires_grad_(False)
             self.current_member = None
+            self.held = 0
         self.seat = torch.from_numpy(self.env.agent_seat()).to(device)
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=args.lr,
                                            weight_decay=0.0)
@@ -523,6 +524,11 @@ class Trainer:
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
+        # Promotion clobbers the frozen weights and may have replaced the held
+        # member's slot, so any hold ends here and the next iteration draws.
+        if self.pool:
+            self.current_member = None
+            self.held = 0
         self.refreshes += 1
         self.recalibrating = self.args.refresh_warmup
 
@@ -538,6 +544,20 @@ class Trainer:
         """
         if not self.pool:
             return None
+        # A game runs ~1,200 orders and a rollout is `steps` per env, so a
+        # game spans several iterations; swapping the frozen weights every
+        # iteration made every league game a *blend* of members, and a member
+        # whose strength is a whole-game plan dissolved in it -- exploit2 beat
+        # the learner 60/40 head-to-head and read 80% smeared
+        # (`log/2026-08-28-league4-decayed-and-no-game-was-ever-one-
+        # opponent.md`). Holding the seat for a game's worth of iterations
+        # makes most games single-opponent, and makes the per-member scores
+        # PFSP steers by mean something. Held iterations count against the
+        # seat cap, so a held member can overshoot it by at most the hold.
+        if self.current_member is not None and self.held > 0:
+            self.held -= 1
+            self.pool_seatings[self.current_member] += 1
+            return self.current_member
         # The seat cap, if set: a member at the cap weighs nothing until every
         # member is there, and then the counts reset -- a new round. Without
         # it, the member beating the learner is seated almost exclusively, and
@@ -569,6 +589,7 @@ class Trainer:
         self.frozen.requires_grad_(False)
         self.current_member = which
         self.pool_seatings[which] += 1
+        self.held = max(self.args.seat_hold, 1) - 1
         return which
 
     def credit(self, before, after):
@@ -635,6 +656,10 @@ def main() -> int:
     parser.add_argument("--seat-cap", type=int, default=0,
                         help="most iterations one league member may be seated "
                              "before the rest catch up (0: unbounded)")
+    parser.add_argument("--seat-hold", type=int, default=5,
+                        help="iterations a drawn member keeps the seat, so a "
+                             "game is mostly one opponent (1: swap every "
+                             "iteration, the pre-league4 behaviour)")
     parser.add_argument("--refresh-at", type=float, default=0.7,
                         help="score over a window that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,

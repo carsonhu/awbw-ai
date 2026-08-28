@@ -38,10 +38,11 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (37)
+## Log (38)
 
 | date | entry | what it found |
 |---|---|---|
+| 2026-08-28 | [The seat hold fixed the measurement; the regime was the disease](log/2026-08-28-the-hold-fixed-the-measurement-not-the-regime.md) | League4 rerun with games played against single members, exactly as the blend diagnosis prescribed — and the product still loses 77/23 to its init. Two failures with one shape: a league whose learner opens ahead of its pool decays, exactly as every from-ahead run in this project has, and no seating scheme can fix who is ahead. |
 | 2026-08-28 | [League4 decayed, and no league game was ever against one opponent](log/2026-08-28-league4-decayed-and-no-game-was-ever-one-opponent.md) | Five promotions, a healthy-looking run, and a product that loses 73.5/26.5 to its own init. The pool was solved by iteration 80 and the rest of the run decayed from ahead — because the member that should have prevented that never actually got to play. |
 | 2026-08-27 | [The species league holds: every number up, nothing eaten](log/2026-08-27-the-species-league-holds.md) | The same 200 iterations that consumed league2 produce the best checkpoint the project has: 24.5% against JakeMan, 95.0% against `ppo-adder3`, the exploiter flipped from 21.5% to 54.0% — and the `greedy` number held instead of collapsing. |
 | 2026-08-27 | [The second exploiter finds less, which is the loop working](log/2026-08-27-the-second-exploiter-finds-less.md) | Same recipe, harder target: exploit2 needed 80 iterations to crack `league3` where exploit1 needed 40 against `league2-gen3`, promoted twice where exploit1 promoted seven times, and finished at 60.0% head-to-head where exploit1 finished at 78.5%. The exploitable surface shrank by every measure at once. |

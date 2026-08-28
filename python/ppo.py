@@ -111,6 +111,7 @@ class Trainer:
             num_envs=args.envs, seed=args.seed, max_day=args.max_day,
             shaping=args.shaping, potential=args.potential,
             decide_cap=args.decide_cap, co=args.co,
+            threat=args.threat_planes,
             opponent=None if args.selfplay else args.opponent,
         )
         # Source indices at or past this fire a CO power. Imitation leaves
@@ -185,6 +186,16 @@ class Trainer:
             blocks=config["blocks"],
         ).to(self.device)
         policy.load_state_dict(saved["policy"])
+        # A checkpoint from the other observation lineage would silently
+        # slice the board wrong -- planes it never saw would be read as
+        # globals. Refuse it before it plays a single order.
+        expected = config["planes"] * config["height"] * config["width"] \
+            + config["globals"]
+        if expected != self.env.observation_size:
+            raise SystemExit(
+                f"{path} expects a {expected}-float observation but the env "
+                f"emits {self.env.observation_size}; check --threat-planes "
+                f"against the checkpoint's lineage")
         if remember:
             self.config = config
         elif config != self.config:
@@ -744,6 +755,12 @@ def main() -> int:
     parser.add_argument("--max-day", type=int, default=60)
     # Which CO both seats play (a mirror). None is the ability-free vanilla
     # CO, which has no powers; "Adder" is the powers ruleset's first rung.
+    # The threat-plane lineage (`log/2026-08-28-threat-planes-point-the-
+    # anti-airs.md`): the env emits the four engagement planes, and every
+    # checkpoint this run touches -- init, frozen, pool -- must be from that
+    # lineage. Explicit rather than sniffed from the init, so a mixed pool
+    # fails loudly at load instead of silently reading garbage channels.
+    parser.add_argument("--threat-planes", action="store_true")
     parser.add_argument("--co", default=None)
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--report-every", type=int, default=10)

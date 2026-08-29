@@ -170,6 +170,22 @@ class Match:
                 mask = self.env.kind_mask(
                     np.array([body["s"]], dtype=np.uint32),
                     np.array([body["d"]], dtype=np.uint32))[0]
+                # One line per ask, so a wrong menu is diagnosable from the
+                # console: what the engine thinks stands at source and dest.
+                w = self.env.board_shape[1]
+                st = json.loads(self.env.state_json(0))
+                terr = json.loads(self.env.terrain_json())["terrain"]
+                def at(i):
+                    x, y = i % w, i // w
+                    u = next((f"{v['type']}(p{v['player']})" for v in st["units"]
+                              if v["x"] == x and v["y"] == y and not v["carried"]), "-")
+                    b = next((f"{v['kind']}/own{v['owner']}/cap{v['capture']}"
+                              for v in st["buildings"]
+                              if v["x"] == x and v["y"] == y), terr[y][x])
+                    return f"({x},{y}) {b} unit={u}"
+                kinds = [k for k, v in enumerate(mask.tolist()) if v]
+                print(f"[kinds] s={at(body['s'])}  d={at(body['d'])}"
+                      f"  -> {kinds}", flush=True)
                 return {"mask": mask.tolist()}
             if route == "params":
                 mask = self.env.param_mask(
@@ -186,6 +202,9 @@ class Match:
                         to_xy(body["p"])))
                 except ValueError:
                     return {"damage": None, "counter": None}
+            if route == "dbg":
+                print(f"[client] {body}", flush=True)
+                return {"ok": True}
             if route == "act":
                 self.submit(body["s"], body["d"], body["k"], body["p"])
                 self.run_agent()
@@ -219,6 +238,9 @@ def main() -> int:
             self.send_response(200)
             self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(data)))
+            # Without this Chrome heuristically caches the page, and a stale
+            # client against a new server is undebuggable by screenshot.
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(data)
 

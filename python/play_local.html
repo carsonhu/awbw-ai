@@ -10,7 +10,10 @@
            background:#000; }
   .tile { width:32px; height:32px; position:relative; box-sizing:border-box;
           font-size:10px; }
-  .tile img { image-rendering: pixelated; }
+  /* Sprites overhang their tile (buildings are 16x32); if they caught
+     clicks a tall sprite would steal its neighbour's. Geometry decides
+     clicks; art only decorates. */
+  .tile img { image-rendering: pixelated; pointer-events: none; }
   img.t { position:absolute; bottom:0; left:0; width:32px; z-index:0; }
   img.u { position:absolute; bottom:1px; left:1px; width:30px; z-index:3; }
   .tile.sel  { outline:3px solid #ff3030; outline-offset:-3px; z-index:5; }
@@ -248,8 +251,11 @@ function clearMarks() {
 async function pickDest(i) {
   sel.d = i;
   const r = await q("/kinds", { s: sel.s, d: i });
-  const legal = r.mask.map((v, k) => v ? k : -1).filter(k => k >= 0);
+  let legal = r.mask.map((v, k) => v ? k : -1).filter(k => k >= 0);
+  q("/dbg", { page: "v4", at: i, legal });
   if (legal.length === 1) return chooseKind(legal[0]);
+  // AWBW puts the action first and Wait at the bottom.
+  legal = legal.filter(k => k !== 0).concat(legal.includes(0) ? [0] : []);
   showMenu(i, legal.map(k => [KINDS[k], () => chooseKind(k)]));
   phase = "placed";
 }
@@ -320,7 +326,7 @@ function infoCard(i) {
       + (u.cargo ? ` &nbsp; loaded: ${u.cargo}` : "") + `</div>`;
   }
   const b = state.buildings.find(v => v.x === x && v.y === y);
-  html += `<div class="stat">${kind}<br>${stars}`
+  html += `<div class="stat">${kind} <span style="opacity:.6">(${x},${y})</span><br>${stars}`
     + (b && b.capture < 20 ? ` &nbsp; capture ${b.capture}/20` : "")
     + `</div>`;
   card.innerHTML = html;

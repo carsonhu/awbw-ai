@@ -119,7 +119,70 @@ class Trainer:
         # activation off the floor is a headline metric, not a curiosity.
         h, w = self.env.board_shape
         self.pop_floor = h * w + 1
+        # Where in its turn each env currently is, and where its activations
+        # land inside that turn. Every activation the agent has been observed
+        # to make came *last* -- 21 to 36 orders before it and zero or one
+        # after -- so the +1 movement applied to no move and the +10 attack to
+        # no attack (`docs/log/2026-08-28-the-agent-pops-at-the-end-of-the-
+        # turn.md`). Pop position is therefore measured beside pop rate: a rate
+        # that climbs while position stays at the end of the turn is a policy
+        # learning to cycle the meter, not one learning to use a power.
+        self.end_turn_source = h * w
+        self.turn_order = np.zeros(args.envs, dtype=np.int64)
+        self.pop_index_sum = self.pop_index_n = 0
+        self.turn_len_sum = self.turn_len_n = 0
+        # How often activation was legal at all, which a pop *rate* cannot
+        # separate from how often it was chosen: a policy that never pops
+        # because the meter never filled and one that never pops because it
+        # will not press the button read the same, and only the second is a
+        # policy problem. Counted over every decision the batch made, both
+        # seats included in self-play.
+        self.pop_offered = self.pop_decisions = 0
+        # Activation is masked out past this many orders into a turn, so the
+        # policy pops early or not at all. Popping early only pays if the
+        # orders after it exploit the buff, and using the buff is only
+        # learnable if it pops early -- neither gradient exists without the
+        # other, and the agent sits exactly at the fixed point where neither
+        # does. This breaks the circle by fiat, which makes it exploration
+        # rather than a rule: it applies to rollouts only, and evaluation
+        # stays unmasked so the learned timing is what gets rated.
+        self.pop_window = args.pop_window
+        # Masking activation out *late* does not relocate it early: measured on
+        # `ppo-t2v1`, a window of 3 took the pop rate to 0.00/game, because the
+        # policy holds no mass on activation in a turn's opening orders at all.
+        # So the buff state has to be entered outright: at this order index, if
+        # a power is legal, it becomes the *only* legal source and the turn
+        # opens under the power. Both power indices stay available, so which
+        # power to spend is still the policy's choice -- what is taken away is
+        # only the option to wait, which is what it always takes. The cost of
+        # removing it: charge is spent the moment it reaches COP, so SCOP
+        # rarely becomes available at all, and the arm measures early *COP*
+        # rather than power play in general.
+        #
+        # Nor does the source head learn to *prefer* popping early: on a forced
+        # row every other source is -inf, so "pop or do something else" is a
+        # comparison the softmax never sees. The arm therefore answers what
+        # correctly-timed powers are worth, not how to time them -- and it is
+        # rated unforced, where a gain means the buff-state experience
+        # transferred rather than that the crutch was carried into the test.
+        self.pop_force = args.pop_force
         self.policy = self.load_policy()
+        # A frozen clone the update is pulled back toward. Measured cause:
+        # imitation reproduces the human build mix almost exactly (Anti-Air
+        # 5.3% against the corpus's 6.1%, indirects 3.9% against 4.0%) and
+        # human power timing with it (pops at order 1.6 of a 13.3-order turn),
+        # and 200 iterations of PPO against one opponent take Anti-Air to 35%
+        # and the pop to order 25 of a 20-order turn. The shaping potential
+        # cannot see any of it: it prices a unit at cost times HP, so a board
+        # of Anti-Air and a board of Tanks are worth exactly the same, and
+        # composition is free to drift anywhere that preserves material. The
+        # anchor supplies what the reward is missing, borrowed from the clone.
+        self.anchor = None
+        if args.anchor:
+            self.anchor = self.load_policy(args.anchor, remember=False)
+            self.anchor.eval()
+            for weight in self.anchor.parameters():
+                weight.requires_grad_(False)
         # A frozen copy of the policy holds the other seat. Not the live policy
         # on both sides: its transitions would be off-policy for the update, and
         # a score against yourself is 50% by construction and says nothing. A
@@ -190,12 +253,7 @@ class Trainer:
         saved = torch.load(ROOT / (path or self.args.init),
                            map_location=self.device, weights_only=True)
         config = saved["config"]
-        policy = netmod.Policy(
-            planes=config["planes"], globals_=config["globals"],
-            height=config["height"], width=config["width"],
-            head_sizes=config["head_sizes"], channels=config["channels"],
-            blocks=config["blocks"],
-        ).to(self.device)
+        policy = netmod.from_config(config).to(self.device)
         policy.load_state_dict(saved["policy"])
         # A checkpoint from the other observation lineage would silently
         # slice the board wrong -- planes it never saw would be read as
@@ -223,7 +281,29 @@ class Trainer:
     def current_masks(self, s=None, d=None, k=None):
         """One head's mask at a time, since each depends on the last choice."""
         if s is None:
-            return torch.from_numpy(self.env.source_mask()).to(self.device)
+            mask = torch.from_numpy(self.env.source_mask()).to(self.device)
+            self.pop_offered += int(mask[:, self.pop_floor:].any(dim=1).sum())
+            self.pop_decisions += mask.shape[0]
+            if self.pop_force >= 0:
+                due = torch.from_numpy(
+                    self.turn_order == self.pop_force).to(self.device)
+                forced = due & mask[:, self.pop_floor:].any(dim=1)
+                if forced.any():
+                    # Rebuilt rather than edited in place: everything but the
+                    # power indices goes, and those were just checked non-empty,
+                    # so no mask is emptied.
+                    powers = mask[forced][:, self.pop_floor:].clone()
+                    rows = torch.zeros_like(mask[forced])
+                    rows[:, self.pop_floor:] = powers
+                    mask[forced] = rows
+            if self.pop_window:
+                late = torch.from_numpy(
+                    self.turn_order >= self.pop_window).to(self.device)
+                # Ending the turn sits one index below `pop_floor` and is
+                # always legal, so clearing the power indices never empties a
+                # mask.
+                mask[:, self.pop_floor:] &= ~late.unsqueeze(1)
+            return mask
         if d is None:
             return torch.from_numpy(self.env.dest_mask(s)).to(self.device)
         if k is None:
@@ -245,6 +325,27 @@ class Trainer:
         context = policy.context_of(flat, pooled, chosen[0], chosen[1])
         return (policy.param_logits(features, context, chosen[2]),
                 self.current_masks(raw[0], raw[1], raw[2]))
+
+    def note_orders(self, sources, dones, mine):
+        """Advance each env's position in its turn, and record where pops land.
+
+        Read from the sources actually submitted: an order at or past
+        `pop_floor` fired a power, and one at `end_turn_source` closed the
+        turn. In self-play the frozen seat submits orders through the same
+        buffer, so the statistics take the learner's rows only -- but the
+        counter advances on every order, because it tracks position inside
+        whoever's turn is running.
+        """
+        popped = sources >= self.pop_floor
+        ended = sources == self.end_turn_source
+        counted = popped if mine is None else (popped & mine)
+        self.pop_index_sum += int(self.turn_order[counted].sum())
+        self.pop_index_n += int(counted.sum())
+        self.turn_order += 1
+        closing = ended if mine is None else (ended & mine)
+        self.turn_len_sum += int(self.turn_order[closing].sum())
+        self.turn_len_n += int(closing.sum())
+        self.turn_order[ended | dones] = 0
 
     @torch.no_grad()
     def collect(self):
@@ -294,6 +395,8 @@ class Trainer:
             if mine is not None:
                 buf.mine[t] = mine
             rewards, dones, actors, cut = self.env.step(*raw)
+            self.note_orders(raw[0], dones,
+                             mine.cpu().numpy() if mine is not None else None)
             buf.rewards[t] = torch.from_numpy(rewards).to(self.device)
             buf.dones[t] = torch.from_numpy(dones).to(self.device).float()
             buf.actors[t] = torch.from_numpy(actors).to(self.device)
@@ -372,6 +475,33 @@ class Trainer:
             adv[t] = running
         return adv, adv + buf.values
 
+    def anchor_divergence(self, logits, obs, taken, masks, idx):
+        """KL(anchor || policy), summed over the four heads.
+
+        Forward KL, with the clone as the target: it charges the policy for
+        putting *low* probability where the clone puts high, which is the
+        direction that keeps a unit type in the build mix at all. Reverse KL
+        would let the policy collapse onto one of the clone's modes and score
+        that as agreement -- which is the failure being corrected, not a fix.
+
+        Each head is scored under the same recorded mask as the rollout and
+        conditioned on the same taken actions, so the two networks are compared
+        on one distribution rather than on two different supports.
+        """
+        source, dest, kind, _ = taken
+        with torch.no_grad():
+            other, _ = self.anchor.evaluate_actions(obs, source, dest, kind)
+        total = 0.0
+        for head in range(HEADS):
+            mask = masks[head][idx]
+            p_log = torch.log_softmax(masked_logits(other[head], mask), dim=1)
+            q_log = torch.log_softmax(masked_logits(logits[head], mask), dim=1)
+            term = p_log.exp() * (p_log - q_log)
+            # A forbidden entry is -inf in both, and 0 * (-inf - -inf) is nan.
+            total = total + torch.where(
+                torch.isfinite(term), term, torch.zeros_like(term)).sum(dim=1)
+        return total.mean()
+
     def update(self, adv, returns, critic_only=False):
         buf = self.buffer
         # Deliberately NOT train(): the batch-norm layers must use the same
@@ -413,7 +543,8 @@ class Trainer:
 
         total = keep.numel()
         stats = {"policy": 0.0, "value": 0.0, "entropy": 0.0, "kl": 0.0,
-                 "clipped": 0.0, "n": 0, "spread": spread.item()}
+                 "clipped": 0.0, "anchor": 0.0, "n": 0,
+                 "spread": spread.item()}
         recent = 0.0
         for _ in range(self.args.epochs):
             order = keep[torch.randperm(total, device=self.device)]
@@ -439,12 +570,18 @@ class Trainer:
                 policy_loss = -torch.min(ratio * flat_adv[idx],
                                          clipped * flat_adv[idx]).mean()
                 value_loss = F.mse_loss(value, flat_returns[idx])
+                pull = None
+                if self.anchor is not None and not critic_only:
+                    pull = self.anchor_divergence(
+                        logits, obs, taken, flat_masks, idx)
                 if critic_only:
                     loss = value_loss
                 else:
                     loss = (policy_loss
                             + self.args.value_coef * value_loss
                             - self.args.entropy_coef * entropy.mean())
+                    if pull is not None:
+                        loss = loss + self.args.anchor_kl * pull
 
                 stepped = self.critic_optimizer if critic_only else self.optimizer
                 self.optimizer.zero_grad(set_to_none=True)
@@ -467,6 +604,8 @@ class Trainer:
                     stats["kl"] += kl
                     stats["clipped"] += (
                         (ratio - 1).abs() > self.args.clip).float().mean().item()
+                    if pull is not None:
+                        stats["anchor"] += pull.item()
                     stats["n"] += 1
                     recent = kl
 
@@ -490,6 +629,9 @@ class Trainer:
     def recalibrate(self):
         """Refits the batch-norm running statistics to states now being visited.
 
+        A GroupNorm net has no running statistics, so this is a no-op there --
+        the whole failure class this refit papers over does not exist for it.
+
         Cloning leaves them describing the human corpus, and the update runs in
         eval mode -- deliberately, so the rollout and the update normalise
         identically -- which means nothing ever refreshes them again. Measured
@@ -502,6 +644,8 @@ class Trainer:
         see the same statistics or every importance ratio compares two
         different policies, which is the failure that eval mode exists to stop.
         """
+        if getattr(self.policy, "norm", "batch") != "batch":
+            return
         flat = self.buffer.obs.reshape(-1, self.buffer.obs.shape[-1])
         # A minibatch, not the rollout: the whole buffer through the trunk at
         # once needs as much memory as the update does, and on a small card the
@@ -772,6 +916,23 @@ def main() -> int:
     # lineage. Explicit rather than sniffed from the init, so a mixed pool
     # fails loudly at load instead of silently reading garbage channels.
     parser.add_argument("--threat-planes", action="store_true")
+    parser.add_argument("--anchor", default=None,
+                        help="a clone to hold the policy near, by KL. The "
+                             "reward cannot see composition, so PPO drifts off "
+                             "the human build mix; this is what stops it")
+    parser.add_argument("--anchor-kl", type=float, default=0.0,
+                        help="weight on that pull. Too high returns the clone, "
+                             "too low lets the drift back; read it against "
+                             "play_diag.py, not against the score")
+    parser.add_argument("--pop-force", type=int, default=-1,
+                        help="at this order index into a turn, make CO "
+                             "activation the only legal source when it is "
+                             "legal at all (-1 = never). Enters the buff "
+                             "state so the turn's orders are played under it")
+    parser.add_argument("--pop-window", type=int, default=0,
+                        help="mask CO activation out after this many orders "
+                             "into a turn (0 = never). Forces the pop early, "
+                             "so the orders that follow it can price the buff")
     parser.add_argument("--co", default=None)
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--report-every", type=int, default=10)
@@ -797,6 +958,8 @@ def main() -> int:
     start = time.perf_counter()
     seen = (0, 0, 0)
     pops = seen_pops = 0
+    seen_pos = (0, 0, 0, 0)
+    seen_offer = (0, 0)
     best = -1.0
     for iteration in range(1, args.iterations + 1):
         trainer.take_opponent(iteration)
@@ -840,11 +1003,21 @@ def main() -> int:
             stalled = (drawn - seen[2]) / max(games, 1)
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
             pop_rate = (pops - seen_pops) / max(games, 1)
+            # Where those pops landed, and how long a turn was to land in.
+            pop_at = ((trainer.pop_index_sum - seen_pos[0])
+                      / max(trainer.pop_index_n - seen_pos[1], 1))
+            turn_len = ((trainer.turn_len_sum - seen_pos[2])
+                        / max(trainer.turn_len_n - seen_pos[3], 1))
+            offered = ((trainer.pop_offered - seen_offer[0])
+                       / max(trainer.pop_decisions - seen_offer[1], 1))
             needed = args.refresh_games if args.selfplay else args.min_games
             closed = games >= needed
             if closed:
                 seen = (played, won, drawn)
                 seen_pops = pops
+                seen_pos = (trainer.pop_index_sum, trainer.pop_index_n,
+                            trainer.turn_len_sum, trainer.turn_len_n)
+                seen_offer = (trainer.pop_offered, trainer.pop_decisions)
             rate = iteration * per / (time.perf_counter() - start)
             if args.selfplay:
                 # The score is against a moving opponent, so a high one means
@@ -881,7 +1054,10 @@ def main() -> int:
             # runs that came apart.
             print(f"  {iteration:>4}/{args.iterations}  "
                   f"score {score:.1%} over {games} games  cut {stalled:.0%}  "
-                  f"pop {pop_rate:.2f}/g  "
+                  f"pop {pop_rate:.2f}/g @{pop_at:.0f}/{turn_len:.0f} "
+                  f"offered {offered:.1%}  "
+                  + (f"| anchor {stats['anchor']:.3f} "
+                     if args.anchor else "") +
                   f"| pi {stats['policy']:+.4f} v {stats['value']:.3f} "
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']} "

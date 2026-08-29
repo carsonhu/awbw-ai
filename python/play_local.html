@@ -30,7 +30,14 @@
   img.hp { width:12px; height:auto; }
   .cap { position:absolute; left:1px; top:0; font-size:9px; color:#ff0;
          text-shadow:0 0 2px #000; z-index:6; }
+  img.capicon { position:absolute; left:0; top:0; width:14px; z-index:6; }
   .own0 { border-bottom:4px solid #d9642a; } .own1 { border-bottom:4px solid #2a66d9; }
+  #infocard { border:2px solid #666; background:#4a4a42; color:#fff;
+              border-radius:4px; padding:8px 10px; margin-top:10px;
+              min-height:56px; font-size:12px; display:flex; gap:12px;
+              align-items:center; }
+  #infocard img { image-rendering:pixelated; width:32px; }
+  #infocard .stat { line-height:1.5; }
   #side { width:300px; }
   .panel { border:2px solid #888; background:#fff; border-radius:4px;
            padding:8px 10px; margin-bottom:10px; }
@@ -42,6 +49,9 @@
   #menu { position:absolute; background:#fff; border:2px solid #444; z-index:10;
           border-radius:4px; padding:4px; box-shadow:2px 3px 8px #0006; }
   #menu button { display:block; width:100%; text-align:left; }
+  #menu img { image-rendering:pixelated; width:20px; vertical-align:middle;
+              margin-right:6px; }
+  #menu .cost { float:right; margin-left:14px; color:#444; }
   #tip { position:absolute; background:#fffef0; border:2px solid #444; z-index:11;
          padding:5px 9px; font-size:12px; pointer-events:none; border-radius:4px; }
   #log { font-size:11px; max-height:260px; overflow-y:auto; background:#fff;
@@ -51,9 +61,12 @@
 </style>
 </head>
 <body>
-<div id="banner">loading…</div>
+<div id="banner">loading&hellip;</div>
 <div id="wrap">
-  <div id="board"></div>
+  <div>
+    <div id="board"></div>
+    <div id="infocard">hover a tile</div>
+  </div>
   <div id="side">
     <div class="panel" id="pl0"></div>
     <div class="panel" id="pl1"></div>
@@ -79,7 +92,6 @@ const UNIT_CODE = { Infantry:"In", Mech:"Me", MdTank:"MT", Tank:"Tk",
   Battleship:"Bs", Cruiser:"Cr", Lander:"Ld", Sub:"Sb", BlackBoat:"BB",
   Carrier:"Ca", Stealth:"St", Neotank:"Nt", Piperunner:"Pr",
   BlackBomb:"Bb", MegaTank:"MG" };
-// Engine debug names -> the display names sprite files derive from.
 const ENGINE2AWBW = { Infantry:"Infantry", Mech:"Mech", MdTank:"Md.Tank",
   Tank:"Tank", Recon:"Recon", Apc:"APC", Artillery:"Artillery",
   Rocket:"Rocket", AntiAir:"Anti-Air", Missile:"Missile", Fighter:"Fighter",
@@ -92,10 +104,16 @@ const BUILD_NAMES = ["Infantry","Mech","Md.Tank","Tank","Recon","APC",
   "Artillery","Rocket","Anti-Air","Missile","Fighter","Bomber","B-Copter",
   "T-Copter","Battleship","Cruiser","Lander","Sub","Black Boat","Carrier",
   "Stealth","Neotank","Piperunner","Black Bomb","Mega Tank"];
+const BUILD_COSTS = [1000,3000,16000,7000,4000,5000,6000,15000,8000,12000,
+  20000,22000,9000,5000,28000,18000,12000,20000,7500,30000,24000,22000,
+  20000,25000,28000];
 const KINDS = ["wait","attack","capture","supply","join","load","unload","build"];
+const DEFENSE = { Plain:1, Wood:2, Mountain:4, River:0, Road:0, Bridge:0,
+  Sea:0, Shoal:0, Reef:1, City:3, Base:3, Airport:3, Port:3, Hq:4,
+  ComTower:3, Lab:3, Pipe:0, Silo:3, SiloEmpty:3 };
 
 let W, H, TILES, terrain, state;
-let SPR = null, MAN = null;   // sprite grid + manifest, when fetched
+let SPR = null, MAN = null;
 let phase = "idle";
 let sel = {};
 
@@ -123,12 +141,10 @@ async function boot() {
 
 function baseSprite(i, buildingAt) {
   const x = i % W, y = (i / W) | 0;
-  // A property tile's art follows its *current* owner, not the map file.
   const b = buildingAt[i];
   if (b && MAN) {
     const key = ownerCode(b.owner) + ":" + b.kind.toLowerCase();
-    if (MAN.building[key])
-      return MAN.building[key];
+    if (MAN.building[key]) return MAN.building[key];
   }
   return SPR ? SPR[y][x] : null;
 }
@@ -146,14 +162,17 @@ function refresh(s) {
     el.innerHTML = "";
     const art = baseSprite(i, buildingAt);
     if (art) {
-      el.style.background = "#b0d264";  /* plains peek under tall sprites */
+      el.style.background = "#b0d264";
       el.innerHTML = `<img class="t" src="${spriteUrl(art)}">`;
     } else {
       el.style.background = TERRAIN_COLORS[kind] || "#888";
     }
     const b = buildingAt[i];
-    if (b && b.capture < 20)
-      el.innerHTML += `<span class="cap">${b.capture}</span>`;
+    if (b && b.capture < 20) {
+      el.innerHTML += (MAN && MAN.misc.capture)
+        ? `<img class="capicon" src="${spriteUrl(MAN.misc.capture)}">`
+        : `<span class="cap">${b.capture}</span>`;
+    }
   }
   for (const u of s.units) {
     if (u.carried) continue;
@@ -184,7 +203,7 @@ function refresh(s) {
     el.className = "panel" + (s.current === p && s.winner === null ? " active" : "");
     const goal = pl.power === "N" ? (pl.scop_cost ?? 0) : 0;
     el.innerHTML = `<h3>${p === s.human ? "You" : "Agent"} — ${pl.co} (${ownerCode(p) === "os" ? "orange" : "blue"})</h3>`
-      + `funds ${pl.funds.toLocaleString()} · income ${pl.income.toLocaleString()}`
+      + `funds ${pl.funds.toLocaleString()} &middot; income ${pl.income.toLocaleString()}`
       + `<div>power: ${pl.power === "N" ? "charging" : (pl.power === "Y" ? "COP!" : "SCOP!")}</div>`
       + `<div class="meter"><div style="width:${goal ? Math.min(100, 100 * pl.charge / goal) : 100}%"></div></div>`;
   }
@@ -208,6 +227,15 @@ function clearMarks() {
     el => el.classList.remove("move", "tgt", "sel"));
 }
 
+async function pickDest(i) {
+  sel.d = i;
+  const r = await q("/kinds", { s: sel.s, d: i });
+  const legal = r.mask.map((v, k) => v ? k : -1).filter(k => k >= 0);
+  if (legal.length === 1) return chooseKind(legal[0]);
+  showMenu(i, legal.map(k => [KINDS[k], () => chooseKind(k)]));
+  phase = "placed";
+}
+
 async function clickTile(i) {
   if (!state.source_mask) return;
   if (phase === "idle") {
@@ -215,15 +243,17 @@ async function clickTile(i) {
     sel = { s: i };
     document.getElementById("t" + i).classList.add("sel");
     const r = await q("/dests", { s: i });
-    sel.dmask = r.mask; marks(r.mask, "move"); phase = "picked";
+    sel.dmask = r.mask;
+    const legal = r.mask.map((v, j) => v ? j : -1).filter(j => j >= 0);
+    // One legal destination (a base building, a boxed-in unit): skip the
+    // second click straight to the order menu.
+    if (legal.length === 1) return pickDest(legal[0]);
+    marks(r.mask, "move"); phase = "picked";
   } else if (phase === "picked") {
     if (!sel.dmask[i]) { cancel(); return; }
-    sel.d = i;
-    const r = await q("/kinds", { s: sel.s, d: i });
-    const legal = r.mask.map((v, k) => v ? k : -1).filter(k => k >= 0);
-    if (legal.length === 1) return chooseKind(legal[0]);
-    showMenu(i, legal.map(k => [KINDS[k], () => chooseKind(k)]));
-    phase = "placed";
+    clearMarks();
+    document.getElementById("t" + sel.s).classList.add("sel");
+    pickDest(i);
   } else if (phase === "param") {
     if (!sel.pmask[i]) { cancel(); return; }
     act(sel.s, sel.d, sel.k, i);
@@ -239,8 +269,14 @@ async function chooseKind(k) {
   sel.pmask = r.mask;
   if (k === 7) {
     const legal = r.mask.map((v, i) => v ? i : -1).filter(i => i >= 0);
-    showMenu(sel.s, legal.map(i => [BUILD_NAMES[i] || ("#" + i),
-                                    () => act(sel.s, sel.d, 7, i)]));
+    showMenu(sel.s, legal.map(i => {
+      const key = ownerCode(state.human) + ":" + BUILD_NAMES[i];
+      const icon = MAN && MAN.unit[key]
+        ? `<img src="${spriteUrl(MAN.unit[key])}">` : "";
+      const label = `${icon}${BUILD_NAMES[i]}`
+        + `<span class="cost">${BUILD_COSTS[i].toLocaleString()}</span>`;
+      return [label, () => act(sel.s, sel.d, 7, i), true];
+    }));
   } else {
     clearMarks();
     document.getElementById("t" + sel.s).classList.add("sel");
@@ -249,7 +285,31 @@ async function chooseKind(k) {
   }
 }
 
+function infoCard(i) {
+  const x = i % W, y = (i / W) | 0;
+  const kind = terrain[y][x];
+  const u = state.units.find(v => !v.carried && v.x === x && v.y === y);
+  const card = document.getElementById("infocard");
+  const stars = "★".repeat(DEFENSE[kind] ?? 0) || "–";
+  let html = "";
+  if (u) {
+    const key = ownerCode(u.player) + ":" + ENGINE2AWBW[u.type];
+    if (MAN && MAN.unit[key])
+      html += `<img src="${spriteUrl(MAN.unit[key])}">`;
+    html += `<div class="stat"><b>${ENGINE2AWBW[u.type]}</b><br>`
+      + `hp ${Math.ceil(u.hp100 / 10)} &nbsp; fuel ${u.fuel}`
+      + ` &nbsp; ammo ${u.ammo}`
+      + (u.cargo ? ` &nbsp; loaded: ${u.cargo}` : "") + `</div>`;
+  }
+  const b = state.buildings.find(v => v.x === x && v.y === y);
+  html += `<div class="stat">${kind}<br>${stars}`
+    + (b && b.capture < 20 ? ` &nbsp; capture ${b.capture}/20` : "")
+    + `</div>`;
+  card.innerHTML = html;
+}
+
 async function hoverTile(i) {
+  infoCard(i);
   if (phase !== "param" || sel.k !== 1 || !sel.pmask[i]) return;
   const r = await q("/preview", { s: sel.s, d: sel.d, p: i });
   if (!r.damage) return;
@@ -272,9 +332,10 @@ function showMenu(atTile, entries) {
   const el = document.getElementById("t" + atTile).getBoundingClientRect();
   const m = document.createElement("div");
   m.id = "menu";
-  for (const [label, fn] of entries) {
+  for (const [label, fn, html] of entries) {
     const b = document.createElement("button");
-    b.textContent = label; b.onclick = fn; m.appendChild(b);
+    if (html) b.innerHTML = label; else b.textContent = label;
+    b.onclick = fn; m.appendChild(b);
   }
   m.style.left = (el.right + window.scrollX + 4) + "px";
   m.style.top = (el.top + window.scrollY) + "px";

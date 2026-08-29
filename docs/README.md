@@ -39,10 +39,11 @@ Then `python tools/docs.py index`.
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |
 
-## Log (51)
+## Log (52)
 
 | date | entry | what it found |
 |---|---|---|
+| 2026-08-29 | [Ten seeds on a rented card, and the anchor verdict survives](log/2026-08-29-the-grid-confirms-the-anchor.md) | The first seed-grouped experiment this project has run: anchor {0.01, 0.03} x four seeds plus two controls, trained concurrently on a rented 4090 in 2h47m for $2.71. At 0.03 the anchored group beats the control group with **non-overlapping ranges on all three discriminating panel members** — the claim one-seed runs could never make. At 0.01 the spread runs 57 points: the light weight is a lottery on the new net too, and retires. |
 | 2026-08-29 | [The 0.01 verdict was one seed; the recipe is a lottery it won once](log/2026-08-29-the-anchor-verdict-was-one-seed.md) | This morning's entry called `ppo-anc001` a sweep verdict with margins "no seed spread reaches". The second seed reached them: same recipe, `--seed 43`, and the clone number fell 69.0 -> 25.0, `ppo-adder3` 73.8 -> 23.0. The checkpoint stands — the strongest this project has. The claim that weight 0.01 *produces* it does not. |
 | 2026-08-29 | [The anchor buys strength across the whole panel, not just composition](log/2026-08-29-the-anchor-buys-strength.md) | The KL anchor was built to stop composition drift, and the tension it was built under — that pulling toward the clone would give back the tactical gains — ran backwards. `ppo-anc001` (weight 0.01) rates **94.0 / 12.5 / 69.0 / 73.8** across the panel against the unanchored control's 85.5 / 5.0 / 29.0 / 33.5: the strongest checkpoint this project has produced, on every member at once. |
 | 2026-08-29 | [Forcing the pop teaches the rate, not the timing](log/2026-08-29-pop-force-teaches-rate-not-timing.md) | Rated without the crutch, `ppo-t2pop` pops **1.33/game — thirteen times its control — at order 46 of a 30.6-order turn**: it learned *to* pop, and did not learn *when*. And combined with the anchor, even the rate vanishes (0.07/game). Yesterday's entry credited the arm's panel gain to transferred buff-state experience; that now reads as exactly right, and narrower than hoped. |

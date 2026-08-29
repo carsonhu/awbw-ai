@@ -328,3 +328,10 @@ points.** Two seeds of one recipe panelled 27 apart on `ppo-adder3` at weight
 engagement numbers replicate; net-member scores and power behaviour are
 lotteries. The unit of experiment is the seed group: N seeds, keep the best,
 report the spread (`log/2026-08-29-the-anchor-verdict-was-one-seed.md`).
+
+**The anchor recipe is `--anchor <clone> --anchor-kl 0.03`, seed-grouped.** Four
+seeds beat two controls with non-overlapping ranges on every discriminating
+panel member; 0.01 spread fifty-seven points across seeds on two different
+nets and retires. Power timing needs no RL intervention at all — pop-weighted
+BC labels fixed it in the clone, and all ten arms kept it
+(`log/2026-08-29-the-grid-confirms-the-anchor.md`).

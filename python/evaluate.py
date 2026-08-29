@@ -209,15 +209,7 @@ class Uniform:
 def load(path, env, device):
     saved = torch.load(path, map_location=device, weights_only=True)
     config = saved["config"]
-    policy = netmod.Policy(
-        planes=config["planes"],
-        globals_=config["globals"],
-        height=config["height"],
-        width=config["width"],
-        head_sizes=config["head_sizes"],
-        channels=config["channels"],
-        blocks=config["blocks"],
-    ).to(device)
+    policy = netmod.from_config(config).to(device)
     policy.load_state_dict(saved["policy"])
     policy.eval()
     if list(config["head_sizes"]) != list(env.action_sizes):

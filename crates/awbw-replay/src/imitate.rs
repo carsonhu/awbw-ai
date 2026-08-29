@@ -380,6 +380,12 @@ impl Cursor {
         Some(self.state()?.current)
     }
 
+    /// The AWBW id of the game this cursor is walking, so a trainer can join
+    /// a served position to per-game metadata (the winner, player ratings).
+    pub fn game_id(&self) -> i64 {
+        self.replay.game_id
+    }
+
     /// The engine for this position, for callers that need to enumerate legal
     /// orders — action masks want it mutably for their reachability scratch.
     pub fn engine_mut(&mut self) -> Option<&mut Engine> {

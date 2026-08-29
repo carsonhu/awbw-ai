@@ -1394,6 +1394,20 @@ impl ReplayTeacher {
         }
     }
 
+    /// The AWBW game id each slot is currently serving from, `-1` where a
+    /// slot has no game. Read it *before* `act`, which can advance a slot
+    /// into the next game -- the same discipline as `source_targets`. The id
+    /// is the join key to per-game metadata: `data/prepared/<id>.json` and
+    /// the winner/Elo table built beside it.
+    fn game_ids<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let data: Vec<i64> = self
+            .slots
+            .iter()
+            .map(|s| s.as_ref().map_or(-1, |c| c.game_id()))
+            .collect();
+        data.into_pyarray(py)
+    }
+
     /// Which seat is to move in each slot. `-1` where a slot has no game.
     fn current_player<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
         let data: Vec<i64> = self

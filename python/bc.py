@@ -21,6 +21,7 @@ memorised rather than held out.
 """
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -67,6 +68,8 @@ class Source:
         self.env.observe_into(self.obs)
         # Read before `act`, which advances past the position it describes.
         targets = self.env.source_targets() if self.source_set else None
+        ids = self.env.game_ids() if self.human else None
+        movers = self.env.current_player() if self.human else None
         result = self.env.act()
         codes, valid = result if self.human else (result, None)
         obs = self.staging.to(device, non_blocking=True)
@@ -77,7 +80,7 @@ class Source:
             keep = torch.from_numpy(valid).to(device, non_blocking=True)
         if targets is not None:
             targets = torch.from_numpy(targets).to(device, non_blocking=True)
-        return obs, codes, keep, targets
+        return obs, codes, keep, targets, ids, movers
 
 
 def make_source(args, batch: int, validation: bool) -> Source:
@@ -107,7 +110,41 @@ def make_source(args, batch: int, validation: bool) -> Source:
     return Source(env, batch)
 
 
-def source_loss(logits, target, targets_set, mask, weight: float):
+def load_outcomes(path):
+    """Per-game winner as a small dict: game id -> winning seat index.
+
+    Winners come from the replay's own `GameOver` record for 87.7% of the
+    corpus, cross-checked 1,076/1,076 against the mooo archive
+    (`data/game-meta-119544.json`). Games without a label simply contribute
+    no value gradient; their policy labels are unaffected.
+    """
+    meta = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {int(gid): entry["winner_index"]
+            for gid, entry in meta.items()
+            if entry.get("winner_index") is not None}
+
+
+def value_targets(ids, movers, outcomes, device):
+    """(+1 mover won, -1 mover lost) per row, and which rows have a label.
+
+    The scale matches PPO's terminal reward exactly, so the critic BC hands
+    over is already in the units PPO trains it in — the whole point: PPO
+    currently inherits a *random* critic and spends 25 warm-up iterations
+    fitting it while the policy idles.
+    """
+    target = torch.zeros(len(ids), device=device)
+    have = torch.zeros(len(ids), dtype=torch.bool, device=device)
+    for row, (gid, mover) in enumerate(zip(ids.tolist(), movers.tolist())):
+        winner = outcomes.get(gid)
+        if winner is None or mover < 0:
+            continue
+        target[row] = 1.0 if winner == mover else -1.0
+        have[row] = True
+    return target, have
+
+
+def source_loss(logits, target, targets_set, mask, weight: float,
+                pop_floor: int = 0, pop_weight: float = 1.0):
     """Cross-entropy against the exact unit, blended with the turn's whole set.
 
     The set term is `-log` of the probability the policy puts *anywhere* in the
@@ -116,7 +153,17 @@ def source_loss(logits, target, targets_set, mask, weight: float):
     exact label is always a member, and order is not always free (a blocker has
     to move before the unit it blocks), so the exact term keeps a share.
     """
-    exact = F.cross_entropy(logits[mask], target[mask])
+    if pop_weight != 1.0 and pop_floor:
+        # 213 activation labels in 1.9M orders seeded nothing at uniform
+        # weight, and the anchor provably propagates whatever the clone
+        # holds -- so the timing has to be *in* the clone. Upweighting is
+        # the standard fix for a vanishing label class.
+        per = F.cross_entropy(logits[mask], target[mask], reduction="none")
+        w = torch.where(target[mask] >= pop_floor,
+                        per.new_full((), pop_weight), per.new_ones(()))
+        exact = (per * w).sum() / w.sum()
+    else:
+        exact = F.cross_entropy(logits[mask], target[mask])
     if targets_set is None or weight <= 0:
         return exact
     logp = torch.log_softmax(logits[mask], dim=1)
@@ -131,7 +178,9 @@ def source_loss(logits, target, targets_set, mask, weight: float):
 
 
 def losses(policy, obs, codes, keep, end_turn_index: int,
-           targets_set=None, set_weight: float = 0.0):
+           targets_set=None, set_weight: float = 0.0,
+           value_target=None, value_mask=None, value_coef: float = 0.0,
+           pop_weight: float = 1.0):
     """Cross-entropy per head, over the rows where that head means anything.
 
     Ending the turn names no destination, and most orders carry no parameter.
@@ -140,7 +189,10 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
     report besides.
     """
     source, dest, kind, param = codes.unbind(dim=1)
-    logits = policy(obs, source=source, dest=dest, kind=kind)
+    if value_target is not None:
+        logits, value = policy.evaluate_actions(obs, source, dest, kind)
+    else:
+        logits = policy(obs, source=source, dest=dest, kind=kind)
 
     acting = keep & (source != end_turn_index)
     has_param = keep & torch.isin(
@@ -160,7 +212,8 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
         if mask.any():
             if i == 0:
                 total = total + source_loss(logit, target, targets_set, mask,
-                                            set_weight)
+                                            set_weight, end_turn_index + 1,
+                                            pop_weight)
             else:
                 total = total + F.cross_entropy(logit[mask], target[mask])
         tally[2 * i] = hit.sum()
@@ -172,6 +225,12 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
     # three heads out of four is a different move.
     tally[-2] = (whole & keep).sum()
     tally[-1] = keep.sum()
+
+    if value_target is not None:
+        rows = keep & value_mask
+        if rows.any():
+            total = total + value_coef * F.mse_loss(
+                value[rows], value_target[rows])
     return total, tally.detach()
 
 
@@ -197,7 +256,7 @@ def validate(policy, source: Source, batches: int, device, end_turn_index: int):
         source.env.reset()
     total = None
     for _ in range(batches):
-        obs, codes, keep, _ = source.next(device)
+        obs, codes, keep, _, _, _ = source.next(device)
         # Scored on the exact label always: the set target changes what the
         # policy is taught, and a metric that moved with it could not say
         # whether that helped.
@@ -224,6 +283,9 @@ def save(policy, args, map_name):
                 "head_sizes": policy.head_sizes,
                 "channels": args.channels,
                 "blocks": args.blocks,
+                "norm": args.norm,
+                "pool_bias": args.pool_bias,
+                "value_pool": args.value_pool,
             },
             "teacher": args.teacher,
             "source_set": args.source_set,
@@ -265,6 +327,20 @@ def main() -> int:
     # without the flag -- the success criterion is engagement pricing
     # (`log/2026-08-27-the-exploit-is-legible.md`), not accuracy alone.
     parser.add_argument("--threat-planes", action="store_true")
+    parser.add_argument("--norm", default="batch", choices=["batch", "group"],
+                        help="group has no running statistics: no recalibrate "
+                             "class of bug, no train/eval gap")
+    parser.add_argument("--pool-bias", action="store_true",
+                        help="global-pooling bias on alternating blocks")
+    parser.add_argument("--value-pool", default="mean",
+                        choices=["mean", "meanmax"])
+    parser.add_argument("--pop-weight", type=float, default=1.0,
+                        help="loss weight on CO-activation source labels, "
+                             "so 213 labels in 1.9M orders can register")
+    parser.add_argument("--value-outcomes", default=None,
+                        help="game-meta json; trains the value head on real "
+                             "winners so PPO does not inherit a random critic")
+    parser.add_argument("--value-coef", type=float, default=0.5)
     parser.add_argument("--out", default="checkpoints/bc.pt")
     parser.add_argument("--init", default=None,
                         help="checkpoint to start from, for staged training")
@@ -283,7 +359,9 @@ def main() -> int:
     holdout = args.holdout if args.teacher == "human" else 0.0
     val = make_source(args, min(args.batch, 64), validation=holdout > 0)
 
-    policy = netmod.build(train.env, args.channels, args.blocks).to(device)
+    policy = netmod.build(train.env, args.channels, args.blocks,
+                          norm=args.norm, pool_bias=args.pool_bias,
+                          value_pool=args.value_pool).to(device)
     parameters = sum(p.numel() for p in policy.parameters())
     if args.init:
         state = torch.load(args.init, map_location=device, weights_only=True)
@@ -297,6 +375,12 @@ def main() -> int:
     )
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
     end_turn_index = train.env.end_turn_index
+    outcomes = None
+    if args.value_outcomes:
+        if args.teacher != "human":
+            raise SystemExit("--value-outcomes needs the human teacher")
+        outcomes = load_outcomes(ROOT / args.value_outcomes)
+        print(f"value head trains on {len(outcomes)} labeled games")
 
     print(f"device {device}, {parameters / 1e6:.2f}M parameters, "
           f"{args.channels}ch x {args.blocks} blocks")
@@ -312,14 +396,20 @@ def main() -> int:
 
     for step in range(1, args.steps + 1):
         mark = time.perf_counter()
-        obs, codes, keep, targets_set = train.next(device)
+        obs, codes, keep, targets_set, ids, movers = train.next(device)
         data_time += time.perf_counter() - mark
         if not keep.any():
             continue
+        value_target = value_mask = None
+        if outcomes is not None:
+            value_target, value_mask = value_targets(
+                ids, movers, outcomes, device)
 
         with torch.amp.autocast("cuda", enabled=amp):
             loss, tally = losses(policy, obs, codes, keep, end_turn_index,
-                                 targets_set, args.source_set)
+                                 targets_set, args.source_set,
+                                 value_target, value_mask, args.value_coef,
+                                 args.pop_weight)
 
         optimizer.zero_grad(set_to_none=True)
         scaler.scale(loss).backward()

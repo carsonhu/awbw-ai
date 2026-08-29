@@ -30,16 +30,46 @@ KIND_NAMES = ["wait", "attack", "capture", "supply", "join", "load", "unload", "
 PARAM_KINDS = {1, 6, 7}  # attack, unload, build
 
 
+def make_norm(kind: str, channels: int) -> nn.Module:
+    """BatchNorm for the checkpoints that already exist, GroupNorm for new
+    ones. BN's batch-coupled statistics have cost this project two real
+    incidents -- recalibration silently eating seventeen points of play, and
+    train-mode minibatch statistics flipping half a batch's argmaxes -- both
+    the known RL failure class GN does not have: it normalises each sample
+    alone, so there are no running statistics to refit and no train/eval gap.
+    """
+    if kind == "batch":
+        return nn.BatchNorm2d(channels)
+    if kind == "group":
+        return nn.GroupNorm(8, channels)
+    raise ValueError(f"unknown norm {kind!r}")
+
+
 class Residual(nn.Module):
-    def __init__(self, channels: int):
+    """A residual block, optionally with a global-pooling bias.
+
+    A convolution is local: derived global state -- the material balance, the
+    meter race -- has to be re-synthesised layer by layer and reaches the
+    heads only through the final pooling. KataGo found this exact weakness
+    in pure-conv trunks and fixed it cheaply: pool the block's own features,
+    project to per-channel biases, add back in. `pool_bias` puts that branch
+    between the block's two convolutions.
+    """
+
+    def __init__(self, channels: int, norm: str = "batch",
+                 pool_bias: bool = False):
         super().__init__()
         self.conv1 = nn.Conv2d(channels, channels, 3, padding=1, bias=False)
-        self.norm1 = nn.BatchNorm2d(channels)
+        self.norm1 = make_norm(norm, channels)
         self.conv2 = nn.Conv2d(channels, channels, 3, padding=1, bias=False)
-        self.norm2 = nn.BatchNorm2d(channels)
+        self.norm2 = make_norm(norm, channels)
+        self.bias = nn.Linear(2 * channels, channels) if pool_bias else None
 
     def forward(self, x):
         y = F.relu(self.norm1(self.conv1(x)), inplace=True)
+        if self.bias is not None:
+            pooled = torch.cat([y.mean(dim=(2, 3)), y.amax(dim=(2, 3))], dim=1)
+            y = y + self.bias(pooled).unsqueeze(-1).unsqueeze(-1)
         y = self.norm2(self.conv2(y))
         return F.relu(x + y, inplace=True)
 
@@ -61,6 +91,9 @@ class Policy(nn.Module):
         head_sizes,
         channels: int = 64,
         blocks: int = 6,
+        norm: str = "batch",
+        pool_bias: bool = False,
+        value_pool: str = "mean",
     ):
         super().__init__()
         self.planes = planes
@@ -70,16 +103,25 @@ class Policy(nn.Module):
         self.tiles = height * width
         self.head_sizes = list(head_sizes)
         self.channels = channels
+        self.norm = norm
+        self.pool_bias = pool_bias
+        self.value_pool = value_pool
 
         # Globals are broadcast into their own planes. A board-wide scalar like
         # "day 14" is genuinely about every tile, and this is cheaper than
         # threading a second pathway through the trunk.
         self.stem = nn.Sequential(
             nn.Conv2d(planes + globals_, channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(channels),
+            make_norm(norm, channels),
             nn.ReLU(inplace=True),
         )
-        self.body = nn.Sequential(*[Residual(channels) for _ in range(blocks)])
+        # The pooling-bias branch on alternating blocks, KataGo's spacing:
+        # often enough that global state stays a step away, cheap enough
+        # that the trunk stays convolutional.
+        self.body = nn.Sequential(*[
+            Residual(channels, norm, pool_bias and i % 2 == 1)
+            for i in range(blocks)
+        ])
 
         self.source_tile = nn.Conv2d(channels, 1, 1)
         # End-turn and the CO powers are not tiles, so they get their own
@@ -107,8 +149,12 @@ class Policy(nn.Module):
         # The value head is unused by behaviour cloning and trained by PPO
         # later. It costs almost nothing to carry and saves a reshuffle of the
         # checkpoint format when fine-tuning starts.
+        # Mean pooling alone tells the value head the average tile, and a
+        # game can hinge on the best or worst one; mean+max is KataGo's
+        # cheap version of the fix. Heads keep the mean-only `pooled`.
+        value_in = 2 * channels if value_pool == "meanmax" else channels
         self.value = nn.Sequential(
-            nn.Linear(channels, channels),
+            nn.Linear(value_in, channels),
             nn.ReLU(inplace=True),
             nn.Linear(channels, 1),
         )
@@ -125,6 +171,12 @@ class Policy(nn.Module):
         flat = features.flatten(2)  # (N, C, tiles)
         pooled = flat.mean(dim=2)  # (N, C)
         return features, flat, pooled
+
+    def value_features(self, flat, pooled):
+        """What the value head reads: `pooled`, widened when configured."""
+        if self.value_pool == "meanmax":
+            return torch.cat([pooled, flat.amax(dim=2)], dim=1)
+        return pooled
 
     @staticmethod
     def _pointer(keys, query):
@@ -204,8 +256,8 @@ class Policy(nn.Module):
         )
 
     def value_of(self, obs):
-        _, _, pooled = self.trunk(obs)
-        return self.value(pooled).squeeze(1)
+        _, flat, pooled = self.trunk(obs)
+        return self.value(self.value_features(flat, pooled)).squeeze(1)
 
     def evaluate_actions(self, obs, source, dest, kind):
         """Logits for orders already chosen, plus the value, in one trunk pass.
@@ -224,11 +276,12 @@ class Policy(nn.Module):
                 self.kind_logits(context),
                 self.param_logits(features, context, kind),
             ),
-            self.value(pooled).squeeze(1),
+            self.value(self.value_features(flat, pooled)).squeeze(1),
         )
 
 
-def build(env, channels: int = 64, blocks: int = 6) -> Policy:
+def build(env, channels: int = 64, blocks: int = 6, norm: str = "batch",
+          pool_bias: bool = False, value_pool: str = "mean") -> Policy:
     """A policy shaped to whatever the environment actually emits."""
     height, width = env.board_shape
     tiles = height * width
@@ -242,4 +295,25 @@ def build(env, channels: int = 64, blocks: int = 6) -> Policy:
         head_sizes=env.action_sizes,
         channels=channels,
         blocks=blocks,
+        norm=norm,
+        pool_bias=pool_bias,
+        value_pool=value_pool,
+    )
+
+
+def from_config(config) -> Policy:
+    """A policy matching a checkpoint's stored config. The three net-v2
+    fields default to the values every pre-v2 checkpoint was built with, so
+    old checkpoints load without carrying them."""
+    return Policy(
+        planes=config["planes"],
+        globals_=config["globals"],
+        height=config["height"],
+        width=config["width"],
+        head_sizes=config["head_sizes"],
+        channels=config["channels"],
+        blocks=config["blocks"],
+        norm=config.get("norm", "batch"),
+        pool_bias=config.get("pool_bias", False),
+        value_pool=config.get("value_pool", "mean"),
     )

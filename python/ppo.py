@@ -357,7 +357,8 @@ class Trainer:
             # already has this observation, and it is the same bytes.
             buf.obs[t].copy_(self.staging)
             carried = self.policy.trunk(obs)
-            buf.values[t] = self.policy.value(carried[2]).squeeze(1)
+            buf.values[t] = self.policy.value(
+                self.policy.value_features(carried[1], carried[2])).squeeze(1)
             # The value head is the learner's on every row, including the
             # opponent's: it is asked what the position is worth to whoever
             # moves next, which is what the bootstrap wants.

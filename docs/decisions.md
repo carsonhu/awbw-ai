@@ -321,3 +321,10 @@ side's running power, so head sizes and the observation changed together —
 one break, everything bundled. Every earlier checkpoint is unloadable, every
 earlier rating is of a different game, and BC restarts from scratch. The
 third such generation; the JakeMan fix ended the second.
+
+**A one-seed panel delta on a net member decides nothing — spreads reach 50
+points.** Two seeds of one recipe panelled 27 apart on `ppo-adder3` at weight
+0.03 and 51 apart at 0.01, against ±3 game-sampling intervals. Composition and
+engagement numbers replicate; net-member scores and power behaviour are
+lotteries. The unit of experiment is the seed group: N seeds, keep the best,
+report the spread (`log/2026-08-29-the-anchor-verdict-was-one-seed.md`).

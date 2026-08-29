@@ -66,7 +66,18 @@ BUDGETS = {
     # rather than a longer way of saying what it already did. Up 7 more for the
     # knobs that fit PPO to this game rather than to Atari -- the credit
     # horizon, the discount's unit, and what the shaping measures.
-    "docs/workflow.md": 108,
+    #
+    # Up 8 more for reading a policy against the human corpus rather than
+    # against a bot: `play_diag.py`, and the two flags that answer what it
+    # found. The trim that paid for part of it was real staleness -- `--amp`
+    # had been advice about a flag `ppo.py` does not have, and the documented
+    # recipe said `--gamma 0.99` where all eight logged runs passed `--lam`.
+    "docs/workflow.md": 116,
+    # The network reviewed against the systems it descends from (AlphaZero
+    # trunk, AlphaStar decoder), and the ordered list of what to change.
+    # Reference, not a log entry: it states what the design is and why, and
+    # is edited as the design moves.
+    "docs/network.md": 90,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by

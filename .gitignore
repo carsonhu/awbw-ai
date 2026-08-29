@@ -15,3 +15,4 @@ checkpoints/
 # Recorded games, written by python/record_games.py to be watched and thrown
 # away. Regenerated from a checkpoint in seconds.
 replays/
+data/replays-mooo/

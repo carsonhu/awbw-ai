@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>awbw-ai local match</title>
+<style>
+  body { font-family: Verdana, sans-serif; background:#ece9d8; margin:16px; }
+  #wrap { display:flex; gap:16px; }
+  #board { display:grid; gap:0; border:2px solid #555; width:max-content;
+           background:#000; }
+  .tile { width:32px; height:32px; position:relative; box-sizing:border-box;
+          font-size:10px; }
+  .tile img { image-rendering: pixelated; }
+  img.t { position:absolute; bottom:0; left:0; width:32px; z-index:0; }
+  img.u { position:absolute; bottom:1px; left:1px; width:30px; z-index:3; }
+  .tile.sel  { outline:3px solid #ff3030; outline-offset:-3px; z-index:5; }
+  .tile.move::after, .tile.tgt::after {
+    content:""; position:absolute; inset:0; z-index:4; pointer-events:none; }
+  .tile.move::after { background:rgba(80,200,255,.42); }
+  .tile.tgt::after  { background:rgba(255,60,60,.45); }
+  .tile.move, .tile.tgt { cursor:pointer; }
+  .tile.src  { cursor:pointer; }
+  .unit { position:absolute; inset:3px; border-radius:4px; display:flex;
+          align-items:center; justify-content:center; font-weight:bold;
+          font-size:11px; color:#fff; text-shadow:0 1px 2px #000; z-index:3; }
+  .p0 { background:#d9642a; } .p1 { background:#2a66d9; }
+  .dim { filter: grayscale(.8) brightness(.75); }
+  .hp { position:absolute; right:0; bottom:0; font-size:10px; font-weight:bold;
+        color:#fff; text-shadow:0 0 2px #000, 0 0 2px #000; z-index:6; }
+  img.hp { width:12px; height:auto; }
+  .cap { position:absolute; left:1px; top:0; font-size:9px; color:#ff0;
+         text-shadow:0 0 2px #000; z-index:6; }
+  .own0 { border-bottom:4px solid #d9642a; } .own1 { border-bottom:4px solid #2a66d9; }
+  #side { width:300px; }
+  .panel { border:2px solid #888; background:#fff; border-radius:4px;
+           padding:8px 10px; margin-bottom:10px; }
+  .panel.active { border-color:#d9642a; box-shadow:0 0 6px #d9642a55; }
+  .panel h3 { margin:0 0 4px; font-size:13px; }
+  .meter { height:10px; background:#ddd; border:1px solid #999; margin-top:4px; }
+  .meter div { height:100%; background:#3aa03a; }
+  button { font-family:inherit; margin:2px; padding:6px 10px; }
+  #menu { position:absolute; background:#fff; border:2px solid #444; z-index:10;
+          border-radius:4px; padding:4px; box-shadow:2px 3px 8px #0006; }
+  #menu button { display:block; width:100%; text-align:left; }
+  #tip { position:absolute; background:#fffef0; border:2px solid #444; z-index:11;
+         padding:5px 9px; font-size:12px; pointer-events:none; border-radius:4px; }
+  #log { font-size:11px; max-height:260px; overflow-y:auto; background:#fff;
+         border:1px solid #aaa; padding:6px; }
+  #log div { padding:1px 0; border-bottom:1px dotted #ddd; }
+  #banner { font-size:20px; font-weight:bold; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<div id="banner">loading…</div>
+<div id="wrap">
+  <div id="board"></div>
+  <div id="side">
+    <div class="panel" id="pl0"></div>
+    <div class="panel" id="pl1"></div>
+    <div class="panel">
+      <button id="endturn">End Turn</button>
+      <button id="cop">COP</button>
+      <button id="scop">SCOP</button>
+      <button id="cancel">Cancel</button>
+    </div>
+    <div class="panel"><h3>agent's last turn</h3><div id="log"></div></div>
+  </div>
+</div>
+<script>
+const TERRAIN_COLORS = {
+  Plain:"#b0d264", Wood:"#4d8f3c", Mountain:"#a3835c", River:"#7cb6e8",
+  Road:"#c9c3ae", Bridge:"#c9c3ae", Sea:"#3f79c8", Shoal:"#e5d9a2",
+  Reef:"#3f79c8", City:"#b6b6b6", Base:"#b6a68a", Airport:"#b6b6b6",
+  Port:"#9fb2c4", Hq:"#e0d060", ComTower:"#b6b6b6", Lab:"#b6b6b6",
+};
+const UNIT_CODE = { Infantry:"In", Mech:"Me", MdTank:"MT", Tank:"Tk",
+  Recon:"Rc", Apc:"AP", Artillery:"Ar", Rocket:"Rk", AntiAir:"AA",
+  Missile:"Mi", Fighter:"Ft", Bomber:"Bo", BCopter:"BC", TCopter:"TC",
+  Battleship:"Bs", Cruiser:"Cr", Lander:"Ld", Sub:"Sb", BlackBoat:"BB",
+  Carrier:"Ca", Stealth:"St", Neotank:"Nt", Piperunner:"Pr",
+  BlackBomb:"Bb", MegaTank:"MG" };
+// Engine debug names -> the display names sprite files derive from.
+const ENGINE2AWBW = { Infantry:"Infantry", Mech:"Mech", MdTank:"Md.Tank",
+  Tank:"Tank", Recon:"Recon", Apc:"APC", Artillery:"Artillery",
+  Rocket:"Rocket", AntiAir:"Anti-Air", Missile:"Missile", Fighter:"Fighter",
+  Bomber:"Bomber", BCopter:"B-Copter", TCopter:"T-Copter",
+  Battleship:"Battleship", Cruiser:"Cruiser", Lander:"Lander", Sub:"Sub",
+  BlackBoat:"Black Boat", Carrier:"Carrier", Stealth:"Stealth",
+  Neotank:"Neotank", Piperunner:"Piperunner", BlackBomb:"Black Bomb",
+  MegaTank:"Mega Tank" };
+const BUILD_NAMES = ["Infantry","Mech","Md.Tank","Tank","Recon","APC",
+  "Artillery","Rocket","Anti-Air","Missile","Fighter","Bomber","B-Copter",
+  "T-Copter","Battleship","Cruiser","Lander","Sub","Black Boat","Carrier",
+  "Stealth","Neotank","Piperunner","Black Bomb","Mega Tank"];
+const KINDS = ["wait","attack","capture","supply","join","load","unload","build"];
+
+let W, H, TILES, terrain, state;
+let SPR = null, MAN = null;   // sprite grid + manifest, when fetched
+let phase = "idle";
+let sel = {};
+
+const board = document.getElementById("board");
+const q = (url, body) => fetch(url, body ? {method:"POST", body:JSON.stringify(body)} : {}).then(r => r.json());
+const spriteUrl = f => "/sprites/" + f;
+const ownerCode = o => o === 0 ? "os" : o === 1 ? "bm" : "neutral";
+
+async function boot() {
+  const t = await q("/terrain");
+  W = t.width; H = t.height; TILES = W * H; terrain = t.terrain;
+  SPR = t.sprites || null; MAN = t.manifest || null;
+  board.style.gridTemplateColumns = `repeat(${W},32px)`;
+  for (let i = 0; i < TILES; i++) {
+    const d = document.createElement("div");
+    d.className = "tile"; d.id = "t" + i;
+    d.style.zIndex = ((i / W) | 0);
+    d.addEventListener("click", () => clickTile(i));
+    d.addEventListener("mouseenter", () => hoverTile(i));
+    d.addEventListener("mouseleave", hideTip);
+    board.appendChild(d);
+  }
+  refresh(await q("/state"));
+}
+
+function baseSprite(i, buildingAt) {
+  const x = i % W, y = (i / W) | 0;
+  // A property tile's art follows its *current* owner, not the map file.
+  const b = buildingAt[i];
+  if (b && MAN) {
+    const key = ownerCode(b.owner) + ":" + b.kind.toLowerCase();
+    if (MAN.building[key])
+      return MAN.building[key];
+  }
+  return SPR ? SPR[y][x] : null;
+}
+
+function refresh(s) {
+  state = s;
+  const buildingAt = {};
+  for (const b of s.buildings) buildingAt[b.y * W + b.x] = b;
+
+  for (let i = 0; i < TILES; i++) {
+    const x = i % W, y = (i / W) | 0;
+    const el = document.getElementById("t" + i);
+    const kind = terrain[y][x];
+    el.className = "tile";
+    el.innerHTML = "";
+    const art = baseSprite(i, buildingAt);
+    if (art) {
+      el.style.background = "#b0d264";  /* plains peek under tall sprites */
+      el.innerHTML = `<img class="t" src="${spriteUrl(art)}">`;
+    } else {
+      el.style.background = TERRAIN_COLORS[kind] || "#888";
+    }
+    const b = buildingAt[i];
+    if (b && b.capture < 20)
+      el.innerHTML += `<span class="cap">${b.capture}</span>`;
+  }
+  for (const u of s.units) {
+    if (u.carried) continue;
+    const el = document.getElementById("t" + (u.y * W + u.x));
+    const hp = Math.ceil(u.hp100 / 10);
+    const key = (u.moved ? "gs_" : "") + ownerCode(u.player) + ":"
+                + ENGINE2AWBW[u.type];
+    if (MAN && MAN.unit[key]) {
+      el.innerHTML += `<img class="u" src="${spriteUrl(MAN.unit[key])}">`;
+      if (hp < 10)
+        el.innerHTML += MAN.misc[hp]
+          ? `<img class="hp" src="${spriteUrl(MAN.misc[hp])}">`
+          : `<span class="hp">${hp}</span>`;
+    } else {
+      el.innerHTML += `<div class="unit p${u.player}${u.moved ? " dim" : ""}">`
+        + (UNIT_CODE[u.type] || "?")
+        + (hp < 10 ? `<span class="hp">${hp}</span>` : "") + `</div>`;
+    }
+  }
+  document.getElementById("banner").textContent =
+    s.winner !== null
+      ? (s.winner === "draw" ? "Draw." :
+         s.winner === s.human ? "You win." : "Agent wins.")
+      : `Day ${s.day} — ${s.current === s.human ? "your turn" : "agent thinking…"}`;
+  for (const p of [0, 1]) {
+    const pl = s.players[p];
+    const el = document.getElementById("pl" + p);
+    el.className = "panel" + (s.current === p && s.winner === null ? " active" : "");
+    const goal = pl.power === "N" ? (pl.scop_cost ?? 0) : 0;
+    el.innerHTML = `<h3>${p === s.human ? "You" : "Agent"} — ${pl.co} (${ownerCode(p) === "os" ? "orange" : "blue"})</h3>`
+      + `funds ${pl.funds.toLocaleString()} · income ${pl.income.toLocaleString()}`
+      + `<div>power: ${pl.power === "N" ? "charging" : (pl.power === "Y" ? "COP!" : "SCOP!")}</div>`
+      + `<div class="meter"><div style="width:${goal ? Math.min(100, 100 * pl.charge / goal) : 100}%"></div></div>`;
+  }
+  const my = s.source_mask;
+  document.getElementById("endturn").disabled = !my;
+  document.getElementById("cop").disabled = !(my && my[TILES + 1]);
+  document.getElementById("scop").disabled = !(my && my[TILES + 2]);
+  if (my) for (let i = 0; i < TILES; i++)
+    if (my[i]) document.getElementById("t" + i).classList.add("src");
+  document.getElementById("log").innerHTML =
+    (s.agent_orders || []).map(o => `<div>${o}</div>`).join("");
+  phase = "idle"; sel = {}; hideMenu(); hideTip();
+}
+
+function marks(mask, cls) {
+  for (let i = 0; i < TILES; i++)
+    if (mask[i]) document.getElementById("t" + i).classList.add(cls);
+}
+function clearMarks() {
+  document.querySelectorAll(".move,.tgt,.sel").forEach(
+    el => el.classList.remove("move", "tgt", "sel"));
+}
+
+async function clickTile(i) {
+  if (!state.source_mask) return;
+  if (phase === "idle") {
+    if (!state.source_mask[i]) return;
+    sel = { s: i };
+    document.getElementById("t" + i).classList.add("sel");
+    const r = await q("/dests", { s: i });
+    sel.dmask = r.mask; marks(r.mask, "move"); phase = "picked";
+  } else if (phase === "picked") {
+    if (!sel.dmask[i]) { cancel(); return; }
+    sel.d = i;
+    const r = await q("/kinds", { s: sel.s, d: i });
+    const legal = r.mask.map((v, k) => v ? k : -1).filter(k => k >= 0);
+    if (legal.length === 1) return chooseKind(legal[0]);
+    showMenu(i, legal.map(k => [KINDS[k], () => chooseKind(k)]));
+    phase = "placed";
+  } else if (phase === "param") {
+    if (!sel.pmask[i]) { cancel(); return; }
+    act(sel.s, sel.d, sel.k, i);
+  }
+}
+
+async function chooseKind(k) {
+  hideMenu();
+  sel.k = k;
+  const needsParam = k === 1 || k === 6 || k === 7;
+  if (!needsParam) return act(sel.s, sel.d, k, 0);
+  const r = await q("/params", { s: sel.s, d: sel.d, k });
+  sel.pmask = r.mask;
+  if (k === 7) {
+    const legal = r.mask.map((v, i) => v ? i : -1).filter(i => i >= 0);
+    showMenu(sel.s, legal.map(i => [BUILD_NAMES[i] || ("#" + i),
+                                    () => act(sel.s, sel.d, 7, i)]));
+  } else {
+    clearMarks();
+    document.getElementById("t" + sel.s).classList.add("sel");
+    marks(r.mask, "tgt");
+    phase = "param";
+  }
+}
+
+async function hoverTile(i) {
+  if (phase !== "param" || sel.k !== 1 || !sel.pmask[i]) return;
+  const r = await q("/preview", { s: sel.s, d: sel.d, p: i });
+  if (!r.damage) return;
+  const el = document.getElementById("t" + i).getBoundingClientRect();
+  const tip = document.createElement("div");
+  tip.id = "tip";
+  tip.innerHTML =
+    `<b>${r.damage.min === r.damage.max ? r.damage.min + "%" :
+        r.damage.min + " - " + r.damage.max + "%"}</b>`
+    + (r.damage.kill > 0 ? ` <span style="color:#c00">(KO ${(100 * r.damage.kill).toFixed(0)}%)</span>` : "")
+    + `<br>counter: ${r.counter ? r.counter.min + " - " + r.counter.max + "%" : "none"}`;
+  tip.style.left = (el.left + window.scrollX + 36) + "px";
+  tip.style.top = (el.top + window.scrollY - 8) + "px";
+  hideTip(); document.body.appendChild(tip);
+}
+function hideTip() { document.getElementById("tip")?.remove(); }
+
+function showMenu(atTile, entries) {
+  hideMenu();
+  const el = document.getElementById("t" + atTile).getBoundingClientRect();
+  const m = document.createElement("div");
+  m.id = "menu";
+  for (const [label, fn] of entries) {
+    const b = document.createElement("button");
+    b.textContent = label; b.onclick = fn; m.appendChild(b);
+  }
+  m.style.left = (el.right + window.scrollX + 4) + "px";
+  m.style.top = (el.top + window.scrollY) + "px";
+  document.body.appendChild(m);
+}
+function hideMenu() { document.getElementById("menu")?.remove(); }
+
+async function act(s, d, k, p) {
+  hideMenu(); hideTip(); clearMarks();
+  document.getElementById("banner").textContent = "agent thinking…";
+  refresh(await q("/act", { s, d, k, p }));
+}
+function cancel() { clearMarks(); phase = "idle"; sel = {}; hideMenu(); hideTip(); }
+
+document.getElementById("endturn").onclick = () => act(TILES, 0, 0, 0);
+document.getElementById("cop").onclick = () => act(TILES + 1, 0, 0, 0);
+document.getElementById("scop").onclick = () => act(TILES + 2, 0, 0, 0);
+document.getElementById("cancel").onclick = cancel;
+boot();
+</script>
+</body>
+</html>

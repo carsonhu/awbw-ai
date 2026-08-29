@@ -554,6 +554,175 @@ impl VecEnv {
             .into_pyarray(py)
     }
 
+    /// The live board of one game as JSON, for a local viewer. The same
+    /// shape the recorder writes into replays, so a page that renders one
+    /// can render the other.
+    fn state_json(&self, index: usize) -> PyResult<String> {
+        let state = &self.games[index].engine.state;
+        let units: Vec<serde_json::Value> = state
+            .units()
+            .map(|u| {
+                serde_json::json!({
+                    "id": u.id, "type": format!("{:?}", u.typ),
+                    "player": u.owner, "x": u.pos.x, "y": u.pos.y,
+                    "hp100": u.hp100, "fuel": u.fuel, "ammo": u.ammo,
+                    "moved": u.moved, "carried": u.carried_by.is_some(),
+                    "cargo": u.cargo.iter().filter(|&&c| state.unit(c).is_some()).count(),
+                })
+            })
+            .collect();
+        let buildings: Vec<serde_json::Value> = state
+            .buildings()
+            .iter()
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.pos.x, "y": b.pos.y,
+                    "kind": format!("{:?}", b.kind),
+                    "owner": b.owner, "capture": b.capture_remaining,
+                })
+            })
+            .collect();
+        let players: Vec<serde_json::Value> = state
+            .players
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                serde_json::json!({
+                    "funds": p.funds, "charge": p.charge,
+                    "co": p.co.name,
+                    "cop_cost": p.power_cost(awbw_engine::state::ActivePower::Cop),
+                    "scop_cost": p.power_cost(awbw_engine::state::ActivePower::Scop),
+                    "power": match p.active_power {
+                        awbw_engine::state::ActivePower::None => "N",
+                        awbw_engine::state::ActivePower::Cop => "Y",
+                        awbw_engine::state::ActivePower::Scop => "S",
+                    },
+                    "income": state.income(i as awbw_engine::state::PlayerId),
+                })
+            })
+            .collect();
+        let winner = match state.outcome() {
+            awbw_engine::state::Outcome::Winner(p) => serde_json::json!(p),
+            awbw_engine::state::Outcome::Draw => serde_json::json!("draw"),
+            awbw_engine::state::Outcome::InProgress => serde_json::Value::Null,
+        };
+        Ok(serde_json::json!({
+            "day": state.day, "current": state.current,
+            "units": units, "buildings": buildings, "players": players,
+            "winner": winner,
+        })
+        .to_string())
+    }
+
+    /// The static terrain grid as JSON, row-major kind names. One call at
+    /// page load; the map never changes.
+    fn terrain_json(&self) -> PyResult<String> {
+        let map = &self.games[0].engine.state.map;
+        let mut rows = Vec::new();
+        for y in 0..map.height {
+            let mut row = Vec::new();
+            for x in 0..map.width {
+                row.push(format!("{:?}", map.terrain_at(awbw_engine::map::Pos::new(x, y))));
+            }
+            rows.push(row);
+        }
+        Ok(serde_json::json!({
+            "width": map.width, "height": map.height, "terrain": rows,
+        })
+        .to_string())
+    }
+
+    /// AWBW's own pre-attack tooltip, computed by the engine's combat rules:
+    /// damage the unit at `source` deals from `dest` to the unit at
+    /// `target`, and the counterattack it takes back, both as min/max over
+    /// the luck range plus expectation and kill chance.
+    fn damage_preview(
+        &self,
+        index: usize,
+        source: (u8, u8),
+        dest: (u8, u8),
+        target: (u8, u8),
+    ) -> PyResult<String> {
+        use awbw_engine::combat;
+        use awbw_engine::map::Pos;
+        let state = &self.games[index].engine.state;
+        let attacker = state
+            .unit_id_at(Pos::new(source.0, source.1))
+            .and_then(|id| state.unit(id))
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("no attacker"))?;
+        let defender = state
+            .unit_id_at(Pos::new(target.0, target.1))
+            .and_then(|id| state.unit(id))
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("no defender"))?;
+        let dest = Pos::new(dest.0, dest.1);
+
+        let spread_of = |a: &awbw_engine::state::Unit,
+                         a_pos: Pos,
+                         a_hp: i32,
+                         d: &awbw_engine::state::Unit,
+                         d_pos: Pos,
+                         d_hp: i32|
+         -> Option<combat::DamageSpread> {
+            let (pct, _) = combat::base_percentage(a.typ, d.typ, a.ammo)?;
+            let a_mods = combat::co_modifiers(
+                state.co_of(a.owner),
+                a.typ,
+                state.map.terrain_at(a_pos),
+                state.active_power(a.owner),
+            );
+            let d_mods = combat::co_modifiers(
+                state.co_of(d.owner),
+                d.typ,
+                state.map.terrain_at(d_pos),
+                state.active_power(d.owner),
+            );
+            let a_co = state.co_of(a.owner);
+            Some(combat::damage_spread(
+                pct,
+                a_hp,
+                d_hp,
+                combat::effective_terrain_defense(d.typ.stats().move_type, state.map.terrain_at(d_pos)),
+                a_mods,
+                d_mods,
+                0,
+                a_co.luck_good_max.max(0),
+                a_co.luck_bad_max.max(0),
+            ))
+        };
+
+        let first = spread_of(
+            attacker, dest, attacker.hp100 as i32,
+            defender, defender.pos, defender.hp100 as i32,
+        );
+        let as_json = |s: &Option<combat::DamageSpread>| match s {
+            Some(s) => serde_json::json!({
+                "min": s.min, "max": s.max,
+                "expected": s.expected, "kill": s.kill_chance,
+            }),
+            None => serde_json::Value::Null,
+        };
+        // The counter is taken at the defender's health *after* the expected
+        // first strike, from where the attacker now stands -- and only if
+        // the defender survives, has a weapon for the job, and is in range
+        // (indirects never counter; neither does anyone against a tile they
+        // cannot reach, which after a move-and-attack is always adjacent).
+        let counter = first.as_ref().and_then(|f| {
+            let left = defender.hp100 as i32 - f.expected.round() as i32;
+            if left <= 0 || defender.typ.is_indirect() {
+                return None;
+            }
+            if dest.distance(defender.pos) != 1 {
+                return None;
+            }
+            spread_of(defender, defender.pos, left, attacker, dest, attacker.hp100 as i32)
+        });
+        Ok(serde_json::json!({
+            "damage": as_json(&first),
+            "counter": as_json(&counter),
+        })
+        .to_string())
+    }
+
     /// Which tiles can act, plus the end-turn and power indices.
     fn source_mask<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyArray2<bool>> {
         let width = self.tiles() + EXTRA_SOURCES;

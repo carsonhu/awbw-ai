@@ -980,6 +980,38 @@ mod tests {
     }
 
     #[test]
+    fn a_capture_in_progress_can_be_continued_through_the_staged_masks() {
+        // Reported from the play client: an Infantry mid-capture was offered
+        // only "wait". The continuation is Capture with dest == the tile the
+        // unit already stands on, and every stage of the mask walk must
+        // carry it.
+        let mut e = board(false);
+        let city = Pos::new(3, 3);
+        // Clear the tank off the city and put our Infantry mid-capture on it.
+        let tank = e.state.unit_id_at(city).unwrap();
+        e.state.destroy(tank);
+        let inf = e.state.unit_id_at(Pos::new(2, 2)).unwrap();
+        e.state.relocate(inf, city);
+        e.state.building_at_mut(city).unwrap().capture_remaining = 10;
+        e.refresh_vision();
+
+        let mut masks = ActionMasks::new();
+        let source = e.state.map.index(city) as u32;
+        let mut sources = Vec::new();
+        masks.source_mask(&mut e, &mut sources);
+        assert!(sources[source as usize], "mid-capture unit must be a source");
+        let mut dests = Vec::new();
+        masks.dest_mask(&mut e, source, &mut dests);
+        assert!(dests[source as usize], "its own tile must be a destination");
+        let mut kinds = Vec::new();
+        masks.kind_mask(&mut e, source, source, &mut kinds);
+        assert!(
+            kinds[OrderKind::Capture as usize],
+            "capture continuation missing from kind mask: {kinds:?}"
+        );
+    }
+
+    #[test]
     fn observation_is_written_from_the_moving_players_side() {
         let mut e = board(false);
         let mut obs = vec![0.0; observation_len(&e.state)];

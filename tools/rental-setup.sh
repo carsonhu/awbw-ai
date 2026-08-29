@@ -19,9 +19,16 @@ if ! command -v cargo >/dev/null; then
   source "$HOME/.cargo/env"
 fi
 
-cd "$HOME"
-[ -d awbw-ai ] || git clone --depth 1 "$GIT_URL"
-cd awbw-ai
+# Already inside a checkout (the usual case: clone first, then run this)?
+# Use it. Cloning again from here once bit a user whose repo had gone
+# private between their manual clone and this line.
+if git -C "$(dirname "$0")/.." rev-parse --git-dir >/dev/null 2>&1; then
+  cd "$(dirname "$0")/.."
+else
+  cd "$HOME"
+  [ -d awbw-ai ] || git clone --depth 1 "$GIT_URL"
+  cd awbw-ai
+fi
 python3 -c "import torch; assert torch.cuda.is_available(), 'no CUDA'"
 python3 -c "import numpy" 2>/dev/null || pip install -q numpy
 

@@ -50,6 +50,8 @@ Controls scored 90.8-96.0 on greedy while losing to the clone group by
 twenty-five points. Its retirement as an instrument stands.
 
 `ppo-anc001` (the old lottery's best draw, 69.0/73.8 on the net
-members) still edges the new best singles there; a 200-game duel
-between it and `n2-a003-s7` is running as this is written. Next rung:
-JakeMan, from the 0.03 recipe, as a seed group.
+members) edges the new best singles on those columns — and loses the
+duel that matters: `n2-a003-s7` beats it head-to-head **56.5% ±3.5**
+over 200 games. The recipe's ordinary output now beats the old
+process's best-ever draw. Next rung: JakeMan, from the 0.03 recipe, as
+a seed group.

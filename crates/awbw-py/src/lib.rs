@@ -590,6 +590,7 @@ impl VecEnv {
                 serde_json::json!({
                     "funds": p.funds, "charge": p.charge,
                     "co": p.co.name,
+                    "cop_stars": p.co.cop_stars, "scop_stars": p.co.scop_stars,
                     "cop_cost": p.power_cost(awbw_engine::state::ActivePower::Cop),
                     "scop_cost": p.power_cost(awbw_engine::state::ActivePower::Scop),
                     "power": match p.active_power {

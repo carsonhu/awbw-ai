@@ -30,7 +30,8 @@
   img.hp { width:12px; height:auto; }
   .cap { position:absolute; left:1px; top:0; font-size:9px; color:#ff0;
          text-shadow:0 0 2px #000; z-index:6; }
-  img.capicon { position:absolute; left:0; top:0; width:14px; z-index:6; }
+  img.capicon { position:absolute; left:0; bottom:0; width:16px;
+                height:16px; z-index:6; }
   .own0 { border-bottom:4px solid #d9642a; } .own1 { border-bottom:4px solid #2a66d9; }
   #infocard { border:2px solid #666; background:#4a4a42; color:#fff;
               border-radius:4px; padding:8px 10px; margin-top:10px;
@@ -43,8 +44,14 @@
            padding:8px 10px; margin-bottom:10px; }
   .panel.active { border-color:#d9642a; box-shadow:0 0 6px #d9642a55; }
   .panel h3 { margin:0 0 4px; font-size:13px; }
-  .meter { height:10px; background:#ddd; border:1px solid #999; margin-top:4px; }
-  .meter div { height:100%; background:#3aa03a; }
+  .meter { display:flex; gap:2px; margin-top:5px; align-items:flex-end; }
+  .meter .star { width:13px; background:#cfcabc; border:1px solid #8a8578;
+                 position:relative; }
+  .meter .star.cop { height:9px; }  .meter .star.scop { height:13px; }
+  .meter .star div { position:absolute; left:0; bottom:0; width:100%;
+                     background:#37b24d; }
+  .meter.lit .star { background:#ffe066; }
+  .meter.lit .star div { background:#f59f00; }
   button { font-family:inherit; margin:2px; padding:6px 10px; }
   #menu { position:absolute; background:#fff; border:2px solid #444; z-index:10;
           border-radius:4px; padding:4px; box-shadow:2px 3px 8px #0006; }
@@ -201,11 +208,22 @@ function refresh(s) {
     const pl = s.players[p];
     const el = document.getElementById("pl" + p);
     el.className = "panel" + (s.current === p && s.winner === null ? " active" : "");
-    const goal = pl.power === "N" ? (pl.scop_cost ?? 0) : 0;
+    // AWBW's meter: one box per star, COP stars small, the SCOP-only
+    // stars taller; each box fills bottom-up with its share of charge.
+    const nCop = Math.max(pl.cop_stars ?? 0, 0);
+    const nAll = Math.max(pl.scop_stars ?? 0, nCop);
+    const per = nAll > 0 ? (pl.scop_cost ?? 0) / nAll : 0;
+    let boxes = "";
+    for (let i = 0; i < nAll; i++) {
+      const fill = per > 0
+        ? Math.max(0, Math.min(1, (pl.charge - i * per) / per)) : 0;
+      boxes += `<span class="star ${i < nCop ? "cop" : "scop"}">`
+        + `<div style="height:${(100 * fill).toFixed(0)}%"></div></span>`;
+    }
     el.innerHTML = `<h3>${p === s.human ? "You" : "Agent"} — ${pl.co} (${ownerCode(p) === "os" ? "orange" : "blue"})</h3>`
       + `funds ${pl.funds.toLocaleString()} &middot; income ${pl.income.toLocaleString()}`
       + `<div>power: ${pl.power === "N" ? "charging" : (pl.power === "Y" ? "COP!" : "SCOP!")}</div>`
-      + `<div class="meter"><div style="width:${goal ? Math.min(100, 100 * pl.charge / goal) : 100}%"></div></div>`;
+      + `<div class="meter${pl.power === "N" ? "" : " lit"}">${boxes}</div>`;
   }
   const my = s.source_mask;
   document.getElementById("endturn").disabled = !my;
@@ -345,8 +363,14 @@ function hideMenu() { document.getElementById("menu")?.remove(); }
 
 async function act(s, d, k, p) {
   hideMenu(); hideTip(); clearMarks();
-  document.getElementById("banner").textContent = "agent thinking…";
-  refresh(await q("/act", { s, d, k, p }));
+  // Mid-turn orders return in milliseconds; the agent only computes once
+  // the turn actually passes. Show the banner only when the wait is real.
+  const slow = setTimeout(() => {
+    document.getElementById("banner").textContent = "agent thinking…";
+  }, 150);
+  const next = await q("/act", { s, d, k, p });
+  clearTimeout(slow);
+  refresh(next);
 }
 function cancel() { clearMarks(); phase = "idle"; sel = {}; hideMenu(); hideTip(); }
 

@@ -15,20 +15,42 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 CONCURRENT="${CONCURRENT:-5}"
-INIT="${INIT:-checkpoints/bc-net2.pt}"
-RECIPE=(--threat-planes --opponent greedy --co Adder --turn-discount
-        --steps 256 --lam 0.99 --decide-cap --iterations 200 --init "$INIT")
+GRID="${GRID:-jakeman}"
+ANCHOR="${ANCHOR:-checkpoints/bc-net2.pt}"
 PY="${PY:-python3}"
 
-# name : extra flags -- the phase-1 grid. Anchor weights bracket the sweep's
-# two candidates; seeds give each recipe a group instead of a lottery ticket.
 ARMS=()
-for seed in 7 43 101 202; do
-  ARMS+=("n2-a001-s$seed|--anchor $INIT --anchor-kl 0.01 --seed $seed")
-  ARMS+=("n2-a003-s$seed|--anchor $INIT --anchor-kl 0.03 --seed $seed")
-done
-ARMS+=("n2-plain-s7|--seed 7")
-ARMS+=("n2-plain-s43|--seed 43")
+case "$GRID" in
+  phase1)
+    # The anchor sweep that settled the recipe: weights {0.01, 0.03} x four
+    # seeds against two controls, from the clone
+    # (log/2026-08-29-the-grid-confirms-the-anchor.md).
+    RECIPE=(--threat-planes --opponent greedy --co Adder --turn-discount
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$ANCHOR")
+    for seed in 7 43 101 202; do
+      ARMS+=("n2-a001-s$seed|--anchor $ANCHOR --anchor-kl 0.01 --seed $seed")
+      ARMS+=("n2-a003-s$seed|--anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
+    done
+    ARMS+=("n2-plain-s7|--seed 7")
+    ARMS+=("n2-plain-s43|--seed 43")
+    ;;
+  jakeman)
+    # The JakeMan rung on the settled recipe, as a seed group -- and two
+    # inits, because the greedy rung left a real question: does the
+    # all-round best (a003-s7: 96/8/54.8/64) or the JakeMan-best
+    # (a003-s101: 94.5/19.2/56.5/56.5) make the better rung parent?
+    # v1's bar on this rung: 37.5 rated (ppo-threat2).
+    RECIPE=(--threat-planes --opponent jakeman --co Adder --turn-discount
+            --steps 256 --lam 0.99 --decide-cap --iterations 200)
+    for seed in 7 43 101 202; do
+      ARMS+=("jm-s7par-s$seed|--init checkpoints/n2-a003-s7.pt --anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
+      ARMS+=("jm-s101par-s$seed|--init checkpoints/n2-a003-s101.pt --anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
+    done
+    ;;
+  *)
+    echo "unknown GRID '$GRID' (phase1|jakeman)"; exit 1;;
+esac
 
 mkdir -p logs
 log() { echo "[$(date +%H:%M)] $*" | tee -a logs/grid.log; }
@@ -50,7 +72,7 @@ run_arm() {
   fi
 }
 
-log "grid: ${#ARMS[@]} arms, $CONCURRENT concurrent, init $INIT"
+log "grid: $GRID, ${#ARMS[@]} arms, $CONCURRENT concurrent"
 for arm in "${ARMS[@]}"; do
   name="${arm%%|*}"; flags="${arm#*|}"
   while [ "$(jobs -rp | wc -l)" -ge "$CONCURRENT" ]; do wait -n; done
@@ -67,5 +89,5 @@ for arm in "${ARMS[@]}"; do
 done
 echo
 echo "Pull results home with:"
-echo "  scp '<this-box>:awbw-ai/checkpoints/n2-*.pt' checkpoints/"
+echo "  scp '<this-box>:awbw-ai/checkpoints/*.pt' checkpoints/"
 echo "  scp '<this-box>:awbw-ai/logs/*' <somewhere-local>/"

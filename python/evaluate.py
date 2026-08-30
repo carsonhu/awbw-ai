@@ -349,11 +349,12 @@ def main() -> int:
             print(f"  {played} games, {won} won, {drawn} drawn")
 
     played, won, drawn = env.results
+    capped, decisive = env.capped, env.decisive_wins
     lost = played - won - drawn
     elapsed = time.perf_counter() - start
     print(f"\n{played} games in {elapsed:.0f}s ({steps / elapsed:,.0f} orders/sec)")
     print(f"  won   {won:>4}  ({won / played:.1%})")
-    print(f"  drawn {drawn:>4}  ({drawn / played:.1%})   -- almost all the day cap")
+    print(f"  drawn {drawn:>4}  ({drawn / played:.1%})")
     print(f"  lost  {lost:>4}  ({lost / played:.1%})")
 
     # Draws count half, which is the usual convention and stops a policy that
@@ -365,6 +366,15 @@ def main() -> int:
     # without this the next run's noise reads as progress.
     error = (score * (1 - score) / played) ** 0.5
     print(f"  score {score:.1%} +- {error:.1%}  ({played} games)")
+    # What that score is made of. `score` puts a price on a game the day cap
+    # stopped -- half a point under the draw convention, whatever the tiebreak
+    # says under `--decide-cap` -- and a policy can farm either one. `decisive`
+    # prices nothing: games won by HQ capture, annihilation or the capture
+    # limit. One arm printed 97.5% here on 22.5% decisive, capping 75.5%
+    # (log/2026-08-29-the-day-cap-paid-for-the-rung.md), so read the three
+    # together or the score will tell you a policy closes games it never closed.
+    print(f"  decisive {decisive:>4}  ({decisive / played:.1%})   "
+          f"capped {capped:>4}  ({capped / played:.1%})")
     return 0
 
 

@@ -957,7 +957,7 @@ def main() -> int:
           f"{per} orders per iteration, shaping {args.shaping}")
 
     start = time.perf_counter()
-    seen = (0, 0, 0)
+    seen = (0, 0, 0, 0)
     pops = seen_pops = 0
     seen_pos = (0, 0, 0, 0)
     seen_offer = (0, 0)
@@ -1001,7 +1001,12 @@ def main() -> int:
             # window in which the policy had not moved at all.
             played, won, drawn = trainer.env.results
             games = played - seen[0]
-            stalled = (drawn - seen[2]) / max(games, 1)
+            # From the env's own cap counter, not from the draw tally:
+            # `--decide-cap` settles a capped game into a win or a loss, so the
+            # old `(drawn - seen)` form printed 0% through a grid whose best arm
+            # was capping three games in four
+            # (log/2026-08-29-the-day-cap-paid-for-the-rung.md).
+            stalled = (trainer.env.capped - seen[3]) / max(games, 1)
             score = ((won - seen[1]) + 0.5 * (drawn - seen[2])) / max(games, 1)
             pop_rate = (pops - seen_pops) / max(games, 1)
             # Where those pops landed, and how long a turn was to land in.
@@ -1014,7 +1019,7 @@ def main() -> int:
             needed = args.refresh_games if args.selfplay else args.min_games
             closed = games >= needed
             if closed:
-                seen = (played, won, drawn)
+                seen = (played, won, drawn, trainer.env.capped)
                 seen_pops = pops
                 seen_pos = (trainer.pop_index_sum, trainer.pop_index_n,
                             trainer.turn_len_sum, trainer.turn_len_n)

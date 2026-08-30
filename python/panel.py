@@ -14,6 +14,7 @@ working.
     py -3.12 python/panel.py --checkpoint checkpoints/ppo-adder3.pt --co Adder
 """
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -42,10 +43,23 @@ def rate(checkpoint, member, kind, games, co, decide_cap, temperature):
     if decide_cap:
         cmd += ["--decide-cap"]
     out = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT).stdout
+    score, split = "", ""
     for line in out.splitlines():
-        if line.strip().startswith("score "):
-            return line.strip()[len("score "):]
-    return "no score (see evaluate.py output)"
+        text = line.strip()
+        if text.startswith("score "):
+            score = text[len("score "):]
+        elif text.startswith("decisive "):
+            # `score` prices a capped game and a policy can farm that price;
+            # `decisive` counts only games actually closed. Carried beside every
+            # rating because a panel row that reports one without the other once
+            # read 97.5% on 22.5% decisive
+            # (log/2026-08-29-the-day-cap-paid-for-the-rung.md).
+            hits = re.findall(r"\(([\d.]+)%\)", text)
+            if len(hits) == 2:
+                split = f"decisive {hits[0]}%  capped {hits[1]}%"
+    if not score:
+        return "no score (see evaluate.py output)", ""
+    return score, split
 
 
 def main() -> int:
@@ -70,9 +84,9 @@ def main() -> int:
             print(f"  {Path(member).stem:<24} missing")
             continue
         label = member if kind == "bot" else Path(member).stem
-        score = rate(args.checkpoint, member, kind, args.games, args.co,
-                     not args.no_decide_cap, args.temperature)
-        print(f"  {label:<24} {score}")
+        score, split = rate(args.checkpoint, member, kind, args.games, args.co,
+                            not args.no_decide_cap, args.temperature)
+        print(f"  {label:<24} {score}   {split}")
     return 0
 
 

@@ -183,6 +183,8 @@ pub struct VecEnv {
     finished: u64,
     agent_wins: u64,
     draws: u64,
+    capped: u64,
+    decisive_wins: u64,
     /// Submitted orders the engine would not take, which forfeit the turn.
     ///
     /// A policy sampling under the masks should never produce one, so any
@@ -321,8 +323,24 @@ impl VecEnv {
     fn score(&mut self, index: usize) {
         self.finished += 1;
         let seat = self.agent_seats[index];
+        // Whether the day cap stopped this game is a fact about the game, not
+        // about how it was scored. `decide_cap` settles a capped game into a
+        // win or a loss, so a cap counted off the draw tally reads zero
+        // exactly when the cap is deciding everything -- one arm capped 75.5%
+        // of its games while `cut` printed 0%
+        // (log/2026-08-29-the-day-cap-paid-for-the-rung.md).
+        let capped =
+            matches!(self.games[index].engine.state.outcome(), Outcome::InProgress);
+        if capped {
+            self.capped += 1;
+        }
         match VecEnv::resolve(&self.games[index].engine.state, seat, self.decide_cap) {
-            Resolution::Won(p) if p == seat => self.agent_wins += 1,
+            Resolution::Won(p) if p == seat => {
+                self.agent_wins += 1;
+                if !capped {
+                    self.decisive_wins += 1;
+                }
+            }
             Resolution::Won(_) => {}
             Resolution::Drawn | Resolution::Cut => self.draws += 1,
         }
@@ -410,6 +428,8 @@ impl VecEnv {
             finished: 0,
             agent_wins: 0,
             draws: 0,
+            capped: 0,
+            decisive_wins: 0,
             rejected: 0,
             submitted: 0,
             recorders: if record {
@@ -515,6 +535,22 @@ impl VecEnv {
     #[getter]
     fn results(&self) -> (u64, u64, u64) {
         (self.finished, self.agent_wins, self.draws)
+    }
+
+    /// Games the day cap stopped, however they were then scored. Counted
+    /// whether or not `decide_cap` is on, which is the whole point.
+    #[getter]
+    fn capped(&self) -> u64 {
+        self.capped
+    }
+
+    /// Wins the agent took by HQ capture, annihilation or the capture limit --
+    /// never by the cap being settled for it. This is the number a rating
+    /// should lead with: one arm printed 97.5% against `ppo-adder3` on 22.5%
+    /// of these (log/2026-08-29-the-day-cap-paid-for-the-rung.md).
+    #[getter]
+    fn decisive_wins(&self) -> u64 {
+        self.decisive_wins
     }
 
     /// `(orders submitted, orders the engine refused)`. The second should stay

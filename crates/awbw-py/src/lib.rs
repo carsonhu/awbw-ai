@@ -162,9 +162,10 @@ pub struct VecEnv {
     /// game rather than left undecided. Off keeps every rating on this
     /// environment comparable with the ones already recorded.
     decide_cap: bool,
-    /// The CO both seats play, when set — a mirror. `None` is the ability-free
-    /// vanilla CO, which has no powers.
-    co: Option<&'static awbw_engine::co_data::CoData>,
+    /// The COs games are played with. Empty is the ability-free vanilla CO;
+    /// one entry is a mirror; several are a pool each seat samples
+    /// independently per game, so mirrors and cross-matchups both occur.
+    cos: Vec<&'static awbw_engine::co_data::CoData>,
     /// Whether observations carry the one-ply threat planes. Versioned by
     /// plane count: checkpoints trained either way keep running, and the
     /// loader picks the flag from the checkpoint's stored config.
@@ -198,16 +199,12 @@ pub struct VecEnv {
 impl VecEnv {
     fn new_game(&self, index: usize, episode: u64) -> Game {
         let mut state = self.board.new_state(self.fog);
-        if let Some(co) = self.co {
-            for p in state.players.iter_mut() {
-                p.co = co;
-            }
-        }
         let seed = self
             .seed
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
             .wrapping_add(index as u64)
             .wrapping_add(episode.wrapping_mul(0x1000_0001));
+        self.assign_cos(&mut state, seed);
         let engine = Engine::new(state, seed);
         let last_advantage = advantage(
             &engine.state,
@@ -219,6 +216,31 @@ impl VecEnv {
             engine,
             last_advantage,
             steps: 0,
+        }
+    }
+
+    /// Gives each seat its CO for one game. A pool draws per seat from the
+    /// game's own seed (splitmix64), so a game is reproducible from its seed
+    /// alone and both seats sample the same distribution — the fairness the
+    /// mirror provided by construction, kept in expectation.
+    fn assign_cos(&self, state: &mut GameState, game_seed: u64) {
+        match self.cos.len() {
+            0 => {}
+            1 => {
+                for p in state.players.iter_mut() {
+                    p.co = self.cos[0];
+                }
+            }
+            n => {
+                for (i, p) in state.players.iter_mut().enumerate() {
+                    let mut z = game_seed
+                        .wrapping_add((i as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+                    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+                    z ^= z >> 31;
+                    p.co = self.cos[(z % n as u64) as usize];
+                }
+            }
         }
     }
 
@@ -345,14 +367,23 @@ impl VecEnv {
             return Err(PyValueError::new_err("num_envs must be positive"));
         }
         let potential = Potential::parse(potential)?;
-        // Both seats get the same CO: a mirror, so the absence of per-seat
-        // tuning stays symmetric. The default is the ability-free vanilla CO.
-        let co = co
-            .map(|name| {
-                awbw_engine::co_data::co_by_name(name)
-                    .ok_or_else(|| PyValueError::new_err(format!("unknown CO {name:?}")))
+        // One name is a mirror, the historical default shape. A comma list is
+        // a pool sampled per seat per game; the default is the ability-free
+        // vanilla CO. Rating runs pass one name so numbers stay comparable.
+        let cos = co
+            .map(|list| {
+                list.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(|name| {
+                        awbw_engine::co_data::co_by_name(name).ok_or_else(|| {
+                            PyValueError::new_err(format!("unknown CO {name:?}"))
+                        })
+                    })
+                    .collect::<PyResult<Vec<_>>>()
             })
-            .transpose()?;
+            .transpose()?
+            .unwrap_or_default();
         let board = match map_path.as_deref() {
             Some("synthetic") => Board::default(),
             other => {
@@ -371,7 +402,7 @@ impl VecEnv {
             shaping,
             potential,
             decide_cap,
-            co,
+            cos,
             threat,
             episodes: 0,
             opponents: Vec::new(),
@@ -389,11 +420,7 @@ impl VecEnv {
         };
         for i in 0..num_envs {
             let mut state = env.board.new_state(fog);
-            if let Some(co) = env.co {
-                for p in state.players.iter_mut() {
-                    p.co = co;
-                }
-            }
+            env.assign_cos(&mut state, seed.wrapping_add(i as u64));
             let engine = Engine::new(state, seed.wrapping_add(i as u64));
             let last_advantage =
                 advantage(&engine.state, engine.state.current, potential, max_day);
@@ -976,7 +1003,11 @@ impl VecEnv {
             self.max_day,
             self.shaping,
             self.potential,
-            self.co.map(|c| c.name).unwrap_or("vanilla"),
+            if self.cos.is_empty() {
+                "vanilla".to_string()
+            } else {
+                self.cos.iter().map(|c| c.name).collect::<Vec<_>>().join(",")
+            },
         )
     }
 }

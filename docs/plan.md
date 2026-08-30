@@ -25,9 +25,11 @@
 1. ~~Per-seat CO in `awbw-py`~~ done (`afbd4ab`): `--co` takes a comma
    pool, each seat sampled per game from the game's own seed; one name
    is still a mirror, so every logged recipe and rating is untouched.
-2. Tier-4 power effects (about a day): the four mechanic classes in
-   the engine, then five data rows in `gen_cos.py`. Unlocks the
-   Adder-vs-Jake verification games and honest mixed-CO training.
+2. ~~Tier-4 power effects~~ done: four mechanic classes in the
+   engine, five data rows in `gen_cos.py`. Power-game agreement
+   99.15% -> 99.45%, clean power games 221 -> 610 of 2,062
+   (`log/2026-08-29-the-tier-4-powers-land.md`). Mixed-CO training
+   is now honest.
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
 1. `jakeman2` (ready): the continuation rung from `jm-s7par-s7`, four

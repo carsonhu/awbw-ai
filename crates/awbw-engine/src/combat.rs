@@ -63,25 +63,34 @@ pub fn co_modifiers(
     power: ActivePower,
 ) -> CoModifiers {
     let index = unit as usize;
+    // Powers escalate the conditional bonus (Jake's plains, Koal's roads),
+    // under the same terrain gate as the day-to-day part. PerTerrainStar has
+    // no modelled escalation, and the data holds zero there.
+    let cond_value = co.conditional_attack[index] as i32
+        + match power {
+            ActivePower::None => 0,
+            ActivePower::Cop => co.cop_conditional_bonus as i32,
+            ActivePower::Scop => co.scop_conditional_bonus as i32,
+        };
     let conditional = match co.condition {
         AttackCondition::Always => 0,
         AttackCondition::UrbanOnly => {
             if terrain.is_capturable() {
-                co.conditional_attack[index] as i32
+                cond_value
             } else {
                 0
             }
         }
         AttackCondition::RoadOnly => {
             if matches!(terrain, TerrainKind::Road | TerrainKind::Bridge) {
-                co.conditional_attack[index] as i32
+                cond_value
             } else {
                 0
             }
         }
         AttackCondition::PlainOnly => {
             if terrain == TerrainKind::Plain {
-                co.conditional_attack[index] as i32
+                cond_value
             } else {
                 0
             }
@@ -91,21 +100,37 @@ pub fn co_modifiers(
         }
     };
 
-    let boost = if power == ActivePower::None { 100 } else { 110 };
+    // The universal +10 during any power, plus the CO's own power attack
+    // (Grimm's +20/+50, Jess's vehicles) — the formula reads this term as
+    // percentage points over 100, so both add straight in.
+    let boost = match power {
+        ActivePower::None => 100,
+        ActivePower::Cop => 110 + co.cop_attack[index] as i32,
+        ActivePower::Scop => 110 + co.scop_attack[index] as i32,
+    };
+    let defense_boost = if power == ActivePower::None { 100 } else { 110 };
     CoModifiers {
         attack: 100 + co.attack[index] as i32 + conditional,
         defense: 100 + co.defense[index] as i32,
         attack_power: boost,
-        defense_power: boost,
+        defense_power: defense_boost,
     }
 }
 
 /// A unit's firing range after its CO's day-to-day modifier (Grit reaches one
-/// tile further, Max's indirects one tile less).
-pub fn effective_range(co: &CoData, unit: UnitType) -> (u32, u32) {
+/// tile further, Max's indirects one tile less) and whatever a running power
+/// adds (Jake's land indirects reach one further under either power).
+pub fn effective_range(co: &CoData, unit: UnitType, power: ActivePower) -> (u32, u32) {
     let stats = unit.stats();
+    let power_delta = match power {
+        ActivePower::None => 0,
+        ActivePower::Cop => co.cop_range_delta[unit as usize] as i32,
+        ActivePower::Scop => co.scop_range_delta[unit as usize] as i32,
+    };
     let min = stats.range_min.max(1) as i32;
-    let max = stats.range_max.max(1) as i32 + co.range_delta[unit as usize] as i32;
+    let max = stats.range_max.max(1) as i32
+        + co.range_delta[unit as usize] as i32
+        + power_delta;
     (min.max(1) as u32, max.max(min) as u32)
 }
 
@@ -270,6 +295,71 @@ mod tests {
         );
         assert_eq!((off.attack_power, off.defense_power), (100, 100));
         assert_eq!((on.attack_power, on.defense_power), (110, 110));
+    }
+
+    /// Firepower totals per co.php: the formula reads
+    /// `attack + (attack_power - 100)` as the attacker's percentage.
+    fn firepower(co: &str, unit: UnitType, terrain: TerrainKind, power: ActivePower) -> i32 {
+        let m = co_modifiers(
+            crate::co_data::co_by_name(co).unwrap(),
+            unit,
+            terrain,
+            power,
+        );
+        m.attack + (m.attack_power - 100)
+    }
+
+    #[test]
+    fn grimm_powers_stack_attack_on_his_day_to_day() {
+        // D2D +30; Knuckleduster +50 total, Haymaker +80, plus the universal
+        // +10 while any power runs. Defence stays at his -20 throughout.
+        let t = TerrainKind::Road;
+        assert_eq!(firepower("Grimm", UnitType::Tank, t, ActivePower::None), 130);
+        assert_eq!(firepower("Grimm", UnitType::Tank, t, ActivePower::Cop), 160);
+        assert_eq!(firepower("Grimm", UnitType::Tank, t, ActivePower::Scop), 190);
+        let m = co_modifiers(
+            crate::co_data::co_by_name("Grimm").unwrap(),
+            UnitType::Tank,
+            t,
+            ActivePower::Scop,
+        );
+        assert_eq!(m.defense, 80);
+        assert_eq!(m.defense_power, 110);
+    }
+
+    #[test]
+    fn jake_escalates_plains_only_and_extends_land_indirects() {
+        // Plains 10 -> 20 (COP) -> 40 (SCOP); off plains only the universal +10.
+        let p = TerrainKind::Plain;
+        assert_eq!(firepower("Jake", UnitType::Tank, p, ActivePower::None), 110);
+        assert_eq!(firepower("Jake", UnitType::Tank, p, ActivePower::Cop), 130);
+        assert_eq!(firepower("Jake", UnitType::Tank, p, ActivePower::Scop), 150);
+        assert_eq!(firepower("Jake", UnitType::Tank, TerrainKind::Road, ActivePower::Scop), 110);
+
+        let jake = crate::co_data::co_by_name("Jake").unwrap();
+        assert_eq!(effective_range(jake, UnitType::Artillery, ActivePower::None), (2, 3));
+        assert_eq!(effective_range(jake, UnitType::Artillery, ActivePower::Cop), (2, 4));
+        assert_eq!(effective_range(jake, UnitType::Rocket, ActivePower::Scop), (3, 6));
+        // Naval indirects are not land indirects.
+        assert_eq!(effective_range(jake, UnitType::Battleship, ActivePower::Scop), (2, 6));
+    }
+
+    #[test]
+    fn koal_escalates_roads_and_jess_boosts_vehicles() {
+        // Koal: the road bonus runs 10 -> 20 -> 30 under the powers, plus
+        // the universal ten while one is active.
+        let r = TerrainKind::Road;
+        assert_eq!(firepower("Koal", UnitType::Tank, r, ActivePower::None), 110);
+        assert_eq!(firepower("Koal", UnitType::Tank, r, ActivePower::Cop), 130);
+        assert_eq!(firepower("Koal", UnitType::Tank, r, ActivePower::Scop), 140);
+
+        // Jess: vehicles 10 -> 20 -> 40; her footsoldiers stay at -10 and
+        // gain only the universal ten.
+        let p = TerrainKind::Plain;
+        assert_eq!(firepower("Jess", UnitType::Tank, p, ActivePower::None), 110);
+        assert_eq!(firepower("Jess", UnitType::Tank, p, ActivePower::Cop), 130);
+        assert_eq!(firepower("Jess", UnitType::Tank, p, ActivePower::Scop), 150);
+        assert_eq!(firepower("Jess", UnitType::Infantry, p, ActivePower::Scop), 100);
     }
 
     #[test]

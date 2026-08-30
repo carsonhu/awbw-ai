@@ -613,7 +613,7 @@ impl Verifier {
         let co_move = state.co_of(actor.owner).move_delta[actor.typ as usize] as i32;
         let move_points = (actor.typ.stats().move_points as i32
             + co_move
-            + state.power_move_bonus(actor.owner))
+            + state.power_move_bonus(actor.owner, actor.typ))
         .clamp(0, 255) as u8;
         let budget = move_points.min(actor.fuel) as u32;
         if cost > budget {

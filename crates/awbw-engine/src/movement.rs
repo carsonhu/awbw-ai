@@ -88,7 +88,7 @@ impl Reach {
         // and a running power can extend it for all of them (Adder's).
         let move_points = (stats.move_points as i32
             + state.co_of(unit.owner).move_delta[unit.typ as usize] as i32
-            + state.power_move_bonus(unit.owner))
+            + state.power_move_bonus(unit.owner, unit.typ))
             .clamp(0, 255) as u8;
         let budget = move_points.min(unit.fuel);
         let move_type = stats.move_type;

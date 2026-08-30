@@ -287,8 +287,11 @@ fn write_threat_planes(state: &GameState, vision: &Vision, planes: &mut [f32], t
         if mine && attacker.moved {
             continue;
         }
-        let (range_min, range_max) =
-            combat::effective_range(state.co_of(attacker.owner), attacker.typ);
+        let (range_min, range_max) = combat::effective_range(
+            state.co_of(attacker.owner),
+            attacker.typ,
+            state.active_power(attacker.owner),
+        );
         // Indirect fire cannot follow a move, so its threat is the ring it
         // stands in; direct fire threatens everything adjacent to its reach.
         let indirect = range_min > 1;

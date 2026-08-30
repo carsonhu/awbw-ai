@@ -588,13 +588,14 @@ impl GameState {
         self.players[player as usize].active_power
     }
 
-    /// Movement every unit of `player` gains from a running power (Adder).
-    pub fn power_move_bonus(&self, player: PlayerId) -> i32 {
+    /// Movement a unit of `player` gains from a running power — all units
+    /// under Adder's and Koal's, vehicles under Jess's and Jake's SCOP.
+    pub fn power_move_bonus(&self, player: PlayerId, unit: crate::types::UnitType) -> i32 {
         let p = &self.players[player as usize];
         match p.active_power {
             ActivePower::None => 0,
-            ActivePower::Cop => p.co.cop_move_bonus as i32,
-            ActivePower::Scop => p.co.scop_move_bonus as i32,
+            ActivePower::Cop => p.co.cop_move_delta[unit as usize] as i32,
+            ActivePower::Scop => p.co.scop_move_delta[unit as usize] as i32,
         }
     }
 
@@ -619,6 +620,16 @@ impl GameState {
         p.charge -= cost;
         p.active_power = kind;
         p.power_uses += 1;
+        // Jess: either power refills every unit's fuel and ammo on the spot.
+        if self.players[player as usize].co.resupply_on_power {
+            let ids: Vec<UnitId> = self.units_of(player).map(|u| u.id).collect();
+            for id in ids {
+                let stats = self.unit(id).unwrap().typ.stats();
+                let u = self.unit_mut(id).unwrap();
+                u.fuel = stats.max_fuel;
+                u.ammo = stats.max_ammo;
+            }
+        }
         true
     }
 
@@ -898,7 +909,7 @@ mod tests {
         assert!(state.activate_power(0, ActivePower::Cop));
         assert_eq!(state.players[0].charge, 20_000);
         assert_eq!(state.active_power(0), ActivePower::Cop);
-        assert_eq!(state.power_move_bonus(0), 1);
+        assert_eq!(state.power_move_bonus(0, UnitType::Infantry), 1);
 
         // Nothing accrues while the power runs, and nothing double-fires.
         state.add_combat_charge(0, 50_000);
@@ -919,7 +930,24 @@ mod tests {
         assert_eq!(state.players[0].charge, 540_000);
         assert!(state.activate_power(0, ActivePower::Scop));
         assert_eq!(state.players[0].charge, 0);
-        assert_eq!(state.power_move_bonus(0), 2);
+        assert_eq!(state.power_move_bonus(0, UnitType::Infantry), 2);
+    }
+
+    #[test]
+    fn jess_powers_resupply_on_activation() {
+        let mut state = two_player_state();
+        state.players[0].co = crate::co_data::co_by_name("Jess").unwrap();
+        let id = state.spawn(UnitType::Tank, 0, Pos::new(1, 0));
+        {
+            let u = state.unit_mut(id).unwrap();
+            u.fuel = 3;
+            u.ammo = 0;
+        }
+        state.add_combat_charge(0, 10_000_000);
+        assert!(state.activate_power(0, ActivePower::Cop));
+        let u = state.unit(id).unwrap();
+        let stats = UnitType::Tank.stats();
+        assert_eq!((u.fuel, u.ammo), (stats.max_fuel, stats.max_ammo));
     }
 
     #[test]

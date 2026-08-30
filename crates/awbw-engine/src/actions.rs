@@ -155,9 +155,9 @@ impl Engine {
         typ.stats().cost * co.price_multiplier_pct / 100
     }
 
-    /// A unit's firing range for its owner's CO.
+    /// A unit's firing range for its owner's CO and running power.
     fn range_of(&self, player: PlayerId, typ: UnitType) -> (u32, u32) {
-        combat::effective_range(self.state.co_of(player), typ)
+        combat::effective_range(self.state.co_of(player), typ, self.state.active_power(player))
     }
 
     // --- legality ----------------------------------------------------------

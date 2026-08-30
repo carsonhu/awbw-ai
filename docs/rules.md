@@ -60,9 +60,12 @@ The numbers were pinned against recorded meters:
 
 Deliberate. Divergences involving these are expected, not bugs.
 
-- **CO power effects, other than Adder's.** The meter and the universal
-  +10/+10 work for every CO, and Adder's +1/+2 movement is real; every other
-  CO's listed power effect is still absent.
+- **CO power effects outside the Tier-4 five.** Adder, Jake, Koal, Jess and
+  Grimm have their full listed power effects (movement, attack, conditional
+  escalation, Jake's indirect range, Jess's resupply); the meter and the
+  universal +10/+10 work for every CO; every other CO's listed effect is
+  still absent. Modelling the five took power-game agreement from 99.15% to
+  99.45% and tripled clean power games.
 - **Missile silos, pipe-seam destruction, teleporters.** Absent from the
   competitive map pool sampled so far.
 - **Mid-game weather**, including powers that cause it (Drake's Typhoon), and

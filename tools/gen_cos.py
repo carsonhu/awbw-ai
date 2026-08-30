@@ -3,9 +3,10 @@ COs.json, which encodes each CO's day-to-day ability in machine-readable form.
 
 Day-to-day abilities are fully generated. Of powers, the *meter* is generated
 for every CO (COP/SCOP star counts; -1 when the CO lacks that power), while
-power *effects* are modelled only for the COs in POWER_MOVE below — the
-engine's universal +10/+10 during any power needs no data. The replay harness
-still excludes power-affected turns for unmodelled COs.
+power *effects* are modelled only for the COs in POWER_EFFECTS below — the
+Tier-4 five — since the engine's universal +10/+10 during any power needs no
+data. The replay harness still excludes power-affected turns for unmodelled
+COs, and includes them for these.
 """
 
 import json
@@ -44,13 +45,60 @@ MANUAL = {
     # being indirect, which the current per-unit table cannot express.)
 }
 
-# All-unit movement gained during (COP, SCOP), for the COs whose power effects
-# the engine models. COs.json records only star counts; effects live in its
-# comments, so they are transcribed here from co.php. Powers whose movement is
-# restricted to some units (Jess, Jake's SCOP) need a finer shape than this.
-POWER_MOVE = {
-    "Adder": (1, 2),  # Sideslip / Sidewinder
+# Power effects for the COs the engine models -- the Tier-4 five. COs.json
+# records only star counts; effects live in its comments, so they are
+# transcribed here from co.php (mirrored in data/awbw-site/co.php.html).
+#
+# "Vehicles" is the land non-foot class. Jess's own attack array cannot define
+# it -- her unarmed APC shows 0 there because it has no weapon, not because it
+# is excluded -- so the set is written out and cross-checked against her array
+# below. "Land indirects" is the class Jake's powers extend.
+VEHICLES = ["Md.Tank", "Tank", "Recon", "APC", "Artillery", "Rocket",
+            "Anti-Air", "Missile", "Neotank", "Piperunner", "Mega Tank"]
+LAND_INDIRECTS = ["Artillery", "Rocket", "Missile", "Piperunner"]
+ALL = UNIT_ORDER
+
+# Per power: units gaining movement, extra flat attack, extra conditional
+# attack (on the CO's own condition), extra range, and whether activation
+# resupplies. Each entry quotes co.php.
+POWER_EFFECTS = {
+    # "Sideslip -- All units gain +1 movement."
+    # "Sidewinder -- All units gain +2 movement."
+    "Adder": {"cop_move": (ALL, 1), "scop_move": (ALL, 2)},
+    # "Beat Down -- Land indirects gain +1 range, and plains bonus is
+    #  increased to +20%." (d2d is +10, so the COP adds +10.)
+    # "Block Rock -- Land indirects gain +1 range, plains bonus is increased
+    #  to +40%, and vehicles gain +2 movement."
+    "Jake": {"cop_cond": 10, "scop_cond": 30,
+             "cop_range": (LAND_INDIRECTS, 1), "scop_range": (LAND_INDIRECTS, 1),
+             "scop_move": (VEHICLES, 2)},
+    # "Forced March -- All units gain +1 movement, and the road bonus is
+    #  increased to +20%."
+    # "Trail of Woe -- All units gain +2 movement, and the road bonus is
+    #  increased to +30%."
+    "Koal": {"cop_move": (ALL, 1), "scop_move": (ALL, 2),
+             "cop_cond": 10, "scop_cond": 20},
+    # "Turbo Charge -- Vehicles gain +1 movement and their attack is increased
+    #  to +20%. All units resupply fuel and ammo." (d2d is +10, so +10 more.)
+    # "Overdrive -- Vehicles gain +2 movement and their attack is increased to
+    #  +40%. All units resupply fuel and ammo."
+    "Jess": {"cop_move": (VEHICLES, 1), "scop_move": (VEHICLES, 2),
+             "cop_attack": (VEHICLES, 10), "scop_attack": (VEHICLES, 30),
+             "resupply": True},
+    # "Knuckleduster -- All units' attack is increased to +50%." (d2d +30.)
+    # "Haymaker -- All units' attack is increased to +80%."
+    "Grimm": {"cop_attack": (ALL, 20), "scop_attack": (ALL, 50)},
 }
+
+
+def unit_array(entry, cast=int):
+    """(names, delta) -> per-unit-type array; None -> zeros."""
+    out = [0] * N
+    if entry:
+        names, delta = entry
+        for name in names:
+            out[INDEX[name]] = cast(delta)
+    return out
 
 
 def group_indices(affected):
@@ -110,7 +158,7 @@ def build(co):
             return -1
         return int(section.get("PowerStars", -1))
 
-    cop_move, scop_move = POWER_MOVE.get(co["Name"], (0, 0))
+    fx = POWER_EFFECTS.get(co["Name"], {})
 
     luck = d2d.get("LuckRange")
     luck_bad, luck_good = 0, 9
@@ -138,9 +186,16 @@ def build(co):
         "repair_bonus": (manual or {}).get("repair_bonus_hp100", 0),
         "cop_stars": stars(co.get("NormalPower")),
         "scop_stars": stars(co.get("SuperPower")),
-        "cop_move": cop_move,
-        "scop_move": scop_move,
-        "modelled": co["Name"] in POWER_MOVE,
+        "cop_move": unit_array(fx.get("cop_move")),
+        "scop_move": unit_array(fx.get("scop_move")),
+        "cop_attack": unit_array(fx.get("cop_attack")),
+        "scop_attack": unit_array(fx.get("scop_attack")),
+        "cop_cond": fx.get("cop_cond", 0),
+        "scop_cond": fx.get("scop_cond", 0),
+        "cop_range": unit_array(fx.get("cop_range")),
+        "scop_range": unit_array(fx.get("scop_range")),
+        "resupply": fx.get("resupply", False),
+        "modelled": co["Name"] in POWER_EFFECTS,
     }
 
 
@@ -154,6 +209,16 @@ def main():
     data = json.loads(re.sub(r"//[^\n]*", "", raw))
     cos = [build(v) for v in data.values()]
     cos.sort(key=lambda c: c["awbw_id"])
+
+    # VEHICLES is transcribed prose; Jess's generated attack array is data.
+    # Every armed vehicle must carry her +10 and no non-vehicle may -- her
+    # unarmed vehicles (APC) are legitimately absent from the array.
+    jess = next(c for c in cos if c["name"] == "Jess")
+    plus = {UNIT_ORDER[i] for i, a in enumerate(jess["attack"]) if a > 0}
+    vehicles = set(VEHICLES)
+    assert plus <= vehicles, f"Jess +10 outside VEHICLES: {plus - vehicles}"
+    assert vehicles - plus == {"APC"}, (
+        f"VEHICLES not confirmed by Jess's array: {vehicles - plus}")
 
     lines = []
     w = lines.append
@@ -208,11 +273,23 @@ def main():
     w("    pub cop_stars: i8,")
     w("    /// Stars a SCOP costs; -1 when the CO has no SCOP.")
     w("    pub scop_stars: i8,")
-    w("    /// All-unit movement gained during the COP / SCOP, for the COs")
-    w("    /// whose power effects the engine models (Adder). Zero elsewhere;")
-    w("    /// the universal +10/+10 during any power needs no data.")
-    w("    pub cop_move_bonus: i8,")
-    w("    pub scop_move_bonus: i8,")
+    w("    /// Power effects, for the COs whose powers the engine models (the")
+    w("    /// Tier-4 five). All zero elsewhere; the universal +10/+10 during")
+    w("    /// any power needs no data. Movement gained per unit type:")
+    w("    pub cop_move_delta: [i8; NUM_UNIT_TYPES],")
+    w("    pub scop_move_delta: [i8; NUM_UNIT_TYPES],")
+    w("    /// Extra attack per unit type while that power runs (Grimm, Jess).")
+    w("    pub cop_attack: [i16; NUM_UNIT_TYPES],")
+    w("    pub scop_attack: [i16; NUM_UNIT_TYPES],")
+    w("    /// Extra conditional attack while that power runs, on the CO's own")
+    w("    /// `condition` (Jake's plains escalation, Koal's roads).")
+    w("    pub cop_conditional_bonus: i16,")
+    w("    pub scop_conditional_bonus: i16,")
+    w("    /// Extra firing range per unit type while that power runs (Jake).")
+    w("    pub cop_range_delta: [i8; NUM_UNIT_TYPES],")
+    w("    pub scop_range_delta: [i8; NUM_UNIT_TYPES],")
+    w("    /// Whether activating either power resupplies every unit (Jess).")
+    w("    pub resupply_on_power: bool,")
     w("    /// Whether this CO's power *effects* are modelled. The meter and")
     w("    /// the universal +10/+10 work for every CO regardless.")
     w("    pub power_effects_modelled: bool,")
@@ -238,8 +315,15 @@ def main():
     w("        repair_bonus_hp100: 0,")
     w("        cop_stars: -1,")
     w("        scop_stars: -1,")
-    w("        cop_move_bonus: 0,")
-    w("        scop_move_bonus: 0,")
+    w("        cop_move_delta: [0; NUM_UNIT_TYPES],")
+    w("        scop_move_delta: [0; NUM_UNIT_TYPES],")
+    w("        cop_attack: [0; NUM_UNIT_TYPES],")
+    w("        scop_attack: [0; NUM_UNIT_TYPES],")
+    w("        cop_conditional_bonus: 0,")
+    w("        scop_conditional_bonus: 0,")
+    w("        cop_range_delta: [0; NUM_UNIT_TYPES],")
+    w("        scop_range_delta: [0; NUM_UNIT_TYPES],")
+    w("        resupply_on_power: false,")
     w("        power_effects_modelled: false,")
     w("    };")
     w("}")
@@ -259,8 +343,16 @@ def main():
         w(f'        capture_multiplier_pct: {c["capture_pct"]},')
         w(f'        move_delta: {arr(c["move_delta"], "i8")},')
         w(f'        repair_bonus_hp100: {c["repair_bonus"]},')
-        w(f'        cop_stars: {c["cop_stars"]}, scop_stars: {c["scop_stars"]}, '
-          f'cop_move_bonus: {c["cop_move"]}, scop_move_bonus: {c["scop_move"]},')
+        w(f'        cop_stars: {c["cop_stars"]}, scop_stars: {c["scop_stars"]},')
+        w(f'        cop_move_delta: {arr(c["cop_move"], "i8")},')
+        w(f'        scop_move_delta: {arr(c["scop_move"], "i8")},')
+        w(f'        cop_attack: {arr(c["cop_attack"], "i16")},')
+        w(f'        scop_attack: {arr(c["scop_attack"], "i16")},')
+        w(f'        cop_conditional_bonus: {c["cop_cond"]}, '
+          f'scop_conditional_bonus: {c["scop_cond"]},')
+        w(f'        cop_range_delta: {arr(c["cop_range"], "i8")},')
+        w(f'        scop_range_delta: {arr(c["scop_range"], "i8")},')
+        w(f'        resupply_on_power: {"true" if c["resupply"] else "false"},')
         w(f'        power_effects_modelled: {"true" if c["modelled"] else "false"},')
         w("    },")
     w("];")
@@ -297,8 +389,19 @@ def main():
             effects.append("transports +1 move")
         if c["repair_bonus"]:
             effects.append(f"repair +{c['repair_bonus']//10} HP")
-        if c["cop_move"] or c["scop_move"]:
-            effects.append(f"power move +{c['cop_move']}/+{c['scop_move']}")
+        if c["modelled"]:
+            fxs = []
+            if any(c["cop_move"]) or any(c["scop_move"]):
+                fxs.append(f"move +{max(c['cop_move'])}/+{max(c['scop_move'])}")
+            if any(c["cop_attack"]) or any(c["scop_attack"]):
+                fxs.append(f"atk +{max(c['cop_attack'])}/+{max(c['scop_attack'])}")
+            if c["cop_cond"] or c["scop_cond"]:
+                fxs.append(f"cond +{c['cop_cond']}/+{c['scop_cond']}")
+            if any(c["cop_range"]):
+                fxs.append("range +1")
+            if c["resupply"]:
+                fxs.append("resupply")
+            effects.append("powers: " + " ".join(fxs))
         if not effects:
             effects.append("none modelled")
         stars = f"{c['cop_stars']}/{c['scop_stars']}*"

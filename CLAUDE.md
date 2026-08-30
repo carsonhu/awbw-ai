@@ -22,7 +22,7 @@ Rust rules engine for Advance Wars by Web, built to run RL self-play. See
   checks the *implementation*, and is a poor arbiter of what a rule should be —
   it has already talked the engine out of one correct rule. See
   `docs/decisions.md` before re-deciding anything.
-- **Power effects (beyond Adder's), silos, pipe seams and mid-game weather are
+- **Power effects (beyond the Tier-4 five's), silos, pipe seams and mid-game weather are
   unimplemented on purpose.** Divergences involving them are expected, not
   bugs. `docs/rules.md` has the full list.
 - Run `cargo test` and, for anything touching rules,

@@ -31,8 +31,8 @@ Rust rules engine for Advance Wars by Web, built to run RL self-play. See
 ## Docs
 
 `docs/README.md` indexes them all and is generated, so it is never stale. The
-shape: `architecture` `rules` `verification` `workflow` are reference and kept
-current, `decisions.md` is settled questions — read it before re-litigating one
+shape: `architecture` `rules` `verification` `workflow` `plan` are reference,
+kept current, `decisions.md` is settled questions — read it before re-litigating one
 — and `docs/log/` holds dated, immutable records of what each experiment
 measured.
 

@@ -78,6 +78,11 @@ BUDGETS = {
     # Reference, not a log entry: it states what the design is and why, and
     # is edited as the design moves.
     "docs/network.md": 90,
+    # The agenda of record. Added after a scope decision (the Tier-4 CO
+    # boundary) survived only in a dead conversation and got restated wrong:
+    # plans are reference material -- edited as they change, budgeted so a
+    # completed item becomes a pointer to its log entry instead of residue.
+    "docs/plan.md": 70,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by

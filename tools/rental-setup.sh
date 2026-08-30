@@ -51,9 +51,18 @@ PYO3_PYTHON="$(command -v python3)" cargo build --release -p awbw-py
 cp target/release/libawbw.so python/awbw.so
 python3 python/smoke_test.py
 
+# The grid's parent is a per-grid choice, so read it off grid.sh rather than
+# naming one here -- a stale checkpoint name in this message means a grid that
+# dies on its first arm, forty minutes after the box started billing.
+PARENT_HINT="$(sed -n 's/^ *PARENT="${PARENT:-\(.*\)}".*/\1/p' tools/grid.sh | head -1)"
+PARENT_HINT="${PARENT_HINT:-the --init checkpoint your GRID names}"
+
 mkdir -p checkpoints logs
 echo
-echo "Setup complete in $PWD. Now from the local machine:"
+echo "Setup complete in $PWD. Now from the local machine, the three every grid"
+echo "needs -- the anchor and the two net panel members:"
 echo "  scp checkpoints/{bc-net2,bc-powers-scaled2,ppo-adder3}.pt <this-box>:$PWD/checkpoints/"
+echo "plus the parent the grid continues from, which is per grid ($PARENT_HINT):"
+echo "  scp $PARENT_HINT <this-box>:$PWD/checkpoints/"
 echo "then here:"
 echo "  cd $PWD && bash tools/grid.sh"

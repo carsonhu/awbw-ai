@@ -35,6 +35,7 @@ Then `python tools/docs.py index`.
 | [architecture.md](architecture.md) | Crate layout, the key types, and the action space a policy emits into. |
 | [decisions.md](decisions.md) | Questions already settled, and why — read before re-litigating one. |
 | [network.md](network.md) | The policy network, where each piece sits in the literature, and what to change next, in order. |
+| [plan.md](plan.md) | The agenda of record: what runs next, in what order, at what cost, and where scope deliberately stops. A plan that lives in a conversation dies with it -- this one is edited as decisions land, and each item that completes points at the log entry that measured it. |
 | [rules.md](rules.md) | What the engine models, what it deliberately does not, and where the numbers came from. The wiki is authoritative; see `decisions.md`. |
 | [verification.md](verification.md) | How the replay harness checks the engine against recorded games, and what it currently agrees on. |
 | [workflow.md](workflow.md) | Regenerating game data, preparing replays, training a policy, running checks. |

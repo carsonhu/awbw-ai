@@ -1,0 +1,61 @@
+# Plan
+
+> The agenda of record: what runs next, in what order, at what cost, and
+> where scope deliberately stops. A plan that lives in a conversation
+> dies with it -- this one is edited as decisions land, and each item
+> that completes points at the log entry that measured it.
+
+## Scope, decided
+
+- **COs: the Tier-4 five -- Adder, Jake, Koal, Jess, Grimm -- and no
+  further.** Their powers decompose into four mechanic classes
+  (per-unit-type power move, conditional-bonus escalation, power
+  attack/defense deltas, range delta + resupply), so five COs cost the
+  same engine work as two. **Max is data-only**: his games feed the T4
+  corpus the clone trains on, but he is never a seat. No extension
+  past Tier 4 is planned; a policy that infers its CO from effects (no
+  identity plane) is the bet, and a one-hot would be an observation
+  break.
+- One map (A River Supreme), standard weather, no fog in training.
+  Silos, pipe seams, mid-game weather: out (`rules.md`).
+
+## Lanes
+
+**Lane A -- local, free: widen past the Adder mirror.**
+1. Per-seat CO in `awbw-py` (hours): two seats, per-episode sampling.
+   No observation change, no checkpoint cost.
+2. Tier-4 power effects (about a day): the four mechanic classes in
+   the engine, then five data rows in `gen_cos.py`. Unlocks the
+   Adder-vs-Jake verification games and honest mixed-CO training.
+
+**Lane B -- rented grids, about $3 each, seed-grouped always.**
+1. `jakeman2` (ready): the continuation rung from `jm-s7par-s7`, four
+   anchored seeds plus two unanchored arms pricing `--anchor-kl 0.03`.
+   Bar: 49.3. Independent of Lane A; launch any time.
+2. First mixed-CO rung (after Lane A): the winning recipe, opponents
+   sampled across the five COs, an Adder-mirror control group. A
+   mixed group that fails while its control climbs is what "the
+   policy cannot tell who it is" looks like.
+3. Net change, one bundle (after Lane A, so the re-clone happens
+   once): global-pooling bias, mean+max value pooling, auxiliary value
+   targets (`network.md` item 3). BC, then the greedy rung as the
+   free benchmark.
+4. Capacity, last, only if 3 leaves 96x8 looking like the bound.
+
+## Endpoint
+
+A seed-grouped policy with a winning record against every scripted
+opponent, across the Tier-4 COs, on the training slice. The panel is
+then exhausted -- JakeMan is the strongest scripted AI available --
+and the next instrument is Elo-referenced: value calibration by
+rating band, then games against AWBW players. Not promised by any of
+the above: human-looking composition (Anti-Air ~15% vs the human 6
+survives every intervention so far) or transfer off the training
+slice.
+
+## Keeping this honest
+
+Completed items become one line pointing at their log entry.
+Contingencies get resolved in place, citing the entry that resolved
+them. If this doc and a conversation disagree, this doc is the one
+that was reviewed -- fix it, then act on it.

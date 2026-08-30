@@ -1,17 +1,15 @@
 # The rung went backwards, and one arm never left the start
 
 > Re-rating all six `jakeman2` arms on the counted instrument: **every arm
-> that actually trained is below its own parent** against JakeMan on decisive
-> wins -- 42.0, 38.5, 38.0, 23.5, 23.5 against 44.8. The sixth is not below it
-> because it *is* it: `jm2-s43`'s saved checkpoint is bit-identical to the
-> parent in all 80 policy tensors, a warm-up window that claimed the file
-> before the first gradient step. The grid's headline number was its input.
+> that trained is below its own parent** against JakeMan on decisive wins --
+> 42.0, 38.5, 38.0, 23.5, 23.5 against 44.8. The sixth is not below it because
+> it *is* it: `jm2-s43`'s checkpoint is bit-identical to the parent in all 80
+> policy tensors, a warm-up window that claimed the file before training.
 
-**Setup.** `panel.py` on the local 1660 Ti, 200 games a member, flags as
-logged (`--co Adder --temperature 1.0`, cap settled), for the six arms and the
-parent `jm-s7par-s7`. Each cell is score / decisive / capped, the last two new
-(`5543bde`). Every score reproduces its logged row to a tenth, so the counters
-are pure addition and no past rating moves.
+**Setup.** `panel.py`, 1660 Ti, 200 games a member, flags as logged (`--co
+Adder --temperature 1.0`, cap settled), six arms plus the parent. Cells are
+score / decisive / capped (`5543bde`); every score reproduces its logged row to
+a tenth, so the counters are pure addition and no past rating moves.
 
 | arm | greedy | JakeMan | clone | `ppo-adder3` |
 |---|---|---|---|---|
@@ -25,13 +23,11 @@ are pure addition and no past rating moves.
 
 **One arm is its own parent.** `jm2-s43` matches `jm-s7par-s7` in every cell
 because it matches it in every weight: 80 of 84 tensors differ by exactly 0.0,
-and the four that move are `value.*`, which no action depends on at
-evaluation. Its `-last.pt` moved (max delta 0.25), so the arm trained for 200
-iterations and threw all of it away -- `kept = closed and score > best` carried
-no `not warming` guard, so a lucky window during the critic warm-up saved the
-init and no later window beat it. The comment three lines up already said "the
-first JakeMan run kept a warm-up window in which the policy had not moved at
-all"; it recurred, unguarded, and reached a log table as a rung result. Now
+and the four that move are `value.*`, which no action depends on. Its
+`-last.pt` moved, so the arm trained 200 iterations and threw all of it away --
+`kept = closed and score > best` carried no `not warming` guard, so a lucky
+window during the critic warm-up saved the init and nothing later beat it. The
+comment three lines up already said the first JakeMan run had done this. Now
 guarded (`ppo.py`), matching the promote branch that always had it.
 
 **The rung is negative on every arm that ran.** Against the parent's 44.8
@@ -42,19 +38,23 @@ bar stands where it stood because the arm holding it never moved.
 
 **The instrument flips the experiment's verdict.** The grid existed to price
 `--anchor-kl 0.03` on this rung. By score the unanchored pair beats the
-anchored group on JakeMan 59.8 to 39.2 and on `ppo-adder3` 97.8 to 88.1; by
-decisive wins the anchored group wins both, 34.5 to 31.0 and 76.3 to 49.5.
-Same games, opposite conclusion, and the score-leader ties for last on games
-actually won.
+anchored group on JakeMan 59.8 to 39.2 and `ppo-adder3` 97.8 to 88.1; by
+decisive wins the anchored group wins both, 34.5 to 31.0 and 76.3 to 49.5. Same
+games, opposite conclusion, and the score-leader ties for last on wins.
 
 **Cap-farming is a seed property, not an anchor property.** The previous entry
 read one anchored arm (4.5%) against one unanchored (48.0%) and credited the
-anchor. Across the group anchored arms span 3.0-28.0% and unanchored
-14.5-75.5% -- overlapping. `jm2-s101` is anchored at 0.03 and caps more than
-the unanchored `jm2-noanc-s43` on all four members. The anchor lowers the
-mean; it does not control the behaviour, and no single-arm reading of it is
-worth anything.
+anchor. Anchored arms span 3.0-28.0% capped and unanchored 14.5-75.5% --
+overlapping, with the anchored `jm2-s101` above the unanchored `jm2-noanc-s43`
+on all four members. The anchor lowers the mean; it does not control this.
 
-**Next.** The instrument is closed and it cost no GPU time. Before item 3
-spends money: `-last.pt` for all six arms is unrated, and on this evidence the
-peak file is the one selection cannot be trusted with. Rate those first.
+**The blast radius is one arm.** Fingerprinting the play-affecting weights of
+all 186 checkpoints gives 164 distinct policies and 19 duplicate groups, all
+benign or known but this one: `X-genN == X` is the promote branch writing both
+files, `ppo-adder2 == ppo-adder1` is documented
+(`log/2026-08-27-adv-floor-null.md`), and `armB` is its own init but its entry
+rated `armB-last`. Only `jm2-s43` reached a table. Checkpoints record
+architecture, not lineage, which is why this takes a fingerprint, not a lookup.
+
+**Next.** `-last.pt` for all six arms is rating now: the peak file is what
+selection just failed on, and item 4 spends nothing until that reads.

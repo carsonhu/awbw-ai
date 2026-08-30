@@ -22,8 +22,9 @@
 ## Lanes
 
 **Lane A -- local, free: widen past the Adder mirror.**
-1. Per-seat CO in `awbw-py` (hours): two seats, per-episode sampling.
-   No observation change, no checkpoint cost.
+1. ~~Per-seat CO in `awbw-py`~~ done (`afbd4ab`): `--co` takes a comma
+   pool, each seat sampled per game from the game's own seed; one name
+   is still a mirror, so every logged recipe and rating is untouched.
 2. Tier-4 power effects (about a day): the four mechanic classes in
    the engine, then five data rows in `gen_cos.py`. Unlocks the
    Adder-vs-Jake verification games and honest mixed-CO training.

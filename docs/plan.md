@@ -45,20 +45,28 @@
    free benchmark.
 4. Capacity, last, only if 3 leaves 96x8 looking like the bound.
 
-## Endpoint
+## Endpoint, and the two books after
 
 A seed-grouped policy with a winning record against every scripted
-opponent, across the Tier-4 COs, on the training slice. The panel is
-then exhausted -- JakeMan is the strongest scripted AI available --
-and the next instrument is Elo-referenced: value calibration by
-rating band, then games against AWBW players. Not promised by any of
-the above: human-looking composition (Anti-Air ~15% vs the human 6
-survives every intervention so far) or transfer off the training
-slice.
+opponent, across the Tier-4 COs, on the training slice. Not promised
+on the way: human-looking composition, or transfer off the slice.
+That sweep saturates the panel -- JakeMan is the strongest scripted
+AI available -- and hands off to:
+
+**The Elo instrument.** Half exists: `value_diag.py` scores the value
+head against recorded human outcomes by phase and rating band, the
+one ground truth no bot supplies. Half does not: a real rating needs
+live games against AWBW players -- etiquette and engineering.
+
+**Search** -- `network.md` calls it the largest untouched lever -- in
+rising order: one-ply value reranking on the 130k micro-steps/s
+engine, turn-level low-budget Gumbel, search-as-teacher. Gated on the
+run-3 critic (a search is worth what its evaluator knows) and scored
+on the Elo instrument, since the panel it would tune against is the
+thing that just saturated.
 
 ## Keeping this honest
 
-Completed items become one line pointing at their log entry.
-Contingencies get resolved in place, citing the entry that resolved
-them. If this doc and a conversation disagree, this doc is the one
-that was reviewed -- fix it, then act on it.
+Completed items shrink to a pointer at their log entry. If this doc
+and a conversation disagree, this doc was reviewed -- fix it, then
+act on it.

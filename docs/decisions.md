@@ -22,12 +22,12 @@ silent errors in tables nobody re-reads.
 
 ## Scope
 
-**COs: day-to-day abilities only, powers excluded.** Self-play uses the
-ability-free CO with powers off, so the CO layer resolves to a constant and is
-inert during training. It exists so the corpus can test combat at all —
-competitive AWBW almost never fields an ability-free CO, and there is not one
-Andy-vs-Andy game in the sample. Powers change stats mid-turn, the agent will
-never use one, and modelling them buys nothing but a nicer number.
+**COs: powers included, and the Tier-4 five have their effects.** Superseded
+scope — powers were once excluded as "the agent will never use one". The meter,
+COP/SCOP as source-head actions and the universal +10/+10 now work for every CO,
+Adder, Jake, Koal, Jess and Grimm have their listed effects and no other CO does
+(`rules.md`), and a trained policy fires 5-10 powers a game. The ability-free
+vanilla CO survives only as `--co` unset.
 
 **Luck-range COs are implemented but unverified.** Nell, Flak and Jugger are
 banned in Global League play, so no recorded game exercises that path.
@@ -81,7 +81,7 @@ act; cost, capture, income and power charge as globals. Encoding modifiers rathe
 than a one-hot identity shares strength — Max's +20% sits by Grimm's +30%.
 
 **Powers cost far less data than they look like they will.** 69% of games on the
-training map use one, but only 9% of *orders* happen while one is active, so
+training map use one, but under 6% of *orders* happen while one is active, so
 those can simply be dropped from an imitation loss.
 
 **Imitation labels check themselves**, twice: every translated order goes through
@@ -263,10 +263,11 @@ act. Scoring the two against each other let a walk outbid an attack 24 times in
 412. Ratings against JakeMan from before `ATTACK_FLOOR` are against a weaker
 bot: `ppo-jake2` fell 67.2% -> 58.4% (`log/2026-08-26-two-fixes.md`).
 
-**JakeMan is beaten, and the scripted ladder is exhausted.** `ppo-jake2` rates
-67.2% ±2.3 against JakeMan and 86.4% ±1.7 against `greedy` — the same run that
-scored 7.6% with recalibration on. Nothing scripted is left to climb
-(`log/2026-08-26-jakeman-beaten.md`).
+**JakeMan was beaten once, on a game that no longer exists.** `ppo-jake2` rated
+67.2% ±2.3 (58.4% after `ATTACK_FLOOR`) — but it predates the powers encoding
+break, so it is unloadable and its rating is of a different game. The current
+lineage's best against JakeMan is 49.3, still losing: the ladder is not
+exhausted for anything trainable today (`log/2026-08-26-jakeman-beaten.md`).
 
 **Self-play's learner drifts below its own frozen copy, cause unknown.** 35-41%
 across recalibration off, an advantage floor and no shaping alike, so it
@@ -313,7 +314,7 @@ count 0.5, so a policy that stops closing games reads as flat: arm B's score
 held near 58% while outright wins fell 51.0% -> 39.0% and draws doubled.
 `--decide-cap` settles a capped game as AWBW settles a turn-limited one:
 income, then property count (Com Towers and labs count, material never does),
-then a draw. Built, never trained against.
+then a draw. In every logged recipe since — and exploitable, see below.
 
 **The powers encoding break kills every checkpoint before it.** COP and SCOP
 became source-head indices beside end-turn and four globals now carry each
@@ -342,3 +343,17 @@ JakeMan and 5.0 on `ppo-adder3`, so `ppo.py` keeps saving it -- but the peak
 *value* ran twelve points above the panel at r=0.07, and the second-highest peak
 of the eight panelled worst. Select on it, never report it, and read a rung's
 progress from panels (`log/2026-08-29-the-peak-beats-the-endpoint.md`).
+
+**`--decide-cap` pays for stalling, and silences the metric that would show it.**
+A policy that pushes games to the 60-day cap banks the income tiebreak: the best
+arm of the JakeMan continuation rated 70.5 with the flag and 47.5 without,
+capping 48.0% of its games against an anchored control's 4.5%. `cut` is computed
+from the drawn count, which the flag zeroes, so it read 0% throughout. Rate both
+ways (`log/2026-08-29-the-day-cap-paid-for-the-rung.md`).
+
+**The anchor postpones the decay, which is why it is not optional.** Both
+unanchored arms of the continuation rung collapsed -- 54.5% at iteration 50 to
+3.6% at 200 on one -- and finished below every anchored arm, while the anchored
+control climbed 30.3% to 50.0%. Composition it still does not fix (Anti-Air
+14.4% against 14.6%); postponing "decays from level" is the job it does
+(`log/2026-08-29-the-day-cap-paid-for-the-rung.md`).

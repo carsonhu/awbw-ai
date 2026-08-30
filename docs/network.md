@@ -6,7 +6,7 @@
 ## What it is
 
 One trunk, four autoregressive heads, one *order* per step. Deployed shape:
-96 channels, 8 residual blocks, 1.65M parameters (`build()`'s 64x6 is only
+96 channels, 8 residual blocks, 1.73M parameters (`build()`'s 64x6 is only
 the default; the checkpoint config is authoritative).
 
 ```
@@ -69,13 +69,14 @@ planes the stem conv widens with zero-init channels and the function is
 unchanged -- verified against `PlaneSlice` to 2e-5 on real play. Additions
 only: a change that redefines planes (threat v1->v2) still costs the book.
 
-**3. The global pathway is thin, and the critic is the weak component.**
+**3. Auxiliary value targets, all that is left of the global bundle.**
 Derived global state (material balance, meter race) must be re-synthesized
-by 3x3 convs and reaches the heads through a single mean-pool. KataGo fixed
-this exact weakness with global-pooling bias layers, pools mean+max for the
-value head, and roughly doubled training efficiency with auxiliary value
-targets -- the AWBW analogs (final property differential, income at t+N)
-are already computed by the shaping code. One bundled net change.
+by 3x3 convs. Two of KataGo's three answers shipped inside net-v2 and are
+in `bc-net2`'s stored config -- pooled bias on alternating blocks,
+mean+max for the value head. The third has not: auxiliary targets, worth
+roughly double training efficiency there. The AWBW analogs (final property
+differential, income at t+N) are already computed by the shaping code, so
+what remains is one head and one re-clone.
 
 **4. Capacity last.** Nothing measured says 96x8 is the bound; widen when a
 rented grid makes retrains cheap. The net is not a contract boundary -- a

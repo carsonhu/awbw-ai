@@ -20,6 +20,14 @@ GRID="${GRID:-jakeman2}"
 ANCHOR="${ANCHOR:-checkpoints/bc-net2.pt}"
 PY="${PY:-python3}"
 
+# Rented containers report the *host's* core count, not the cgroup share, so
+# torch defaults to ~128 threads per arm and six arms thrash a twenty-core
+# slice: 43 orders/s against 353 with this set, a 6x tax every grid before
+# 2026-08-29 paid silently (log/2026-08-29-the-leash-comes-off.md). Roughly
+# one thread per core per arm; the env itself is single-threaded.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-3}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
+
 ARMS=()
 case "$GRID" in
   phase1)

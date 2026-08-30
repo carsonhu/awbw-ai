@@ -61,10 +61,10 @@ capture, build, load, unload, join and supply. Two enumeration paths:
 **Observations** are written from the moving player's side — ownership channels
 are *mine* and *theirs*, not seat 0 and seat 1 — so one policy plays either seat.
 Under fog only what that player sees is written, so it is exactly what the agent
-may act on. 64 planes plus 23 globals; layout in `plane::`. Two planes carry the
-acting CO's per-unit attack and defence, and the globals carry each side's build
-cost, capture rate, income, power charge and running power — so a policy trained
-on mixed-CO human games can tell whose numbers it is looking at.
+may act on. 64 planes plus 23 globals, 70 under `--threat-planes` (every current
+checkpoint); layout in `plane::`. Two planes carry the acting CO's attack and
+defence, the globals each side's build cost, capture rate, income, power charge
+and running power — so a policy can tell whose numbers it is looking at.
 
 **Actions** are four masked choices — `source -> dest -> kind -> param` —
 rather than one flat index, whose product is enormous and almost all illegal.
@@ -90,7 +90,7 @@ Random self-play, 15x15, 30-day games, one core (`--example selfplay_bench`):
 
 ## Training
 
-`python/net.py` is one trunk — a 64-channel, 6-block resnet, globals broadcast as
+`python/net.py` is one trunk — a resnet, 96x8 as deployed, globals broadcast as
 extra planes — with four heads reading the *same* feature map. Running the trunk
 per head costs four times as much for nothing: the board does not change between
 the four choices, only the question does. Three heads are **pointers**, scoring

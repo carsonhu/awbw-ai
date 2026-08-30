@@ -28,23 +28,23 @@ cargo run --release -p awbw-replay --bin check-fog -- data/prepared
 
 Flags: `--no-fog`, `--no-powers`, `--vanilla`, `--verbose`, `--limit N`.
 
-Always read the **split** the summary prints. Powers and fog are unmodelled by
-design, so a headline number that mixes them in measures features that were
-deliberately left out rather than correctness.
+Always read the **split** the summary prints. Fog, and every power outside the
+Tier-4 five, are unmodelled by design — a headline that mixes them in measures
+features deliberately left out rather than correctness.
 
 ## Where it stands
 
 | subset | games | exact | assertions | agreement |
 |---|---|---|---|---|
-| no powers, no fog | 780 | 732 (94%) | 886k | 99.993% |
-| powers used | 1,789 | 142 (8%) | 5.20M | 99.115% |
+| no powers, no fog | 868 | 819 (94%) | 975k | 99.994% |
+| powers used | 2,062 | 610 (30%) | 5.97M | 99.451% |
 
 Fog visibility, judged per path step: **99.39%** of 6,035 steps. Of the
 mismatches, 31 are the engine seeing too much — almost all on the single turn
 Drake fires Typhoon — and 6 are unexplained.
 
-Residual in the clean subset is 62 divergences over 11,578 turns: 29 unit HP,
-12 damage-range, 10 move-fuel, 5 funds, 6 stragglers — all luck-adjacent.
+Residual in the clean subset is 63 divergences over 12,774 turns: 29 unit HP,
+12 damage-range, 10 move-fuel, 5 unit-extra, 5 funds, 2 capture — luck-adjacent.
 
 ## Imitation data
 
@@ -54,15 +54,15 @@ Residual in the clean subset is 62 divergences over 11,578 turns: 29 unit HP,
 cargo run --release -p awbw-replay --bin bc-stats -- data/prepared
 ```
 
-Across 366 non-fog games: **154k labelled orders, 420 per game, 98.0% legal**,
-91% usable once power-affected orders are dropped. Humans spend 51% of orders
+Across 2,930 games: **1.19M labelled orders, 407 per game, 98.9% legal**, 94.2%
+usable once power-affected orders are dropped. Humans spend 52% of orders
 moving, 16% attacking, 16% capturing, 15% building.
 
 It also reports rejections by position within the turn, which is how state
 corruption shows itself: a flat profile means a rejected order is not poisoning
 the ones after it.
 
-Every legal order also **round-trips** through the action codec — 0 of 150,870
+Every legal order also **round-trips** through the action codec — 0 of 1,179,797
 decode back to something else — so no label asks for an output the masks forbid.
 `ReplayTeacher` serves the same labels to a trainer at ~20k orders/sec.
 

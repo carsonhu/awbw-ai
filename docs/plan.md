@@ -21,29 +21,26 @@
 
 ## Lanes
 
-**Lane A -- local, free: widen past the Adder mirror.**
-1. ~~Per-seat CO in `awbw-py`~~ done (`afbd4ab`): `--co` takes a comma
-   pool, each seat sampled per game from the game's own seed; one name
-   is still a mirror, so every logged recipe and rating is untouched.
-2. ~~Tier-4 power effects~~ done: four mechanic classes in the
-   engine, five data rows in `gen_cos.py`. Power-game agreement
-   99.15% -> 99.45%, clean power games 221 -> 610 of 2,062
-   (`log/2026-08-29-the-tier-4-powers-land.md`). Mixed-CO training
-   is now honest.
+**Lane A -- local, free: widen past the Adder mirror. Done.**
+~~Per-seat CO~~ (`afbd4ab`) and ~~Tier-4 power effects~~
+(`log/2026-08-29-the-tier-4-powers-land.md`): mixed-CO training is honest.
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
-1. `jakeman2` (ready): the continuation rung from `jm-s7par-s7`, four
-   anchored seeds plus two unanchored arms pricing `--anchor-kl 0.03`.
-   Bar: 49.3. Independent of Lane A; launch any time.
-2. First mixed-CO rung (after Lane A): the winning recipe, opponents
-   sampled across the five COs, an Adder-mirror control group. A
-   mixed group that fails while its control climbs is what "the
-   policy cannot tell who it is" looks like.
-3. Net change, one bundle (after Lane A, so the re-clone happens
-   once): global-pooling bias, mean+max value pooling, auxiliary value
-   targets (`network.md` item 3). BC, then the greedy rung as the
-   free benchmark.
-4. Capacity, last, only if 3 leaves 96x8 looking like the bound.
+1. ~~`jakeman2`~~: no climb. Its 70.5 was the day-cap tiebreak, 47.5
+   without; both unanchored arms collapsed in training; `cut` is blind
+   to a settled cap (`log/2026-08-29-the-day-cap-paid-for-the-rung.md`).
+2. The cap instrument (next, free): make `cut` count capped games
+   however settled, rate the panel both ways, re-rate the six arms. No
+   rung is worth $3 until the score means what it says.
+3. Net change + re-clone, one bundle: auxiliary value targets
+   (`network.md` item 3; pooled bias and mean+max shipped in net-v2),
+   on a corpus replayed through the Tier-4 engine. BC, then the greedy
+   rung as the free benchmark.
+4. First mixed-CO rung, after 3 so the clone has seen T4 powers fire:
+   opponents sampled across the five, an Adder-mirror control group. A
+   mixed group that fails while its control climbs is what "the policy
+   cannot tell who it is" looks like.
+5. Capacity, last, only if 3 leaves 96x8 looking like the bound.
 
 ## Endpoint, and the two books after
 

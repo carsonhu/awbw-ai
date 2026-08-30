@@ -52,26 +52,26 @@ pageable memory each step cost more than the engine did.
 
 ```
 py -3.12 python/bc.py --teacher human --steps 15000   # clone the corpus
-py -3.12 python/ppo.py --init checkpoints/bc-threat2.pt   # improve it by playing
+py -3.12 python/ppo.py --init checkpoints/bc-net2.pt   # improve it by playing
 py -3.12 python/panel.py --checkpoint <ckpt>          # the fixed panel
 py -3.12 python/play_diag.py --checkpoint <ckpt> --baseline  # what it builds
 py -3.12 python/order_diag.py                         # ordering vs judgement
 ```
 
-The rung of record, under every logged run: `--opponent greedy --co Adder
---turn-discount --steps 256 --lam 0.99 --decide-cap`.
+The rung of record, under every logged run: `--threat-planes --opponent greedy
+--co Adder --turn-discount --steps 256 --lam 0.99 --decide-cap`. Experiments are
+run as seed groups through `tools/grid.sh`, never as single runs (`plan.md`).
 
 Read `kl` and `clip`, never entropy. Rate at 1.0 (0.3 flatters a clone
 threefold) through `panel.py`, since a ladder's head-to-head only proves it
 beats itself; `--frozen-init` takes a comma-separated list to make self-play a
 league. `--recalibrate` defaults to 0 and belongs there.
 
-Two PPO defaults are Atari's units. `--turn-discount` discounts once per
-*turn*: `1/(1 - gamma*lam)` is 19 orders and a turn is 17, so credit otherwise
-never crosses one, and `--steps 256` outruns that horizon. `--potential worth`
-counts money and unspent property income, which `material` cannot see — see
-`decisions.md`; it doubles the reward scale, so halve `--shaping`. Watch `cut`:
-those games carry no result at all.
+Two PPO defaults are Atari's units. `--turn-discount` discounts once per *turn*:
+`1/(1 - gamma*lam)` is 19 orders and a turn is 17, so credit otherwise never
+crosses one, and `--steps 256` outruns that horizon. `--potential worth` counts
+money and unspent property income, which `material` cannot — it doubles the
+reward scale, so halve `--shaping`. Watch `cut`: those games carry no result.
 
 The reward cannot see *composition* — a unit is priced at cost times HP — so
 PPO drifts off the human build mix and off human power timing while improving

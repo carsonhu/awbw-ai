@@ -4,8 +4,9 @@
 # points apart on a net member (docs/decisions.md), so the unit of experiment
 # is the seed group -- this is that unit, made affordable.
 #
-#   bash tools/grid.sh                # the default phase-1 grid
-#   CONCURRENT=4 bash tools/grid.sh   # fewer lanes on a smaller card
+#   bash tools/grid.sh                  # the default grid, see GRID below
+#   GRID=jakeman2 bash tools/grid.sh    # a named grid
+#   CONCURRENT=4 bash tools/grid.sh     # fewer lanes on a smaller card
 #
 # Each arm is  train -> panel -> play_diag  as one chain; chains run
 # CONCURRENT at a time (default 5: arms measured 4.4GB apiece, five fit in
@@ -15,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 CONCURRENT="${CONCURRENT:-5}"
-GRID="${GRID:-jakeman}"
+GRID="${GRID:-jakeman2}"
 ANCHOR="${ANCHOR:-checkpoints/bc-net2.pt}"
 PY="${PY:-python3}"
 
@@ -48,8 +49,30 @@ case "$GRID" in
       ARMS+=("jm-s101par-s$seed|--init checkpoints/n2-a003-s101.pt --anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
     done
     ;;
+  jakeman2)
+    # The continuation rung: v1 went 37.5 -> 63.4 by running the JakeMan rung
+    # twice, and the first v2 rung ended oscillating rather than saturated
+    # (log/2026-08-29-the-jakeman-rung-and-the-peak-that-does-not-rate.md).
+    # Four seeds because one arm's number is a draw: the same eight arms
+    # ordered their two parents one way on peak weights and the other way on
+    # final weights (log/2026-08-29-the-peak-beats-the-endpoint.md).
+    #
+    # The two `noanc` arms price `--anchor-kl 0.03` on this rung, which no run
+    # has done -- v1 reached 63.4 with no anchor at all, and the leash was
+    # pulling (anchor term 0.34-0.43) through every arm of the last grid.
+    # Bar to beat: 49.3 vs JakeMan, the best single arm so far.
+    PARENT="${PARENT:-checkpoints/jm-s7par-s7.pt}"
+    RECIPE=(--threat-planes --opponent jakeman --co Adder --turn-discount
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT")
+    for seed in 7 43 101 202; do
+      ARMS+=("jm2-s$seed|--anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
+    done
+    ARMS+=("jm2-noanc-s7|--seed 7")
+    ARMS+=("jm2-noanc-s43|--seed 43")
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2)"; exit 1;;
 esac
 
 mkdir -p logs
@@ -88,6 +111,7 @@ for arm in "${ARMS[@]}"; do
   echo "-- $name"; cat "logs/panel-$name.txt" 2>/dev/null | grep -E "%" || true
 done
 echo
-echo "Pull results home with:"
-echo "  scp '<this-box>:awbw-ai/checkpoints/*.pt' checkpoints/"
-echo "  scp '<this-box>:awbw-ai/logs/*' <somewhere-local>/"
+echo "Pull results home as one archive -- from the local machine:"
+echo "  ssh -p <port> <user>@<host> 'cd $PWD && tar czf - logs checkpoints/*.pt' > results.tgz"
+echo "or tar it here and download that through the box's file browser:"
+echo "  tar czf $PWD/results.tgz -C $PWD logs checkpoints/*.pt"

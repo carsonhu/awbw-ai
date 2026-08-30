@@ -335,3 +335,10 @@ panel member; 0.01 spread fifty-seven points across seeds on two different
 nets and retires. Power timing needs no RL intervention at all — pop-weighted
 BC labels fixed it in the clone, and all ten arms kept it
 (`log/2026-08-29-the-grid-confirms-the-anchor.md`).
+
+**A rollout peak is a good selector and a bad number.** Over eight JakeMan arms
+the peak-kept checkpoint rated 5.8 points above the same arm's final weights on
+JakeMan and 5.0 on `ppo-adder3`, so `ppo.py` keeps saving it -- but the peak
+*value* ran twelve points above the panel at r=0.07, and the second-highest peak
+of the eight panelled worst. Select on it, never report it, and read a rung's
+progress from panels (`log/2026-08-29-the-peak-beats-the-endpoint.md`).

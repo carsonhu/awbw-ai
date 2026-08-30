@@ -17,3 +17,11 @@ checkpoints/
 replays/
 data/replays-mooo/
 data/sprites/
+
+# Grid output: one log per arm per run, written on whichever box ran it and
+# carried home in the archive below. The log entry is the durable record.
+logs/
+
+# Result archives pulled off a rented box -- 100MB+ of checkpoints and logs,
+# both of which are ignored in their unpacked form too.
+*.tgz

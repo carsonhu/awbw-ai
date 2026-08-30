@@ -82,7 +82,14 @@ BUDGETS = {
     # boundary) survived only in a dead conversation and got restated wrong:
     # plans are reference material -- edited as they change, budgeted so a
     # completed item becomes a pointer to its log entry instead of residue.
-    "docs/plan.md": 70,
+    #
+    # Up 20 because Lane B grew to six items while three of them were already
+    # one-line pointers -- the discipline was working and the doc was full
+    # anyway, which is the raise this file allows. It also holds the endpoint
+    # and two successor books. Only CLAUDE.md is loaded every session, so this
+    # budget buys readability, not context; squeezing prose to save single
+    # lines was costing more than the limit saved, same as architecture.md.
+    "docs/plan.md": 90,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by

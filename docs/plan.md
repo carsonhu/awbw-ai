@@ -32,10 +32,11 @@
    (`log/2026-08-30-the-rung-went-backwards.md`).
 2. ~~The cap instrument~~ (`5543bde`): score and decisive share now ride
    together, and re-rating the six arms is what found the frozen arm.
-3. `-last.pt` for the six arms (next, free): the peak file is what
-   selection just failed on, and no continuation should start from a
-   checkpoint chosen by the statistic that picked the init.
-4. Net change + re-clone, one bundle: auxiliary value targets
+3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 points of
+   decisive wins, five arms of six, and one endpoint rates 65.8% on
+   2.0% (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
+4. Net change + re-clone, one bundle (next, and the first that
+   spends): auxiliary value targets
    (`network.md` item 3; pooled bias and mean+max shipped in net-v2),
    on a corpus replayed through the Tier-4 engine. BC, then the greedy
    rung as the free benchmark.

@@ -48,10 +48,9 @@
 ## Endpoint, and the two books after
 
 A seed-grouped policy with a winning record against every scripted
-opponent, across the Tier-4 COs, on the training slice. Not promised
-on the way: human-looking composition, or transfer off the slice.
-That sweep saturates the panel -- JakeMan is the strongest scripted
-AI available -- and hands off to:
+opponent, across the Tier-4 COs, on the training slice -- not
+promising human-looking composition or off-slice transfer. The sweep
+saturates the panel, and hands off to:
 
 **The Elo instrument.** Half exists: `value_diag.py` scores the value
 head against recorded human outcomes by phase and rating band, the
@@ -60,10 +59,9 @@ live games against AWBW players -- etiquette and engineering.
 
 **Search** -- `network.md` calls it the largest untouched lever -- in
 rising order: one-ply value reranking on the 130k micro-steps/s
-engine, turn-level low-budget Gumbel, search-as-teacher. Gated on the
-run-3 critic (a search is worth what its evaluator knows) and scored
-on the Elo instrument, since the panel it would tune against is the
-thing that just saturated.
+engine, turn-level low-budget Gumbel, search-as-teacher. Gated on
+the run-3 critic (a search is worth what its evaluator knows) and
+scored on the Elo instrument, the panel having just saturated.
 
 ## Keeping this honest
 

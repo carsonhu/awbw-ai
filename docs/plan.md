@@ -26,21 +26,24 @@
 (`log/2026-08-29-the-tier-4-powers-land.md`): mixed-CO training is honest.
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
-1. ~~`jakeman2`~~: no climb. Its 70.5 was the day-cap tiebreak, 47.5
-   without; both unanchored arms collapsed in training; `cut` is blind
-   to a settled cap (`log/2026-08-29-the-day-cap-paid-for-the-rung.md`).
-2. The cap instrument (next, free): make `cut` count capped games
-   however settled, rate the panel both ways, re-rate the six arms. No
-   rung is worth $3 until the score means what it says.
-3. Net change + re-clone, one bundle: auxiliary value targets
+1. ~~`jakeman2`~~: negative. Every arm that trained finished below its
+   parent on decisive wins, and the arm that matched it was a warm-up
+   checkpoint identical to its init
+   (`log/2026-08-30-the-rung-went-backwards.md`).
+2. ~~The cap instrument~~ (`5543bde`): score and decisive share now ride
+   together, and re-rating the six arms is what found the frozen arm.
+3. `-last.pt` for the six arms (next, free): the peak file is what
+   selection just failed on, and no continuation should start from a
+   checkpoint chosen by the statistic that picked the init.
+4. Net change + re-clone, one bundle: auxiliary value targets
    (`network.md` item 3; pooled bias and mean+max shipped in net-v2),
    on a corpus replayed through the Tier-4 engine. BC, then the greedy
    rung as the free benchmark.
-4. First mixed-CO rung, after 3 so the clone has seen T4 powers fire:
+5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire:
    opponents sampled across the five, an Adder-mirror control group. A
    mixed group that fails while its control climbs is what "the policy
    cannot tell who it is" looks like.
-5. Capacity, last, only if 3 leaves 96x8 looking like the bound.
+6. Capacity, last, only if 4 leaves 96x8 looking like the bound.
 
 ## Endpoint, and the two books after
 
@@ -57,7 +60,7 @@ live games against AWBW players -- etiquette and engineering.
 **Search** -- `network.md` calls it the largest untouched lever -- in
 rising order: one-ply value reranking on the 130k micro-steps/s
 engine, turn-level low-budget Gumbel, search-as-teacher. Gated on
-the run-3 critic (a search is worth what its evaluator knows) and
+the run-4 critic (a search is worth what its evaluator knows) and
 scored on the Elo instrument, the panel having just saturated.
 
 ## Keeping this honest

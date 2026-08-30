@@ -357,3 +357,16 @@ unanchored arms of the continuation rung collapsed -- 54.5% at iteration 50 to
 control climbed 30.3% to 50.0%. Composition it still does not fix (Anti-Air
 14.4% against 14.6%); postponing "decays from level" is the job it does
 (`log/2026-08-29-the-day-cap-paid-for-the-rung.md`).
+
+**A rung is not measured until its product is diffed against its parent.**
+`jm2-s43` panelled at 49.5/45.0 against JakeMan, the grid's best honest arm --
+and was bit-identical to its init in all 80 policy tensors. A warm-up window
+claimed the checkpoint before the first gradient step, and 200 iterations of
+training went into `-last.pt` and nowhere else. Guarded now, but compare the
+weights anyway (`log/2026-08-30-the-rung-went-backwards.md`).
+
+**Score and decisive share are one number, never quoted apart.** Reading the
+six-arm grid on score says the unanchored arms won it; reading the same games
+on wins by capture, annihilation or capture limit says the anchored ones did,
+and the score-leader ties for last. `panel.py` and `evaluate.py` print both
+under every rating for this reason (`log/2026-08-30-the-rung-went-backwards.md`).

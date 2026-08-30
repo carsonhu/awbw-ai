@@ -1047,8 +1047,12 @@ def main() -> int:
                 # opponent stops producing advantage, normalisation rescales
                 # what is left -- noise -- to a full-size step, and the policy
                 # diffuses back down. A minimum window stops a lucky handful of
-                # games claiming the checkpoint.
-                kept = closed and score > best
+                # games claiming the checkpoint, and `not warming` stops the
+                # init claiming it: during the critic warm-up no policy
+                # gradient has been taken, so a good window there saves the
+                # parent and the arm reports its own input as its result
+                # (log/2026-08-30-the-rung-went-backwards.md).
+                kept = not warming and closed and score > best
                 if kept:
                     best = score
                     trainer.save(args.out)

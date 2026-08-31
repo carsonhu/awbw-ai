@@ -38,10 +38,10 @@
    clone including `bc-net2` was made on the 1660 Ti): auxiliary value
    targets (`network.md` item 3), on a corpus replayed through the
    Tier-4 engine, which the current clone predates by ten hours
-   (`b8c584a`). Bigger than "one head and one re-clone": BC's loss is
-   four cross-entropies and touches no value head, so this needs a
-   head, a loss and teacher-side targets. Then the greedy rung as a
-   check that it trains -- not a verdict, `greedy` being retired.
+   (`b8c584a`). The value-head rails exist -- `--value-outcomes`
+   already trains it on recorded results -- so what is missing is the
+   extra targets and their teacher plumbing, not the mechanism. Then
+   the greedy rung as a check that it trains, not a verdict.
 5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire,
    and the first item that rents a box: opponents sampled across the
    five, an Adder-mirror control group. A mixed group that fails while

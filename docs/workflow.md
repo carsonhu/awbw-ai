@@ -51,7 +51,7 @@ pageable memory each step cost more than the engine did.
 ## Training and rating a policy
 
 ```
-py -3.12 python/bc.py --teacher human --steps 15000   # clone the corpus
+py -3.12 python/bc.py --teacher human --steps 15000 --channels 96 --blocks 8   --threat-planes --norm group --pool-bias --value-pool meanmax --pop-weight 100   --value-outcomes data/game-meta-119544.json --out checkpoints/bc-net2.pt
 py -3.12 python/ppo.py --init checkpoints/bc-net2.pt   # improve it by playing
 py -3.12 python/panel.py --checkpoint <ckpt>          # the fixed panel
 py -3.12 python/play_diag.py --checkpoint <ckpt> --baseline  # what it builds
@@ -103,8 +103,8 @@ py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt \
 
 Writes real AWBW replay files to `replays/` (gitignored), which open in AWBW's
 own viewers — a win rate says a policy improved, only watching says what it
-learned, and `play_diag.py` counts the same records. Round-trip a written replay
-through `prepare_replay.py` and the verifier to check it is faithful.
+learned. Round-trip a written replay through `prepare_replay.py` and the
+verifier to check it is faithful.
 
 ## Docs
 

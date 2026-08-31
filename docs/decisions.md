@@ -156,10 +156,11 @@ the same observation — up to 24 apart, argmax flipped on half the rows — so 
 importance ratio compares two policies. Gradients flow fine in eval mode.
 
 **PPO inherits a random critic, so fit it first.** Cloning's loss is four
-cross-entropies and touches no value head, so advantages start as mostly the
-critic's own error, which normalising rescales to unit size. The warm-up steps a
-*separate* optimizer over the value head: it shares the trunk, so fitting it
-through the full one drags the policy along.
+cross-entropies and touches no value head *unless* `--value-outcomes` supplies
+recorded results, so advantages otherwise start as mostly the critic's own
+error, which normalising rescales to unit size. The warm-up steps a *separate*
+optimizer over it: it shares the trunk, so fitting it through the full one drags
+the policy along. `bc-net2` ships a calibrated critic and still warms up.
 
 **A rating means nothing without the temperature it was sampled at.**
 `bc-scaled` scores 19.0% against `greedy` at `--temperature 0.3` and 5.5% at

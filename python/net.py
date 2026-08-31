@@ -146,9 +146,10 @@ class Policy(nn.Module):
         )
         self.param_direct = nn.Linear(4 * channels, self.head_sizes[3])
 
-        # The value head is unused by behaviour cloning and trained by PPO
-        # later. It costs almost nothing to carry and saves a reshuffle of the
-        # checkpoint format when fine-tuning starts.
+        # The value head is trained by PPO, and by cloning too when
+        # `--value-outcomes` supplies recorded game results -- `bc-net2` was
+        # made that way. Without them cloning leaves it at its init, which is
+        # what PPO's warm-up exists for.
         # Mean pooling alone tells the value head the average tile, and a
         # game can hinge on the best or worst one; mean+max is KataGo's
         # cheap version of the fix. Heads keep the mean-only `pooled`.

@@ -35,15 +35,21 @@
 3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 points of
    decisive wins, five arms of six, and one endpoint rates 65.8% on
    2.0% (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
-4. Net change + re-clone, one bundle (next, and the first that
-   spends): auxiliary value targets
-   (`network.md` item 3; pooled bias and mean+max shipped in net-v2),
-   on a corpus replayed through the Tier-4 engine. BC, then the greedy
-   rung as the free benchmark.
-5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire:
-   opponents sampled across the five, an Adder-mirror control group. A
-   mixed group that fails while its control climbs is what "the policy
-   cannot tell who it is" looks like.
+4. Net change + re-clone, one bundle (next; local and free -- every
+   clone including `bc-net2` was made on the 1660 Ti): auxiliary value
+   targets (`network.md` item 3; pooled bias and mean+max shipped in
+   net-v2), on a corpus replayed through the Tier-4 engine -- the
+   current clone predates it by ten hours (`b8c584a`). Larger than
+   "one head and one re-clone" reads: BC's loss is four
+   cross-entropies and touches no value head, so this is a head, a
+   loss, and teacher-side targets. Then the greedy rung as the free
+   benchmark -- a check that it trains, not a verdict, since `greedy`
+   is retired as an instrument.
+5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire,
+   and the first item that rents a box: opponents sampled across the
+   five, an Adder-mirror control group. A mixed group that fails while
+   its control climbs is what "the policy cannot tell who it is"
+   looks like.
 6. Capacity, last, only if 4 leaves 96x8 looking like the bound.
 
 ## Endpoint, and the two books after

@@ -371,3 +371,10 @@ six-arm grid on score says the unanchored arms won it; reading the same games
 on wins by capture, annihilation or capture limit says the anchored ones did,
 and the score-leader ties for last. `panel.py` and `evaluate.py` print both
 under every rating for this reason (`log/2026-08-30-the-rung-went-backwards.md`).
+
+**BC is the reproducible end of this project; RL is not.** Two seeds of one
+clone recipe land 0.5 points apart on a net panel member, 0.6 on JakeMan and
+8.7 on `greedy`, where two seeds of a PPO recipe landed 27 apart. A clone
+comparison is readable at one seed apiece where an RL comparison is not -- and
+`greedy` is still the column that would tell you otherwise
+(`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).

@@ -34,20 +34,21 @@
 3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 points of
    decisive wins, five arms of six, and one endpoint rates 65.8% on
    2.0% (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
-4. Net change + re-clone, one bundle (next; local and free -- every
-   clone including `bc-net2` was made on the 1660 Ti): auxiliary value
-   targets (`network.md` item 3), on a corpus replayed through the
-   Tier-4 engine, which the current clone predates by ten hours
-   (`b8c584a`). The value-head rails exist -- `--value-outcomes`
-   already trains it on recorded results -- so what is missing is the
-   extra targets and their teacher plumbing, not the mechanism. Then
-   the greedy rung as a check that it trains, not a verdict.
-5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire,
-   and the first item that rents a box: opponents sampled across the
+4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on all four
+   panel members on both seeds, and pops 7.52 a game against 4.83
+   (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
+   It is the parent everything downstream should now start from.
+5. Auxiliary value targets (next; local and free): `network.md` item
+   3, the last of the global bundle. The value-head rails exist --
+   `--value-outcomes` already trains it on recorded results -- so what
+   is missing is the extra targets and their teacher plumbing, not the
+   mechanism. Then the greedy rung as a check that it trains.
+6. First mixed-CO rung -- the clone has now seen T4 powers fire -- and
+   the first item that rents a box: opponents sampled across the
    five, an Adder-mirror control group. A mixed group that fails while
    its control climbs is what "the policy cannot tell who it is"
    looks like.
-6. Capacity, last, only if 4 leaves 96x8 looking like the bound.
+7. Capacity, last, only if 5 leaves 96x8 looking like the bound.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
 ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once
@@ -79,7 +80,7 @@ live games against AWBW players -- etiquette and engineering.
 **Search** -- `network.md` calls it the largest untouched lever -- in
 rising order: one-ply value reranking on the 130k micro-steps/s
 engine, turn-level low-budget Gumbel, search-as-teacher. Gated on
-the run-4 critic (a search is worth what its evaluator knows) and
+the run-5 critic (a search is worth what its evaluator knows) and
 scored on the Elo instrument, the panel having just saturated.
 
 ## Keeping this honest

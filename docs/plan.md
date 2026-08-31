@@ -26,9 +26,8 @@
 (`log/2026-08-29-the-tier-4-powers-land.md`): mixed-CO training is honest.
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
-1. ~~`jakeman2`~~: negative. Every arm that trained finished below its
-   parent on decisive wins, and the arm that matched it was a warm-up
-   checkpoint identical to its init
+1. ~~`jakeman2`~~: negative. Every trained arm finished below its
+   parent, and the arm that matched it was its own init
    (`log/2026-08-30-the-rung-went-backwards.md`).
 2. ~~The cap instrument~~ (`5543bde`): score and decisive share now ride
    together, and re-rating the six arms is what found the frozen arm.
@@ -37,20 +36,33 @@
    2.0% (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
 4. Net change + re-clone, one bundle (next; local and free -- every
    clone including `bc-net2` was made on the 1660 Ti): auxiliary value
-   targets (`network.md` item 3; pooled bias and mean+max shipped in
-   net-v2), on a corpus replayed through the Tier-4 engine -- the
-   current clone predates it by ten hours (`b8c584a`). Larger than
-   "one head and one re-clone" reads: BC's loss is four
-   cross-entropies and touches no value head, so this is a head, a
-   loss, and teacher-side targets. Then the greedy rung as the free
-   benchmark -- a check that it trains, not a verdict, since `greedy`
-   is retired as an instrument.
+   targets (`network.md` item 3), on a corpus replayed through the
+   Tier-4 engine, which the current clone predates by ten hours
+   (`b8c584a`). Bigger than "one head and one re-clone": BC's loss is
+   four cross-entropies and touches no value head, so this needs a
+   head, a loss and teacher-side targets. Then the greedy rung as a
+   check that it trains -- not a verdict, `greedy` being retired.
 5. First mixed-CO rung, after 4 so the clone has seen T4 powers fire,
    and the first item that rents a box: opponents sampled across the
    five, an Adder-mirror control group. A mixed group that fails while
    its control climbs is what "the policy cannot tell who it is"
    looks like.
 6. Capacity, last, only if 4 leaves 96x8 looking like the bound.
+
+**Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
+ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once
+-- `league3`'s pool of four *families* moved every panel number at once
+(`log/2026-08-27-the-species-league-holds.md`) -- and otherwise cycled into
+specialists that beat their own past and nothing else. Four prerequisites:
+1. Games that end. The terminal reward adds the cap tiebreak (`lib.rs`), so
+   self-play optimises day-60 income on both sides; `decisive_wins` now
+   measures the thing that should be rewarded.
+2. Scripted bots as pool members. The env takes one opponent at construction
+   and the pool holds only state_dicts, so JakeMan cannot be a member -- and
+   `league3`'s `greedy` column stalled for exactly that reason.
+3. Seed groups. Every league result on record is one seed, from before the
+   27-point spread was measured.
+4. Search, which is what makes self-play compound rather than drift.
 
 ## Endpoint, and the two books after
 

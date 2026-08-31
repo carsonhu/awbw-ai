@@ -32,17 +32,13 @@ is that it is built around CO powers and `NotACO` takes them away — which is
 exactly the condition this engine runs under, so for these purposes the ranking
 stands however well Wally plays elsewhere.
 
-> **Corrected 2026-08-30: the powers explanation is wrong.** WallyAI touches CO
-> abilities in three lines — `PowerActivator` at `PHASE_TURN_START`,
-> `PHASE_BUY`, `PHASE_TURN_END`. `JakeMan.java` has the same three and won;
-> `Muriel.java` has none and came second. Under `NotACO` the winner and the
-> fourth-placed AI lose the identical thing. What Wally has instead is
-> conservatism by construction: `CALC = CalcType.PESSIMISTIC` for its own
-> attacks against `OPTIMISTIC` for enemy threat, plus
-> `AGGRO_EFFECT_THRESHOLD 0.55`, `YEET_FUNDS_BIAS 1000`,
-> `BUILD_SCARE_PERCENT 50` and fund-banking to `MAX_BANK_FUNDS_FACTOR 2.5`.
-> The choice of JakeMan stands; the reason given here for Wally's placement
-> does not.
+> **Corrected 2026-08-30: powers explain none of it.** `JakeMan.java` carries
+> the same three `PowerActivator` calls as `WallyAI.java` and won; `Muriel.java`
+> has none and came second, so `NotACO` takes the identical thing from the
+> winner and the fourth place. Re-run with mirror controls, Wally loses to
+> JakeMan 20/20 by CONQUEST in 14.1 turns — destroyed rather than outbuilt, and
+> faster than a JakeMan mirror finishes. The pick stands; this reason does not
+> (`log/2026-08-30-wally-is-destroyed-not-outbuilt.md`).
 
 An earlier pass at 8 games per pairing put Muriel ahead of JakeMan 5–3. At 20 it
 is JakeMan 15–5. Eight games was noise, the same way 200 evaluation games were

@@ -116,6 +116,13 @@ esac
 mkdir -p logs
 log() { echo "[$(date +%H:%M)] $*" | tee -a logs/grid.log; }
 
+# Refuse to start without the files every arm needs. Without this, a box whose
+# checkpoints were never copied in runs eight arms that each die in seconds
+# and prints "grid complete" over an empty result.
+for need in "${PARENT:-}" "$ANCHOR"     checkpoints/bc-powers-scaled2.pt checkpoints/ppo-adder3.pt; do
+  [ -z "$need" ] || [ -f "$need" ] || { echo "missing $need -- copy it into checkpoints/ first"; exit 1; }
+done
+
 run_arm() {
   local name="$1" flags="$2"
   log "start $name"

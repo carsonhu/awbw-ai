@@ -172,10 +172,42 @@ def main():
     else:
         raise AssertionError("an unknown opponent was accepted")
 
+    # One-ply lookahead, which reranking is built on. Self-play so that no
+    # scripted bot replies between the preview and the real order -- then the
+    # preview has to be exact, not merely plausible, because the luck source
+    # is copied with the state.
+    look = awbw.VecEnv(num_envs=16, seed=5, max_day=20, shaping=0.1)
+    before = np.zeros((look.num_envs, look.observation_size), dtype=np.float32)
+    preview = np.zeros_like(before)
+    after = np.zeros_like(before)
+    look.reset()
+    for _ in range(50):
+        look.observe_into(before)
+        sources = sample_masked(look.source_mask(), rng)
+        dests = sample_masked(look.dest_mask(sources), rng)
+        kinds = sample_masked(look.kind_mask(sources, dests), rng)
+        params = sample_masked(look.param_mask(sources, dests, kinds), rng)
+
+        sign, terminal = look.lookahead_into(sources, dests, kinds, params, preview)
+        sign, terminal = np.asarray(sign), np.asarray(terminal)
+        assert set(np.unique(sign)) <= {-1, 0, 1}, f"bad sign {np.unique(sign)}"
+        assert ((terminal == 0) | (sign == 0)).all(), "a live game got a result"
+        # Previewing must not advance anything.
+        held = np.zeros_like(before)
+        look.observe_into(held)
+        assert (held == before).all(), "lookahead moved the real games"
+
+        look.step(sources, dests, kinds, params)
+        look.observe_into(after)
+        # Games the order finished are already restarted, so they are excluded;
+        # everything else must land exactly where the preview said it would.
+        live = sign != 0
+        assert (preview[live] == after[live]).all(), "the preview was not exact"
+
     # A masked-uniform policy cannot break the invariants asserted above, so
     # reaching this line means the contract holds.
     print("\nOK: masks non-empty, orders legal, episodes restart cleanly,"
-          "\n    mixed pools deal per game")
+          "\n    mixed pools deal per game, one-ply previews are exact")
 
 
 if __name__ == "__main__":

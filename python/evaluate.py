@@ -98,6 +98,56 @@ class Net:
         return s, d, k, p
 
 
+class Rerank:
+    """`Net`, but it looks one ply ahead before committing.
+
+    Samples `width` candidate orders, applies each to a *copy* of every game
+    and keeps the one whose resulting position the value head likes best. The
+    engine does the applying, so a candidate costs a state clone and a forward
+    pass rather than a rollout.
+
+    A candidate that hands over the turn is read from the other side's view,
+    so its value is negated; one that ends the game is scored by the result,
+    the value head having nothing left to read. `lookahead_into` returns the
+    sign that says which, and zero where the game ended.
+
+    This is the first rung of the search ladder in `network.md`, and it is
+    worth exactly what the critic is worth -- which is why the critic got
+    measured first (`log/2026-09-07-the-critic-falls-with-greedy-and-returns-with-jakeman.md`).
+    """
+
+    def __init__(self, policy, device, temperature: float, width: int):
+        self.net = Net(policy, device, temperature)
+        self.policy = policy
+        self.device = device
+        self.width = width
+
+    @torch.no_grad()
+    def choose(self, env, obs, rng):
+        n = env.num_envs
+        after = np.zeros((n, env.observation_size), dtype=np.float32)
+        chosen = None
+        best = torch.full((n,), -float("inf"), device=self.device)
+        for _ in range(self.width):
+            cand = self.net.choose(env, obs, rng)
+            sign, terminal = env.lookahead_into(*cand, after)
+            sign = torch.from_numpy(np.asarray(sign)).to(self.device).float()
+            terminal = torch.from_numpy(np.asarray(terminal)).to(self.device)
+            value = self.policy.value_of(
+                torch.from_numpy(after).to(self.device))
+            # sign 0 means the order ended the game, and `terminal` already
+            # holds the result from the mover's side.
+            value = torch.where(sign == 0, terminal, sign * value)
+            if chosen is None:
+                chosen, best = [c.copy() for c in cand], value
+                continue
+            better = (value > best).cpu().numpy()
+            for slot, c in zip(chosen, cand):
+                slot[better] = c[better]
+            best = torch.maximum(best, value)
+        return tuple(chosen)
+
+
 class PlaneSlice:
     """An old-layout policy reading a superset observation.
 
@@ -249,6 +299,9 @@ def main() -> int:
                         help="settle a day-capped game on income, then property count")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="0 for the best order every time")
+    parser.add_argument("--rerank", type=int, default=1,
+                        help="candidate orders to sample and score one ply "
+                             "ahead with the value head; 1 is no search")
     parser.add_argument("--seed", type=int, default=3)
     args = parser.parse_args()
 
@@ -318,8 +371,10 @@ def main() -> int:
             f"(rebuild the pyd from the checkpoint's era to rate it)")
 
     if args.policy == "net":
-        agent = Net(fit(load(ROOT / args.checkpoint, env, device)), device,
-                    args.temperature)
+        loaded = fit(load(ROOT / args.checkpoint, env, device))
+        agent = (Rerank(loaded, device, args.temperature, args.rerank)
+                 if args.rerank > 1
+                 else Net(loaded, device, args.temperature))
     else:
         agent = Uniform()
     if args.versus:

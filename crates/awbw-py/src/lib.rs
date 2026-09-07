@@ -584,6 +584,91 @@ impl VecEnv {
         self.opponent_names.clone()
     }
 
+    /// Applies one candidate order to a *copy* of each game and writes the
+    /// observation that would follow. The real games are untouched.
+    ///
+    /// One ply and no further -- the scripted opponent does not reply -- so a
+    /// position handed over by an end of turn is encoded from the *other*
+    /// side, because `encode_observation` always writes the view of whoever
+    /// is to move. The returned sign says which happened, per game: `+1` the
+    /// mover still holds the turn, `-1` the order passed it and a value read
+    /// off this observation must be negated, `0` the order ended the game --
+    /// there the observation means nothing and `terminal` carries the result
+    /// from the mover's side instead.
+    ///
+    /// The luck source is copied with the state, so a previewed attack rolls
+    /// exactly as the real one would. An order the engine would refuse
+    /// previews as the end of turn it would be charged as.
+    fn lookahead_into<'py>(
+        &self,
+        py: Python<'py>,
+        sources: PyReadonlyArray1<u32>,
+        dests: PyReadonlyArray1<u32>,
+        kinds: PyReadonlyArray1<u32>,
+        params: PyReadonlyArray1<u32>,
+        mut out: PyReadwriteArray2<f32>,
+    ) -> PyResult<(Bound<'py, PyArray1<i8>>, Bound<'py, PyArray1<f32>>)> {
+        let (sources, dests) = (sources.as_slice()?, dests.as_slice()?);
+        let (kinds, params) = (kinds.as_slice()?, params.as_slice()?);
+        for (name, len) in [
+            ("sources", sources.len()),
+            ("dests", dests.len()),
+            ("kinds", kinds.len()),
+            ("params", params.len()),
+        ] {
+            check_len(name, len, self.games.len())?;
+        }
+        let len = self.obs_len();
+        let expected = self.games.len() * len;
+        let data = out
+            .as_slice_mut()
+            .map_err(|_| PyValueError::new_err("buffer must be C-contiguous"))?;
+        if data.len() != expected {
+            return Err(PyValueError::new_err(format!(
+                "buffer holds {} floats, expected {expected}",
+                data.len()
+            )));
+        }
+
+        let mut signs = vec![0i8; self.games.len()];
+        let mut terminal = vec![0.0f32; self.games.len()];
+        for i in 0..self.games.len() {
+            let real = &self.games[i].engine;
+            let mover = real.state.current;
+            let code = ActionCode {
+                source: sources[i],
+                dest: dests[i],
+                kind: kinds[i] as u8,
+                param: params[i],
+            };
+            let action = decode(&real.state, code).unwrap_or(Action::EndTurn);
+            let mut scratch = Engine::new(real.state.clone(), 0);
+            scratch.rng = real.rng;
+            if scratch.apply(action).is_err() {
+                let _ = scratch.apply(Action::EndTurn);
+            }
+            let slice = &mut data[i * len..(i + 1) * len];
+            if VecEnv::is_finished(&scratch.state, self.max_day) {
+                signs[i] = 0;
+                terminal[i] = match VecEnv::resolve(&scratch.state, mover, self.decide_cap) {
+                    Resolution::Won(p) if p == mover => 1.0,
+                    Resolution::Won(_) => -1.0,
+                    Resolution::Drawn | Resolution::Cut => 0.0,
+                };
+                slice.fill(0.0);
+            } else {
+                signs[i] = if scratch.state.current == mover { 1 } else { -1 };
+                awbw_engine::encoding::encode_observation_with(
+                    &scratch.state,
+                    scratch.vision(),
+                    slice,
+                    self.threat,
+                );
+            }
+        }
+        Ok((signs.into_pyarray(py), terminal.into_pyarray(py)))
+    }
+
     /// `(games finished, wins for [`VecEnv::agent_seat`], draws)`.
     ///
     /// Draws are almost all games that hit the day cap. Counting them apart

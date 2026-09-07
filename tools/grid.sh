@@ -5,7 +5,7 @@
 # is the seed group -- this is that unit, made affordable.
 #
 #   bash tools/grid.sh                  # the default grid, see GRID below
-#   GRID=jakeman2 bash tools/grid.sh    # a named grid
+#   GRID=mixjm bash tools/grid.sh       # a named grid, see the case list
 #   CONCURRENT=4 bash tools/grid.sh     # fewer lanes on a smaller card
 #
 # Each arm is  train -> panel -> play_diag -> per-CO ratings  as one chain;
@@ -24,6 +24,12 @@ GRID="${GRID:-mixed}"
 # after the T4 re-clone leashes to bc-net2-t4, and a stale default here pulls
 # a rung toward a clone that barely pops. Each case sets its own.
 ANCHOR="${ANCHOR:-}"
+# Which scripted bot the per-CO ratings are read against. `greedy` for every
+# grid up to the mixed rung, which then saturated it for all five COs at once
+# (log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md): a rung whose
+# arms all rate 90-97 as every CO has not been measured. Each case that needs
+# a harder instrument sets its own.
+RATE_OPP="${RATE_OPP:-greedy}"
 PY="${PY:-python3}"
 # The five COs whose powers the engine models, and so the only five a rung
 # can honestly be dealt (plan.md).
@@ -109,8 +115,41 @@ case "$GRID" in
       ARMS+=("mixctl-s$seed|--co Adder --seed $seed")
     done
     ;;
+  mixjm)
+    # Plan item 7, the JakeMan rung from the mixed lineage. The mixed rung
+    # left `greedy` saturated for all five COs -- an Adder-only control
+    # already rates 87.0-97.5 as Jake, Koal, Jess and Grimm
+    # (log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md) -- so JakeMan
+    # is the one panel member with headroom left, 7.8-20.0 for every arm ever
+    # rated, and it is where the Adder lineage went *backwards*
+    # (log/2026-08-30-the-rung-went-backwards.md).
+    #
+    # Four seeds from `mix-s43`, dealt the pool the recipe of record now uses,
+    # leashed to the clone rather than to the immediate parent -- jakeman2's
+    # shape, and the anchor is a leash to human play, not to the last rung.
+    # The two `noanc` arms are here for the same reason they were there: v1
+    # reached 63.4 with no anchor at all, and the anchor term was pulling
+    # through every arm of the last JakeMan grid.
+    #
+    # Bars: 49.3 vs JakeMan is the best single arm on record (Adder lineage,
+    # log/2026-08-26-jakeman-beaten.md); this lineage's own is 16.5.
+    PARENT="${PARENT:-checkpoints/mix-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    # Rated per CO against JakeMan, not `greedy`: a saturated instrument
+    # cannot separate the arms, and "wins across the Tier-4 COs" is the claim
+    # this rung has to support.
+    RATE_OPP=jakeman
+    RECIPE=(--threat-planes --opponent jakeman --co "$T4" --turn-discount
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT")
+    for seed in 7 43 101 202; do
+      ARMS+=("mixjm-s$seed|--anchor $ANCHOR --anchor-kl 0.03 --seed $seed")
+    done
+    ARMS+=("mixjm-noanc-s7|--seed 7")
+    ARMS+=("mixjm-noanc-s43|--seed 43")
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm)"; exit 1;;
 esac
 
 mkdir -p logs
@@ -142,12 +181,14 @@ run_arm() {
     # a mixed arm whose indirect share does not move when it is Jake has
     # learned a generalist, not five players. Control arms get it too: an
     # Adder-only rung's score as Grimm is the baseline the mixed arms beat.
+    # The mirror is against $RATE_OPP -- usually the rung's own opponent, but
+    # `greedy` no longer separates anything (see the RATE_OPP note above).
     for co in ${T4//,/ }; do
       $PY python/evaluate.py --checkpoint "checkpoints/$name.pt" \
-        --opponent greedy --co "$co" --games 200 --temperature 1.0 --decide-cap \
+        --opponent "$RATE_OPP" --co "$co" --games 200 --temperature 1.0 --decide-cap \
         > "logs/co-$name-$co.txt" 2>&1
       $PY python/play_diag.py --checkpoint "checkpoints/$name.pt" \
-        --co "$co" --opponent greedy --games 30 \
+        --co "$co" --opponent "$RATE_OPP" --games 30 \
         > "logs/diag-$name-$co.txt" 2>&1
     done
     log "rated $name  $(for co in ${T4//,/ }; do printf '%s %s  ' "$co" "$(grep -m1 '^ *score' "logs/co-$name-$co.txt" | awk '{print $2}')"; done)"

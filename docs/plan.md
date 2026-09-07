@@ -44,10 +44,10 @@
    and an Adder-only control already plays every CO against `greedy`
    (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).
    The pool is the recipe of record; `mix-s43` is the parent.
-7. The JakeMan rung from `mix-s43` (next, ~$1): the one panel member
-   with headroom, 7.8-20.0 for every arm, and where `jakeman2` went
-   backwards from the Adder lineage. Rated per CO against JakeMan,
-   since `greedy` is saturated for all five.
+7. `GRID=mixjm` -- the JakeMan rung from `mix-s43` (next, ~$1): the
+   one panel member with headroom, 7.8-20.0 for every arm, and where
+   `jakeman2` went backwards from the Adder lineage. Rated per CO
+   against JakeMan, since `greedy` is saturated for all five.
 8. Capacity, last, only if 7 leaves 96x8 looking like the bound.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a

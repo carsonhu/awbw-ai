@@ -58,13 +58,18 @@ python3 python/smoke_test.py
 # last PARENT line is the one that matters.
 PARENT_HINT="$(sed -n 's/^ *PARENT="${PARENT:-\(.*\)}".*/\1/p' tools/grid.sh | tail -1)"
 PARENT_HINT="${PARENT_HINT:-the --init checkpoint your GRID names}"
+# The anchor stopped being the parent at the mixjm rung: a rung two steps off
+# the clone still leashes to the clone, so those are two files, and a box that
+# copied only one dies on the grid's preflight.
+ANCHOR_HINT="$(sed -n 's/^ *: "${ANCHOR:=\(.*\)}".*/\1/p' tools/grid.sh | tail -1)"
+[ "$ANCHOR_HINT" = "$PARENT_HINT" ] && ANCHOR_HINT=""
 
 mkdir -p checkpoints logs
 echo
 echo "Setup complete in $PWD. Now from the local machine, the two net panel"
 echo "members every grid needs:"
 echo "  scp checkpoints/{bc-powers-scaled2,ppo-adder3}.pt <this-box>:$PWD/checkpoints/"
-echo "plus the parent the grid starts from, which is also its anchor ($PARENT_HINT):"
-echo "  scp $PARENT_HINT <this-box>:$PWD/checkpoints/"
-echo "then here, under nohup so an ssh drop cannot kill the arms:"
-echo "  cd $PWD && nohup bash tools/grid.sh > logs/nohup.log 2>&1 &"
+echo "plus the parent the newest grid starts from ($PARENT_HINT)$([ -n "$ANCHOR_HINT" ] && echo " and the anchor it leashes to ($ANCHOR_HINT)"):"
+echo "  scp $PARENT_HINT $ANCHOR_HINT <this-box>:$PWD/checkpoints/"
+echo "then here, naming the grid, under nohup so an ssh drop cannot kill the arms:"
+echo "  cd $PWD && GRID=mixjm nohup bash tools/grid.sh > logs/nohup.log 2>&1 &"

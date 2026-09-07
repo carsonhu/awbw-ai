@@ -54,15 +54,17 @@ python3 python/smoke_test.py
 # The grid's parent is a per-grid choice, so read it off grid.sh rather than
 # naming one here -- a stale checkpoint name in this message means a grid that
 # dies on its first arm, forty minutes after the box started billing.
-PARENT_HINT="$(sed -n 's/^ *PARENT="${PARENT:-\(.*\)}".*/\1/p' tools/grid.sh | head -1)"
+# The newest grid is the one about to run, and grids are appended, so the
+# last PARENT line is the one that matters.
+PARENT_HINT="$(sed -n 's/^ *PARENT="${PARENT:-\(.*\)}".*/\1/p' tools/grid.sh | tail -1)"
 PARENT_HINT="${PARENT_HINT:-the --init checkpoint your GRID names}"
 
 mkdir -p checkpoints logs
 echo
-echo "Setup complete in $PWD. Now from the local machine, the three every grid"
-echo "needs -- the anchor and the two net panel members:"
-echo "  scp checkpoints/{bc-net2,bc-powers-scaled2,ppo-adder3}.pt <this-box>:$PWD/checkpoints/"
-echo "plus the parent the grid continues from, which is per grid ($PARENT_HINT):"
+echo "Setup complete in $PWD. Now from the local machine, the two net panel"
+echo "members every grid needs:"
+echo "  scp checkpoints/{bc-powers-scaled2,ppo-adder3}.pt <this-box>:$PWD/checkpoints/"
+echo "plus the parent the grid starts from, which is also its anchor ($PARENT_HINT):"
 echo "  scp $PARENT_HINT <this-box>:$PWD/checkpoints/"
-echo "then here:"
-echo "  cd $PWD && bash tools/grid.sh"
+echo "then here, under nohup so an ssh drop cannot kill the arms:"
+echo "  cd $PWD && nohup bash tools/grid.sh > logs/nohup.log 2>&1 &"

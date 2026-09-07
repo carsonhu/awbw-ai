@@ -406,3 +406,10 @@ and triples the day-cap rate, 4.5% to 17.0% -- the head predicts a shaped,
 turn-discounted return with the cap tiebreak in it, and a selector gets what
 it optimises. The *better* critic farms the cap harder, which is the tell
 (`log/2026-09-07-one-ply-buys-eight-points-and-farms-the-cap.md`).
+
+**`value_diag` does not gate a search.** Three critics spanning 0.564 to
+0.859 accuracy on human games rerank equally well (+6.0, +8.3, +7.0
+decisive), while a noise ranker gains nothing -- so the ranking is real and
+its quality is not what `value_diag` measures. A rerank claim needs the
+noise control; without it the code path is a live explanation
+(`log/2026-09-07-the-ranking-is-real-and-the-accuracy-is-not-why.md`).

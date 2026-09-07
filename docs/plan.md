@@ -78,10 +78,10 @@ one ground truth no bot supplies. Half does not: a real rating needs
 live games against AWBW players -- etiquette and engineering.
 
 **Search.** ~~One-ply value reranking~~ is built and worth +8.3 decisive
-points, on a tripled cap rate
-(`log/2026-09-07-one-ply-buys-eight-points-and-farms-the-cap.md`).
-What gates the rest -- turn-level Gumbel, search-as-teacher -- is the
-critic's *objective*, not its accuracy. That is the open problem.
+points, on a tripled cap rate, and any critic buys it
+(`log/2026-09-07-the-ranking-is-real-and-the-accuracy-is-not-why.md`).
+The open problem is that no instrument here predicts what a search
+gets from a critic, so the rungs above cannot yet be gated at all.
 
 ## Keeping this honest
 

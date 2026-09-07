@@ -116,9 +116,17 @@ class Rerank:
     measured first (`log/2026-09-07-the-critic-falls-with-greedy-and-returns-with-jakeman.md`).
     """
 
-    def __init__(self, policy, device, temperature: float, width: int):
+    def __init__(self, policy, device, temperature: float, width: int,
+                 critic=None):
         self.net = Net(policy, device, temperature)
         self.policy = policy
+        # Whose value head does the ranking. Normally the policy's own, but
+        # they can be different nets: the policy's head predicts a shaped,
+        # turn-discounted return with the cap tiebreak in it, and a clone's
+        # predicts a recorded human outcome. Which one reranks better says
+        # whether the critic's objective or its accuracy is what matters
+        # (log/2026-09-07-one-ply-buys-eight-points-and-farms-the-cap.md).
+        self.critic = critic if critic is not None else policy
         self.device = device
         self.width = width
 
@@ -133,7 +141,7 @@ class Rerank:
             sign, terminal = env.lookahead_into(*cand, after)
             sign = torch.from_numpy(np.asarray(sign)).to(self.device).float()
             terminal = torch.from_numpy(np.asarray(terminal)).to(self.device)
-            value = self.policy.value_of(
+            value = self.critic.value_of(
                 torch.from_numpy(after).to(self.device))
             # sign 0 means the order ended the game, and `terminal` already
             # holds the result from the mover's side.
@@ -146,6 +154,25 @@ class Rerank:
                 slot[better] = c[better]
             best = torch.maximum(best, value)
         return tuple(chosen)
+
+
+class NoiseCritic:
+    """The control for `Rerank`: ranks candidates at random.
+
+    Picking the argmax of noise over K independent policy samples *is* one
+    sample from that policy, so on non-terminal candidates this should
+    reproduce `--rerank 1`. It is not a pure null, deliberately: orders that
+    end the game still score by their real result, because spotting the move
+    that wins now is part of what a search does. So a gain here is the part
+    of reranking that needs no critic at all, and the difference from a real
+    critic is what the critic is actually buying.
+    """
+
+    def __init__(self, device):
+        self.device = device
+
+    def value_of(self, obs):
+        return torch.randn(obs.shape[0], device=self.device)
 
 
 class PlaneSlice:
@@ -299,6 +326,9 @@ def main() -> int:
                         help="settle a day-capped game on income, then property count")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="0 for the best order every time")
+    parser.add_argument("--rerank-critic", default=None,
+                        help="checkpoint whose value head ranks the "
+                             "candidates; defaults to the playing policy's")
     parser.add_argument("--rerank", type=int, default=1,
                         help="candidate orders to sample and score one ply "
                              "ahead with the value head; 1 is no search")
@@ -372,7 +402,13 @@ def main() -> int:
 
     if args.policy == "net":
         loaded = fit(load(ROOT / args.checkpoint, env, device))
-        agent = (Rerank(loaded, device, args.temperature, args.rerank)
+        if args.rerank_critic == "random":
+            critic = NoiseCritic(device)
+        elif args.rerank_critic:
+            critic = fit(load(ROOT / args.rerank_critic, env, device))
+        else:
+            critic = None
+        agent = (Rerank(loaded, device, args.temperature, args.rerank, critic)
                  if args.rerank > 1
                  else Net(loaded, device, args.temperature))
     else:

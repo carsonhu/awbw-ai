@@ -25,3 +25,7 @@ logs/
 # Result archives pulled off a rented box -- 100MB+ of checkpoints and logs,
 # both of which are ignored in their unpacked form too.
 *.tgz
+
+# Auxiliary value targets, dumped from the corpus above by
+# `cargo run --release -p awbw-replay --bin aux-targets` in under two minutes.
+data/aux-targets.json

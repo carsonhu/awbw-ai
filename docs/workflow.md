@@ -51,7 +51,7 @@ pageable memory each step cost more than the engine did.
 ## Training and rating a policy
 
 ```
-py -3.12 python/bc.py --teacher human --steps 15000 --channels 96 --blocks 8   --threat-planes --norm group --pool-bias --value-pool meanmax --pop-weight 100   --value-outcomes data/game-meta-119544.json --out checkpoints/bc-net2.pt
+py -3.12 python/bc.py --teacher human --steps 15000 --channels 96 --blocks 8   --threat-planes --norm group --pool-bias --value-pool meanmax --pop-weight 100   --value-outcomes data/game-meta-119544.json   --out checkpoints/bc-net2.pt
 py -3.12 python/ppo.py --init checkpoints/bc-net2.pt   # improve it by playing
 py -3.12 python/panel.py --checkpoint <ckpt>          # the fixed panel
 py -3.12 python/play_diag.py --checkpoint <ckpt> --baseline  # what it builds
@@ -86,6 +86,7 @@ against the corpus, not by the score.
 ```
 python tools/prepare_replay.py --glob '<replays>\**\*.zip' \
     --map-id 119544 --exclude-fog --workers 12
+cargo run --release -p awbw-replay --bin aux-targets  # value-head aux targets
 ```
 
 Filter on `--map-id`, never filenames: some games named `STD` are fog games, and
@@ -102,9 +103,8 @@ py -3.12 python/record_games.py --checkpoint checkpoints/ppo.pt \
 ```
 
 Writes real AWBW replay files to `replays/` (gitignored), which open in AWBW's
-own viewers — a win rate says a policy improved, only watching says what it
-learned. Round-trip a written replay through `prepare_replay.py` and the
-verifier to check it is faithful.
+own viewers: a win rate says a policy improved, only watching says what it
+learned. Round-trip one through `prepare_replay.py` to check it is faithful.
 
 ## Docs
 

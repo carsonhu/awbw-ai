@@ -38,17 +38,17 @@
    panel members on both seeds, and pops 7.52 a game against 4.83
    (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
    It is the parent everything downstream should now start from.
-5. Auxiliary value targets (next; local and free): `network.md` item
-   3, the last of the global bundle. The value-head rails exist --
-   `--value-outcomes` already trains it on recorded results -- so what
-   is missing is the extra targets and their teacher plumbing, not the
-   mechanism. Then the greedy rung as a check that it trains.
-6. First mixed-CO rung -- the clone has now seen T4 powers fire -- and
+5. ~~Auxiliary value targets~~: built, and negative. Both seeds take
+   two fewer orders a turn, no column wins, and the clone member's
+   seed spread went 0.5 -> 18.2 -- BC stopped being the reproducible
+   end (`log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`).
+   The dense ownership map is unseparated from the two cheap globals.
+6. First mixed-CO rung (next) -- the clone has seen T4 powers fire -- and
    the first item that rents a box: opponents sampled across the
    five, an Adder-mirror control group. A mixed group that fails while
    its control climbs is what "the policy cannot tell who it is"
    looks like.
-7. Capacity, last, only if 5 leaves 96x8 looking like the bound.
+7. Capacity, last, only if 6 leaves 96x8 looking like the bound.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
 ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once

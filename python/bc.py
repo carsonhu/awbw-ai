@@ -70,6 +70,7 @@ class Source:
         targets = self.env.source_targets() if self.source_set else None
         ids = self.env.game_ids() if self.human else None
         movers = self.env.current_player() if self.human else None
+        turns = self.env.turn_index() if self.human else None
         result = self.env.act()
         codes, valid = result if self.human else (result, None)
         obs = self.staging.to(device, non_blocking=True)
@@ -80,7 +81,7 @@ class Source:
             keep = torch.from_numpy(valid).to(device, non_blocking=True)
         if targets is not None:
             targets = torch.from_numpy(targets).to(device, non_blocking=True)
-        return obs, codes, keep, targets, ids, movers
+        return obs, codes, keep, targets, ids, movers, turns
 
 
 def make_source(args, batch: int, validation: bool) -> Source:
@@ -143,6 +144,142 @@ def value_targets(ids, movers, outcomes, device):
     return target, have
 
 
+# What ±1 means on both auxiliary scalars: eight properties of lead, measured
+# once as a count and once as the income it pays. Normalising by the *map*
+# instead is the interpretable choice and was the first one tried -- it leaves
+# the targets with a standard deviation near 0.1, an MSE a head answers by
+# predicting zero. Eight puts them near 0.45 and lets the clip do real work on
+# blowouts, which the value head already records as wins.
+AUX_PROPERTIES = 8.0
+
+
+def _versus(values):
+    """Each seat's edge over its best opponent, along the last axis.
+
+    Two seats is what the training slice has, and there the subtraction is the
+    obvious one; written for any number so a target does not quietly mean
+    something else on a three-player replay.
+    """
+    out = np.empty_like(values)
+    for seat in range(values.shape[-1]):
+        others = np.delete(values, seat, axis=-1)
+        out[..., seat] = values[..., seat] - others.max(axis=-1)
+    return out
+
+
+class Aux:
+    """Auxiliary targets for the value trunk, joined to rows by (game, turn).
+
+    Three of them, all from the mover's side and all futures the teacher cannot
+    see -- it streams a game forwards, and these are read off its end. So
+    `aux-targets` (the Rust binary) dumps them once per corpus and this joins
+    them back on the key `ReplayTeacher` already reports.
+
+    - *final property differential*, the property race's outcome;
+    - *income differential `horizon` days out*, the same race at a range the
+      policy can still act on. A game that ends first freezes at its last turn,
+      which is the honest answer: the race was over;
+    - *final ownership per tile*, three classes -- the mover's, the opponent's,
+      nobody's -- and `ignore_index` on every tile that is not a property.
+      This is KataGo's ownership target, and the reason the head is per tile.
+
+    Both scalars are normalised to roughly [-1, 1] so the auxiliary MSE cannot
+    swamp the losses it rides alongside.
+
+    Measured negative, and left in place for the follow-up that separates the
+    dense ownership term from the two cheap globals --
+    `log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`.
+    """
+
+    def __init__(self, path, shape, horizon: int):
+        self.height, self.width = shape
+        self.tiles = self.height * self.width
+        self.horizon = horizon
+        self.games = {}
+        self.off_map = 0
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        for gid, entry in raw.items():
+            # The dump covers the whole corpus and a trainer serves one map.
+            # Tile indices only mean anything on the board they were written
+            # for, so a game on another one is dropped, not reinterpreted.
+            if (entry["height"], entry["width"]) != (self.height, self.width):
+                self.off_map += 1
+                continue
+            game = self._prepare(entry, self.tiles, horizon)
+            if game is not None:
+                self.games[int(gid)] = game
+
+    @staticmethod
+    def _prepare(entry, tiles: int, horizon: int):
+        seats = entry["seats"]
+        props = np.asarray(entry["props"], dtype=np.int64)
+        rows = entry["turns"]
+        if props.size == 0 or not rows:
+            return None
+
+        days = np.zeros(len(rows), dtype=np.float64)
+        income = np.zeros((len(rows), seats), dtype=np.float64)
+        good = np.zeros(len(rows), dtype=bool)
+        # A snapshot that would not load carries its predecessor's numbers, so
+        # the day column stays sorted for the search below; its own row is
+        # still marked bad and contributes nothing.
+        for i, row in enumerate(rows):
+            if row is None:
+                if i:
+                    days[i], income[i] = days[i - 1], income[i - 1]
+                continue
+            days[i] = row[0]
+            income[i] = row[1:1 + seats]
+            good[i] = True
+        if not good.any():
+            return None
+
+        # The first turn at least `horizon` days out, or the last turn there is.
+        ahead = np.searchsorted(days, days + horizon, side="left")
+        ahead = np.minimum(ahead, len(rows) - 1)
+
+        counts = np.asarray(entry["final_counts"], dtype=np.float64)
+        scale_income = AUX_PROPERTIES * max(entry["funds_per_property"], 1)
+        prop = np.clip(_versus(counts) / AUX_PROPERTIES, -1.0, 1.0)
+        inc = np.clip(_versus(income[ahead]) / scale_income, -1.0, 1.0)
+
+        final_owner = np.asarray(entry["final_owner"], dtype=np.int64)
+        owner = np.full((seats, tiles), -100, dtype=np.int64)
+        for seat in range(seats):
+            classes = np.where(final_owner < 0, 2, np.where(final_owner == seat, 0, 1))
+            owner[seat, props] = classes
+
+        return {
+            "good": good,
+            "prop": prop.astype(np.float32),
+            "inc": inc.astype(np.float32),
+            "owner": owner,
+        }
+
+    def targets(self, ids, movers, turns, device):
+        """`(globals, ownership, mask)` for one batch of rows."""
+        n = len(ids)
+        glob = np.zeros((n, netmod.AUX_GLOBALS), dtype=np.float32)
+        owner = np.full((n, self.tiles), -100, dtype=np.int64)
+        have = np.zeros(n, dtype=bool)
+        rows = zip(ids.tolist(), movers.tolist(), turns.tolist())
+        for row, (gid, mover, turn) in enumerate(rows):
+            game = self.games.get(gid)
+            if game is None or mover < 0 or turn < 0 or turn >= len(game["good"]):
+                continue
+            if not game["good"][turn]:
+                continue
+            glob[row, 0] = game["prop"][mover]
+            glob[row, 1] = game["inc"][turn, mover]
+            owner[row] = game["owner"][mover]
+            have[row] = True
+        return (
+            torch.from_numpy(glob).to(device),
+            torch.from_numpy(owner).to(device),
+            torch.from_numpy(have).to(device),
+        )
+
+
 def source_loss(logits, target, targets_set, mask, weight: float,
                 pop_floor: int = 0, pop_weight: float = 1.0):
     """Cross-entropy against the exact unit, blended with the turn's whole set.
@@ -180,7 +317,7 @@ def source_loss(logits, target, targets_set, mask, weight: float,
 def losses(policy, obs, codes, keep, end_turn_index: int,
            targets_set=None, set_weight: float = 0.0,
            value_target=None, value_mask=None, value_coef: float = 0.0,
-           pop_weight: float = 1.0):
+           pop_weight: float = 1.0, aux=None, aux_coef: float = 0.0):
     """Cross-entropy per head, over the rows where that head means anything.
 
     Ending the turn names no destination, and most orders carry no parameter.
@@ -189,7 +326,11 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
     report besides.
     """
     source, dest, kind, param = codes.unbind(dim=1)
-    if value_target is not None:
+    # One trunk pass feeds whichever extra heads have targets this step.
+    if aux is not None:
+        logits, value, (aux_global, aux_owner) = policy.evaluate_actions(
+            obs, source, dest, kind, aux=True)
+    elif value_target is not None:
         logits, value = policy.evaluate_actions(obs, source, dest, kind)
     else:
         logits = policy(obs, source=source, dest=dest, kind=kind)
@@ -205,7 +346,7 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
     # Counts stay on the GPU as one tensor: reading any of them back per step
     # stalls the pipeline waiting for the backward pass to land, which cost
     # half the throughput when these were plain floats.
-    tally = obs.new_zeros(2 * len(HEADS) + 2)
+    tally = obs.new_zeros(2 * len(STATS))
     whole = keep.clone()
     for i, (logit, target, mask) in enumerate(zip(logits, targets, masks)):
         hit = (logit.argmax(dim=1) == target) & mask
@@ -223,19 +364,36 @@ def losses(policy, obs, codes, keep, end_turn_index: int,
 
     # The whole order, right end to end. This is the number that matters:
     # three heads out of four is a different move.
-    tally[-2] = (whole & keep).sum()
-    tally[-1] = keep.sum()
+    tally[2 * ORDER] = (whole & keep).sum()
+    tally[2 * ORDER + 1] = keep.sum()
 
     if value_target is not None:
         rows = keep & value_mask
         if rows.any():
             total = total + value_coef * F.mse_loss(
                 value[rows], value_target[rows])
+
+    if aux is not None:
+        aux_glob, aux_tiles, aux_mask = aux
+        rows = keep & aux_mask
+        if rows.any():
+            total = total + aux_coef * F.mse_loss(
+                aux_global[rows], aux_glob[rows])
+            # Rows with no label join the non-property tiles in `ignore_index`,
+            # so the ownership mean is over labelled property tiles alone.
+            target = aux_tiles.masked_fill(~rows.unsqueeze(1), -100)
+            scored = target >= 0
+            total = total + aux_coef * F.cross_entropy(
+                aux_owner, target, ignore_index=-100)
+            tally[2 * OWNER] = ((aux_owner.argmax(dim=1) == target) & scored).sum()
+            tally[2 * OWNER + 1] = scored.sum()
     return total, tally.detach()
 
 
 HEADS = ("source", "dest", "kind", "param")
-STATS = HEADS + ("order",)
+STATS = HEADS + ("order", "owner")
+ORDER = STATS.index("order")
+OWNER = STATS.index("owner")
 
 
 def unpack(tally) -> dict:
@@ -256,7 +414,7 @@ def validate(policy, source: Source, batches: int, device, end_turn_index: int):
         source.env.reset()
     total = None
     for _ in range(batches):
-        obs, codes, keep, _, _, _ = source.next(device)
+        obs, codes, keep, _, _, _, _ = source.next(device)
         # Scored on the exact label always: the set target changes what the
         # policy is taught, and a metric that moved with it could not say
         # whether that helped.
@@ -286,6 +444,7 @@ def save(policy, args, map_name):
                 "norm": args.norm,
                 "pool_bias": args.pool_bias,
                 "value_pool": args.value_pool,
+                "aux": args.value_aux is not None,
             },
             "teacher": args.teacher,
             "source_set": args.source_set,
@@ -341,6 +500,15 @@ def main() -> int:
                         help="game-meta json; trains the value head on real "
                              "winners so PPO does not inherit a random critic")
     parser.add_argument("--value-coef", type=float, default=0.5)
+    # `network.md` item 3: the last of KataGo's global bundle. The targets are
+    # futures, so they are dumped once per corpus by the `aux-targets` binary
+    # and joined by (game, turn) here.
+    parser.add_argument("--value-aux", default=None,
+                        help="aux-targets json; trains two extra heads on how "
+                             "the property race ends and where it stands")
+    parser.add_argument("--aux-coef", type=float, default=0.3)
+    parser.add_argument("--aux-horizon", type=int, default=5,
+                        help="days ahead the income-differential target reads")
     parser.add_argument("--out", default="checkpoints/bc.pt")
     parser.add_argument("--init", default=None,
                         help="checkpoint to start from, for staged training")
@@ -361,11 +529,19 @@ def main() -> int:
 
     policy = netmod.build(train.env, args.channels, args.blocks,
                           norm=args.norm, pool_bias=args.pool_bias,
-                          value_pool=args.value_pool).to(device)
+                          value_pool=args.value_pool,
+                          aux=args.value_aux is not None).to(device)
     parameters = sum(p.numel() for p in policy.parameters())
     if args.init:
         state = torch.load(args.init, map_location=device, weights_only=True)
-        policy.load_state_dict(state["policy"])
+        # The auxiliary heads are the one part a checkpoint is allowed to be
+        # missing -- they are new, they are cloning-only, and starting them
+        # from their init costs nothing. Everything else stays a loud error.
+        missing, unexpected = policy.load_state_dict(state["policy"], strict=False)
+        stray = [k for k in list(missing) + list(unexpected)
+                 if not k.startswith("aux_")]
+        if stray:
+            raise SystemExit(f"--init does not match this net: {stray[:4]}")
 
     optimizer = torch.optim.AdamW(
         policy.parameters(), lr=args.lr, weight_decay=args.weight_decay
@@ -381,6 +557,14 @@ def main() -> int:
             raise SystemExit("--value-outcomes needs the human teacher")
         outcomes = load_outcomes(ROOT / args.value_outcomes)
         print(f"value head trains on {len(outcomes)} labeled games")
+    aux = None
+    if args.value_aux:
+        if args.teacher != "human":
+            raise SystemExit("--value-aux needs the human teacher")
+        aux = Aux(ROOT / args.value_aux, train.env.board_shape, args.aux_horizon)
+        print(f"aux heads train on {len(aux.games)} games "
+              f"({aux.off_map} dropped as another map), "
+              f"income read {args.aux_horizon} days out")
 
     print(f"device {device}, {parameters / 1e6:.2f}M parameters, "
           f"{args.channels}ch x {args.blocks} blocks")
@@ -396,7 +580,7 @@ def main() -> int:
 
     for step in range(1, args.steps + 1):
         mark = time.perf_counter()
-        obs, codes, keep, targets_set, ids, movers = train.next(device)
+        obs, codes, keep, targets_set, ids, movers, turns = train.next(device)
         data_time += time.perf_counter() - mark
         if not keep.any():
             continue
@@ -404,12 +588,13 @@ def main() -> int:
         if outcomes is not None:
             value_target, value_mask = value_targets(
                 ids, movers, outcomes, device)
+        aux_batch = aux.targets(ids, movers, turns, device) if aux else None
 
         with torch.amp.autocast("cuda", enabled=amp):
             loss, tally = losses(policy, obs, codes, keep, end_turn_index,
                                  targets_set, args.source_set,
                                  value_target, value_mask, args.value_coef,
-                                 args.pop_weight)
+                                 args.pop_weight, aux_batch, args.aux_coef)
 
         optimizer.zero_grad(set_to_none=True)
         scaler.scale(loss).backward()
@@ -429,7 +614,9 @@ def main() -> int:
             print(
                 f"  {step:>5}/{args.steps}  loss {loss_sum.item() / since:.3f}  "
                 + " ".join(f"{k[:3]} {scores[k]:.3f}" for k in HEADS)
-                + f" | order {scores['order']:.3f}  {rate:,.0f}/s"
+                + f" | order {scores['order']:.3f}"
+                + (f"  own {scores['owner']:.3f}" if aux else "")
+                + f"  {rate:,.0f}/s"
             )
             running = None
             loss_sum = torch.zeros((), device=device)

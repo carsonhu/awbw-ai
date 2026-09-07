@@ -18,6 +18,7 @@ dest:   pointer -- tiles scored against query(f_source, pooled)
 kind:   MLP(f_source, f_dest, pooled) -> 8
 param:  pointer + direct projection, conditioned on a kind embedding
 value:  MLP(pooled) -> scalar
+aux:    MLP(pooled) -> 2 globals, 1x1 conv -> 3 owners/tile (cloning only)
 ```
 
 Heads are masked by the engine and conditioned on the taken earlier choices;
@@ -69,14 +70,20 @@ planes the stem conv widens with zero-init channels and the function is
 unchanged -- verified against `PlaneSlice` to 2e-5 on real play. Additions
 only: a change that redefines planes (threat v1->v2) still costs the book.
 
-**3. Auxiliary value targets, all that is left of the global bundle.**
-Derived global state (material balance, meter race) must be re-synthesized
-by 3x3 convs. Two of KataGo's three answers shipped inside net-v2 and are
-in `bc-net2`'s stored config -- pooled bias on alternating blocks,
-mean+max for the value head. The third has not: auxiliary targets, worth
-roughly double training efficiency there. The AWBW analogs (final property
-differential, income at t+N) are already computed by the shaping code, so
-what remains is one head and one re-clone.
+**3. Auxiliary value targets -- built (`--value-aux`).** Derived global
+state (material balance, the property race) must otherwise be
+re-synthesized by 3x3 convs. Two of KataGo's three answers shipped inside
+net-v2 -- pooled bias on alternating blocks, mean+max for the value head;
+the third is targets nobody asked for, worth roughly double training
+efficiency there. Three of them here, all *futures*, which a teacher
+streaming a game forwards cannot see: the `aux-targets` binary dumps them
+once per corpus and `bc.py` joins them to rows by (game, turn). Two are
+global and read off the value features -- final property differential,
+income differential five days out, both in units of eight properties of
+lead. The third is per-tile final ownership on the source head's 1x1 conv
+shape, three classes, non-properties masked: KataGo's ownership target,
+which is where most of that efficiency came from. Cloning-only -- PPO
+leaves the heads where BC left them, and play never reads them.
 
 **4. Capacity last.** Nothing measured says 96x8 is the bound; widen when a
 rented grid makes retrains cheap. The net is not a contract boundary -- a

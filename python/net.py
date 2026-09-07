@@ -29,6 +29,14 @@ KIND_NAMES = ["wait", "attack", "capture", "supply", "join", "load", "unload", "
 # and scoring a head on a constant would flatter it.
 PARAM_KINDS = {1, 6, 7}  # attack, unload, build
 
+# The auxiliary head's two global scalars: how the property race ends, and
+# where it stands a few days out. Both are the mover's edge over its best
+# opponent, normalised to [-1, 1] by `bc.py`.
+AUX_GLOBALS = 2
+# Per-tile ownership at the end of the game: the mover's, the opponent's, or
+# nobody's. Tiles that are not properties are `ignore_index`.
+AUX_OWNERS = 3
+
 
 def make_norm(kind: str, channels: int) -> nn.Module:
     """BatchNorm for the checkpoints that already exist, GroupNorm for new
@@ -94,6 +102,7 @@ class Policy(nn.Module):
         norm: str = "batch",
         pool_bias: bool = False,
         value_pool: str = "mean",
+        aux: bool = False,
     ):
         super().__init__()
         self.planes = planes
@@ -106,6 +115,7 @@ class Policy(nn.Module):
         self.norm = norm
         self.pool_bias = pool_bias
         self.value_pool = value_pool
+        self.aux = aux
 
         # Globals are broadcast into their own planes. A board-wide scalar like
         # "day 14" is genuinely about every tile, and this is cheaper than
@@ -159,6 +169,30 @@ class Policy(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(channels, 1),
         )
+
+        # KataGo's third answer to a convolutional trunk's blindness to global
+        # state, and the last of that bundle not already here: make the net
+        # predict things nobody asked it for. Board-wide facts the policy loss
+        # only ever demands *implicitly* -- how the property race ends, who
+        # holds which tile when it does -- become explicit targets, and the
+        # trunk has to carry them. Roughly double the training efficiency
+        # *there*; here it lost, and the seeds stopped agreeing --
+        # `log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`, which
+        # also says what a follow-up would have to separate. Cloning-only:
+        # PPO leaves these heads where BC left them, and play never reads
+        # them.
+        self.aux_global = None
+        self.aux_owner = None
+        if aux:
+            self.aux_global = nn.Sequential(
+                nn.Linear(value_in, channels),
+                nn.ReLU(inplace=True),
+                nn.Linear(channels, AUX_GLOBALS),
+            )
+            # A pointer would be wrong here: the question is per tile and is
+            # asked of every tile at once, so it is the source head's 1x1 conv
+            # shape, three classes deep.
+            self.aux_owner = nn.Conv2d(channels, AUX_OWNERS, 1)
 
     def trunk(self, obs):
         """Feature map and pooled summary from a flat observation batch."""
@@ -256,33 +290,47 @@ class Policy(nn.Module):
             self.param_logits(features, context, kind),
         )
 
+    def aux_of(self, features, flat, pooled):
+        """The auxiliary predictions: `(N, AUX_GLOBALS)` and per-tile ownership
+        logits shaped `(N, AUX_OWNERS, tiles)`, which is what
+        `F.cross_entropy` wants against a `(N, tiles)` target."""
+        return (
+            self.aux_global(self.value_features(flat, pooled)),
+            self.aux_owner(features).flatten(2),
+        )
+
     def value_of(self, obs):
         _, flat, pooled = self.trunk(obs)
         return self.value(self.value_features(flat, pooled)).squeeze(1)
 
-    def evaluate_actions(self, obs, source, dest, kind):
+    def evaluate_actions(self, obs, source, dest, kind, aux: bool = False):
         """Logits for orders already chosen, plus the value, in one trunk pass.
 
         What a PPO update needs: the heads are re-scored against the actions
         the rollout actually took, so every head conditions on the *taken*
         earlier choices rather than on a fresh guess. Sharing the trunk with
         the value head halves the update's cost.
+
+        `aux` adds the auxiliary predictions as a third return value, for the
+        same reason: cloning wants them off the same trunk pass.
         """
         features, flat, pooled = self.trunk(obs)
         context = self.context_of(flat, pooled, source, dest)
-        return (
-            (
-                self.source_logits(features, pooled),
-                self.dest_logits(features, flat, pooled, source),
-                self.kind_logits(context),
-                self.param_logits(features, context, kind),
-            ),
-            self.value(self.value_features(flat, pooled)).squeeze(1),
+        heads = (
+            self.source_logits(features, pooled),
+            self.dest_logits(features, flat, pooled, source),
+            self.kind_logits(context),
+            self.param_logits(features, context, kind),
         )
+        value = self.value(self.value_features(flat, pooled)).squeeze(1)
+        if not aux:
+            return heads, value
+        return heads, value, self.aux_of(features, flat, pooled)
 
 
 def build(env, channels: int = 64, blocks: int = 6, norm: str = "batch",
-          pool_bias: bool = False, value_pool: str = "mean") -> Policy:
+          pool_bias: bool = False, value_pool: str = "mean",
+          aux: bool = False) -> Policy:
     """A policy shaped to whatever the environment actually emits."""
     height, width = env.board_shape
     tiles = height * width
@@ -299,13 +347,14 @@ def build(env, channels: int = 64, blocks: int = 6, norm: str = "batch",
         norm=norm,
         pool_bias=pool_bias,
         value_pool=value_pool,
+        aux=aux,
     )
 
 
 def from_config(config) -> Policy:
-    """A policy matching a checkpoint's stored config. The three net-v2
-    fields default to the values every pre-v2 checkpoint was built with, so
-    old checkpoints load without carrying them."""
+    """A policy matching a checkpoint's stored config. The net-v2 fields and
+    the auxiliary heads default to the values every earlier checkpoint was
+    built with, so old checkpoints load without carrying them."""
     return Policy(
         planes=config["planes"],
         globals_=config["globals"],
@@ -317,4 +366,5 @@ def from_config(config) -> Policy:
         norm=config.get("norm", "batch"),
         pool_bias=config.get("pool_bias", False),
         value_pool=config.get("value_pool", "mean"),
+        aux=config.get("aux", False),
     )

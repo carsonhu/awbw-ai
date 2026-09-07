@@ -44,11 +44,11 @@ and ~~Tier-4 powers~~ (`log/2026-08-29-the-tier-4-powers-land.md`).
    49.3 record, the leash shows only on decisive share, and Grimm
    blocks a win across all five COs; `mixjm-s43` is the parent
    (`log/2026-09-07-the-rung-clears-the-record-and-grimm-gates-it.md`).
-8. The Grimm control (next, local, free): human Grimm win rates at
-   matched Elo from the corpus, to price how much of the 16.5-24.5
-   point hole is the CO and how much is the policy. It decides
-   whether the endpoint needs an identity plane, so Lane B waits.
-9. Capacity, last, only if 8 leaves 96x8 looking like the bound.
+8. ~~The Grimm control~~: the CO, not the policy -- humans lose 18.5
+   points switching Adder to Grimm, the arms 19.1
+   (`log/2026-09-07-the-corpus-prices-grimm.md`).
+9. Capacity, last, only if 8 leaves 96x8 looking like the bound --
+   but with Grimm priced, `s43` and `s202` already meet the endpoint.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
 ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once

@@ -385,3 +385,10 @@ tighter across seeds, and an Adder-only control already plays every T4 CO
 against `greedy` at 87-97 -- the no-identity-plane bet holds at this rung.
 `--co Adder,Jake,Koal,Jess,Grimm` is the recipe of record; panels stay Adder
 for comparability (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).
+
+**A per-CO column is read against CO strength, never against 50%.** On
+A River Supreme humans win 29% as Grimm (AWBW's table), and 35.0% against
+the other Tier-4 four at matched Elo where Adder wins 53.5. That 18.5-point
+penalty is the size of the 19.1 the JakeMan rung's anchored arms take, so
+Grimm's hole is the CO and not a policy that cannot tell it is fragile
+(`log/2026-09-07-the-corpus-prices-grimm.md`).

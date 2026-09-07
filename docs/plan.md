@@ -21,9 +21,8 @@
 
 ## Lanes
 
-**Lane A -- local, free: widen past the Adder mirror. Done.**
-~~Per-seat CO~~ (`afbd4ab`) and ~~Tier-4 power effects~~
-(`log/2026-08-29-the-tier-4-powers-land.md`): mixed-CO training is honest.
+**Lane A -- widen past the Adder mirror. Done.** ~~Per-seat CO~~ (`afbd4ab`)
+and ~~Tier-4 powers~~ (`log/2026-08-29-the-tier-4-powers-land.md`).
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
 1. ~~`jakeman2`~~: negative, every arm below its parent
@@ -32,23 +31,24 @@
    together, and re-rating the six arms found the frozen one.
 3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 decisive points
    (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
-4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on all four
-   panel members on both seeds, and pops 7.52 a game against 4.83
+4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on every panel
+   member, both seeds, and pops 7.52 a game against 4.83
    (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
-   It is the parent everything downstream should now start from.
-5. ~~Auxiliary value targets~~: built, negative -- two fewer orders a
-   turn and the clone's seed spread went 0.5 -> 18.2
+5. ~~Auxiliary value targets~~: negative, two fewer orders a turn
    (`log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`).
-6. ~~First mixed-CO rung~~: it leads, not stalls -- ahead of its
-   Adder-mirror control on every net member, tighter across seeds,
-   and an Adder-only control already plays every CO against `greedy`
+6. ~~First mixed-CO rung~~: it leads, not stalls, and saturates
+   `greedy` for all five COs
    (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).
-   The pool is the recipe of record; `mix-s43` is the parent.
-7. `GRID=mixjm` -- the JakeMan rung from `mix-s43` (next, ~$1): the
-   one panel member with headroom, 7.8-20.0 for every arm, and where
-   `jakeman2` went backwards from the Adder lineage. Rated per CO
-   against JakeMan, since `greedy` is saturated for all five.
-8. Capacity, last, only if 7 leaves 96x8 looking like the bound.
+   The pool is the recipe of record.
+7. ~~The JakeMan rung~~ (`GRID=mixjm`): three anchored arms clear the
+   49.3 record, the leash shows only on decisive share, and Grimm
+   blocks a win across all five COs; `mixjm-s43` is the parent
+   (`log/2026-09-07-the-rung-clears-the-record-and-grimm-gates-it.md`).
+8. The Grimm control (next, local, free): human Grimm win rates at
+   matched Elo from the corpus, to price how much of the 16.5-24.5
+   point hole is the CO and how much is the policy. It decides
+   whether the endpoint needs an identity plane, so Lane B waits.
+9. Capacity, last, only if 8 leaves 96x8 looking like the bound.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
 ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once

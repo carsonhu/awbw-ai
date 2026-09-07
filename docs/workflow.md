@@ -58,9 +58,9 @@ py -3.12 python/play_diag.py --checkpoint <ckpt> --baseline  # what it builds
 py -3.12 python/order_diag.py                         # ordering vs judgement
 ```
 
-The rung of record, under every logged run: `--threat-planes --opponent greedy
---co Adder --turn-discount --steps 256 --lam 0.99 --decide-cap`. Experiments are
-run as seed groups through `tools/grid.sh`, never as single runs (`plan.md`).
+The rung of record: `--threat-planes --opponent greedy --turn-discount
+--steps 256 --lam 0.99 --decide-cap --co Adder,Jake,Koal,Jess,Grimm` (the Tier-4
+pool; panels rate as Adder). Seed groups through `tools/grid.sh`, never single runs.
 
 Read `kl` and `clip`, never entropy. Rate at 1.0 (0.3 flatters a clone
 threefold) through `panel.py`, since a ladder's head-to-head only proves it

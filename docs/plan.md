@@ -26,29 +26,29 @@
 (`log/2026-08-29-the-tier-4-powers-land.md`): mixed-CO training is honest.
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
-1. ~~`jakeman2`~~: negative. Every trained arm finished below its
-   parent, and the arm that matched it was its own init
+1. ~~`jakeman2`~~: negative, every arm below its parent
    (`log/2026-08-30-the-rung-went-backwards.md`).
-2. ~~The cap instrument~~ (`5543bde`): score and decisive share now ride
-   together, and re-rating the six arms is what found the frozen arm.
-3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 points of
-   decisive wins, five arms of six, and one endpoint rates 65.8% on
-   2.0% (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
+2. ~~The cap instrument~~ (`5543bde`): score and decisive share ride
+   together, and re-rating the six arms found the frozen one.
+3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 decisive points
+   (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
 4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on all four
    panel members on both seeds, and pops 7.52 a game against 4.83
    (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
    It is the parent everything downstream should now start from.
-5. ~~Auxiliary value targets~~: built, and negative. Both seeds take
-   two fewer orders a turn, no column wins, and the clone member's
-   seed spread went 0.5 -> 18.2 -- BC stopped being the reproducible
-   end (`log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`).
-   The dense ownership map is unseparated from the two cheap globals.
-6. First mixed-CO rung (next) -- the clone has seen T4 powers fire -- and
-   the first item that rents a box: opponents sampled across the
-   five, an Adder-mirror control group. A mixed group that fails while
-   its control climbs is what "the policy cannot tell who it is"
-   looks like.
-7. Capacity, last, only if 6 leaves 96x8 looking like the bound.
+5. ~~Auxiliary value targets~~: built, negative -- two fewer orders a
+   turn and the clone's seed spread went 0.5 -> 18.2
+   (`log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`).
+6. ~~First mixed-CO rung~~: it leads, not stalls -- ahead of its
+   Adder-mirror control on every net member, tighter across seeds,
+   and an Adder-only control already plays every CO against `greedy`
+   (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).
+   The pool is the recipe of record; `mix-s43` is the parent.
+7. The JakeMan rung from `mix-s43` (next, ~$1): the one panel member
+   with headroom, 7.8-20.0 for every arm, and where `jakeman2` went
+   backwards from the Adder lineage. Rated per CO against JakeMan,
+   since `greedy` is saturated for all five.
+8. Capacity, last, only if 7 leaves 96x8 looking like the bound.
 
 **Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
 ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once

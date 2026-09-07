@@ -378,3 +378,10 @@ clone recipe land 0.5 points apart on a net panel member, 0.6 on JakeMan and
 comparison is readable at one seed apiece where an RL comparison is not -- and
 `greedy` is still the column that would tell you otherwise
 (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
+
+**Rungs are dealt the Tier-4 pool, not an Adder mirror.** The first mixed-CO
+grid rated ahead of its Adder-mirror control on every net panel member and
+tighter across seeds, and an Adder-only control already plays every T4 CO
+against `greedy` at 87-97 -- the no-identity-plane bet holds at this rung.
+`--co Adder,Jake,Koal,Jess,Grimm` is the recipe of record; panels stay Adder
+for comparability (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).

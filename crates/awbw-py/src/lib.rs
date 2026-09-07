@@ -171,12 +171,18 @@ pub struct VecEnv {
     /// loader picks the flag from the checkpoint's stored config.
     threat: bool,
     episodes: u64,
-    /// A scripted opponent, one per game, playing the seat the agent does not.
+    /// A scripted opponent per game, or `None` where the caller moves both
+    /// seats. Always `num_envs` long.
     ///
-    /// Empty for self-play, where whatever the caller submits moves both sides.
-    /// With one set, the caller only ever sees its own seat's positions, which
-    /// is what rating a policy against a fixed baseline needs.
-    opponents: Vec<Box<dyn Bot + Send + Sync>>,
+    /// Per game rather than per environment because a league needs both at
+    /// once: `league3`'s `greedy` column stalled precisely because a pool of
+    /// checkpoints could not hold a scripted bot (`docs/plan.md`, Lane C).
+    /// A game with a bot shows the caller only its own seat's positions; a
+    /// game without one is self-play and the caller moves whoever is up.
+    opponents: Vec<Option<Box<dyn Bot + Send + Sync>>>,
+    /// What each game's opponent is called, so a league can read back the
+    /// deal it made. Positionally matches `opponents`.
+    opponent_names: Vec<Option<String>>,
     /// Which seat the caller plays. Alternated across the batch, so a policy is
     /// rated on both sides of an asymmetric map rather than on the better one.
     agent_seats: Vec<PlayerId>,
@@ -290,7 +296,7 @@ impl VecEnv {
     /// step. The guard is for a bot that never ends its turn; the ones here
     /// always do, but a hung environment is a miserable thing to debug.
     fn run_opponent(&mut self, index: usize) {
-        if self.opponents.is_empty() {
+        if self.opponents[index].is_none() {
             return;
         }
         let seat = self.agent_seats[index];
@@ -302,7 +308,10 @@ impl VecEnv {
             {
                 return;
             }
-            let action = self.opponents[index].choose(&mut game.engine);
+            let action = self.opponents[index]
+                .as_mut()
+                .expect("guarded above")
+                .choose(&mut game.engine);
             let recorded = !self.recorders.is_empty();
             let before = recorded
                 .then(|| self.recorders[index].begin(&self.games[index].engine.state, action));
@@ -423,7 +432,8 @@ impl VecEnv {
             cos,
             threat,
             episodes: 0,
-            opponents: Vec::new(),
+            opponents: (0..num_envs).map(|_| None).collect(),
+            opponent_names: (0..num_envs).map(|_| None).collect(),
             agent_seats: (0..num_envs).map(|i| (i % 2) as PlayerId).collect(),
             finished: 0,
             agent_wins: 0,
@@ -448,9 +458,11 @@ impl VecEnv {
             env.masks.push(ActionMasks::new());
         }
         if let Some(name) = opponent {
-            env.opponents = (0..num_envs)
-                .map(|i| make_teacher(name, seed.wrapping_add(0xA11CE + i as u64)))
-                .collect::<PyResult<Vec<_>>>()?;
+            for i in 0..num_envs {
+                env.opponents[i] =
+                    Some(make_teacher(name, seed.wrapping_add(0xA11CE + i as u64))?);
+                env.opponent_names[i] = Some(name.to_string());
+            }
             for i in 0..num_envs {
                 env.run_opponent(i);
                 env.games[i].last_advantage = advantage(
@@ -514,12 +526,62 @@ impl VecEnv {
         self.episodes += 1;
         for i in 0..self.games.len() {
             self.games[i] = self.new_game(i, self.episodes);
-            if !self.opponents.is_empty() {
-                self.opponents[i].reset(self.seed.wrapping_add(self.episodes));
+            if let Some(bot) = self.opponents[i].as_mut() {
+                bot.reset(self.seed.wrapping_add(self.episodes));
                 self.run_opponent(i);
             }
         }
         self.observe(py)
+    }
+
+    /// Deals one game a new opponent and starts it over.
+    ///
+    /// `name` is a scripted bot (`greedy`, `jakeman`, `capturer`, `random`),
+    /// or `None` for self-play, where the caller moves both seats. The game
+    /// restarts because swapping who sits opposite midway through one leaves
+    /// a result nobody can score -- so a league deals at episode boundaries.
+    ///
+    /// This is what lets a pool hold scripted bots and checkpoints at the
+    /// same time: nets play the seats left `None` from Python, bots play the
+    /// rest here, and both are in one batch (`docs/plan.md`, Lane C).
+    #[pyo3(signature = (index, name=None))]
+    fn set_opponent(&mut self, index: usize, name: Option<&str>) -> PyResult<()> {
+        if index >= self.games.len() {
+            return Err(PyValueError::new_err(format!(
+                "index {index} is past the {} games in this env",
+                self.games.len()
+            )));
+        }
+        self.episodes += 1;
+        self.opponents[index] = match name {
+            Some(name) => Some(make_teacher(name, self.seed.wrapping_add(self.episodes))?),
+            None => None,
+        };
+        self.opponent_names[index] = name.map(str::to_string);
+        self.games[index] = self.new_game(index, self.episodes);
+        if !self.recorders.is_empty() {
+            self.recorders[index].clear();
+        }
+        self.run_opponent(index);
+        let seat = if self.opponents[index].is_some() {
+            self.agent_seats[index]
+        } else {
+            self.games[index].engine.state.current
+        };
+        self.games[index].last_advantage = advantage(
+            &self.games[index].engine.state,
+            seat,
+            self.potential,
+            self.max_day,
+        );
+        Ok(())
+    }
+
+    /// What each game is playing against, `None` where the caller moves both
+    /// seats. Positional, so it lines up with `agent_seat` and the batch.
+    #[getter]
+    fn opponents(&self) -> Vec<Option<String>> {
+        self.opponent_names.clone()
     }
 
     /// `(games finished, wins for [`VecEnv::agent_seat`], draws)`.
@@ -919,13 +981,12 @@ impl VecEnv {
         let mut actors = vec![0i64; self.games.len()];
         let mut restarts = Vec::new();
 
-        let versus = !self.opponents.is_empty();
         let (mut bad, mut sent) = (0u64, 0u64);
         for i in 0..self.games.len() {
             // With an opponent the caller only ever moves its own seat, so that
             // is whose side the reward is measured from; in self-play it is
             // whoever just moved.
-            let scored_for = if versus {
+            let scored_for = if self.opponents[i].is_some() {
                 self.agent_seats[i]
             } else {
                 self.games[i].engine.state.current
@@ -1005,14 +1066,14 @@ impl VecEnv {
                 // only the turn bookkeeping so the next game starts clean.
                 self.recorders[i].clear();
             }
-            if versus {
-                self.opponents[i].reset(self.seed.wrapping_add(self.episodes));
+            if let Some(bot) = self.opponents[i].as_mut() {
+                bot.reset(self.seed.wrapping_add(self.episodes));
                 self.run_opponent(i);
             }
         }
         // Every game's advantage baseline follows the side the reward is for.
         for i in 0..self.games.len() {
-            let seat = if versus {
+            let seat = if self.opponents[i].is_some() {
                 self.agent_seats[i]
             } else {
                 self.games[i].engine.state.current

@@ -129,9 +129,53 @@ def main():
     else:
         raise AssertionError("an unknown potential was accepted")
 
+    # A pool that holds scripted bots and self-play at once, which is Lane C's
+    # second prerequisite: `league3` could not put `greedy` in its pool, and
+    # its `greedy` column was the one that stalled. The contract is per game --
+    # a seat with a bot never shows the caller the bot's own turn, a seat
+    # without one shows whoever is up.
+    mixed = awbw.VecEnv(num_envs=8, seed=3, max_day=20, shaping=0.1)
+    deal = ["jakeman", "greedy", None, None, "capturer", None, "random", None]
+    for i, name in enumerate(deal):
+        if name is not None:
+            mixed.set_opponent(i, name)
+    assert mixed.opponents == deal, f"deal not read back: {mixed.opponents}"
+    scripted = np.array([n is not None for n in deal])
+
+    obs = np.zeros((mixed.num_envs, mixed.observation_size), dtype=np.float32)
+    mixed.observe_into(obs)
+    both_seats = np.zeros(mixed.num_envs, dtype=bool)
+    for _ in range(200):
+        current, seats = mixed.current_player(), mixed.agent_seat()
+        assert (current[scripted] == seats[scripted]).all(),             "a scripted game handed the caller the bot's own turn"
+        sources = sample_masked(mixed.source_mask(), rng)
+        dests = sample_masked(mixed.dest_mask(sources), rng)
+        kinds = sample_masked(mixed.kind_mask(sources, dests), rng)
+        params = sample_masked(mixed.param_mask(sources, dests, kinds), rng)
+        both_seats |= current != seats
+        rewards, _, _, _ = mixed.step(sources, dests, kinds, params)
+        assert np.isfinite(rewards).all(), "reward went non-finite in a mixed pool"
+        mixed.observe_into(obs)
+    # The self-play games must have handed the caller *both* seats at some
+    # point. Without this the loop above passes whenever nothing moves, and the
+    # per-game flag would be untested rather than confirmed.
+    assert both_seats[~scripted].all(), "a self-play game only ever showed one seat"
+
+    # Putting a seat back to self-play mid-league has to work too, since that
+    # is how a pool re-deals between generations.
+    mixed.set_opponent(0, None)
+    assert mixed.opponents[0] is None
+    try:
+        mixed.set_opponent(0, "nonesuch")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an unknown opponent was accepted")
+
     # A masked-uniform policy cannot break the invariants asserted above, so
     # reaching this line means the contract holds.
-    print("\nOK: masks non-empty, orders legal, episodes restart cleanly")
+    print("\nOK: masks non-empty, orders legal, episodes restart cleanly,"
+          "\n    mixed pools deal per game")
 
 
 if __name__ == "__main__":

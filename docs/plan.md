@@ -58,9 +58,9 @@ specialists that beat their own past and nothing else. Four prerequisites:
 1. Games that end. The terminal reward adds the cap tiebreak (`lib.rs`), so
    self-play optimises day-60 income on both sides; `decisive_wins` now
    measures the thing that should be rewarded.
-2. Scripted bots as pool members. The env takes one opponent at construction
-   and the pool holds only state_dicts, so JakeMan cannot be a member -- and
-   `league3`'s `greedy` column stalled for exactly that reason.
+2. ~~Scripted bots as pool members~~: `set_opponent` deals per game, so one
+   batch mixes bot seats with self-play seats -- what `league3` could not do,
+   and why its `greedy` column stalled while everything else moved.
 3. Seed groups. Every league result on record is one seed, from before the
    27-point spread was measured.
 4. Search, which is what makes self-play compound rather than drift.

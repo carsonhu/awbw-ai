@@ -79,9 +79,9 @@ live games against AWBW players -- etiquette and engineering.
 
 **Search** -- `network.md` calls it the largest untouched lever -- in
 rising order: one-ply value reranking on the 130k micro-steps/s
-engine, turn-level low-budget Gumbel, search-as-teacher. Gated on
-the run-5 critic (a search is worth what its evaluator knows) and
-scored on the Elo instrument, the panel having just saturated.
+engine, turn-level low-budget Gumbel, search-as-teacher. Gated on the
+critic, which `mixjm-s43` passes and `mix-s43` did not, and scored on
+the Elo instrument, the panel having just saturated.
 
 ## Keeping this honest
 

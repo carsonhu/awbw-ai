@@ -392,3 +392,10 @@ the other Tier-4 four at matched Elo where Adder wins 53.5. That 18.5-point
 penalty is the size of the 19.1 the JakeMan rung's anchored arms take, so
 Grimm's hole is the CO and not a policy that cannot tell it is fragile
 (`log/2026-09-07-the-corpus-prices-grimm.md`).
+
+**The critic is measured per rung, because the panel cannot see it.**
+`mix-s43` swept its rung carrying a value head that scored Brier 0.406
+against recorded human outcomes -- worse than predicting 0.5 everywhere --
+and no panel column moved. The next rung restored it to 0.140 unasked.
+`value_diag.py` runs on any checkpoint in two minutes, and search is gated
+on its answer (`log/2026-09-07-the-critic-falls-with-greedy-and-returns-with-jakeman.md`).

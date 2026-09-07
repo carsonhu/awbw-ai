@@ -399,3 +399,10 @@ against recorded human outcomes -- worse than predicting 0.5 everywhere --
 and no panel column moved. The next rung restored it to 0.140 unasked.
 `value_diag.py` runs on any checkpoint in two minutes, and search is gated
 on its answer (`log/2026-09-07-the-critic-falls-with-greedy-and-returns-with-jakeman.md`).
+
+**Search amplifies the critic's objective, not its accuracy.** One-ply
+reranking on the value head is worth +8.3 decisive points against JakeMan
+and triples the day-cap rate, 4.5% to 17.0% -- the head predicts a shaped,
+turn-discounted return with the cap tiebreak in it, and a selector gets what
+it optimises. The *better* critic farms the cap harder, which is the tell
+(`log/2026-09-07-one-ply-buys-eight-points-and-farms-the-cap.md`).

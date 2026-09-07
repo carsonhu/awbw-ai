@@ -77,11 +77,11 @@ head against recorded human outcomes by phase and rating band, the
 one ground truth no bot supplies. Half does not: a real rating needs
 live games against AWBW players -- etiquette and engineering.
 
-**Search** -- `network.md` calls it the largest untouched lever -- in
-rising order: one-ply value reranking on the 130k micro-steps/s
-engine, turn-level low-budget Gumbel, search-as-teacher. Gated on the
-critic, which `mixjm-s43` passes and `mix-s43` did not, and scored on
-the Elo instrument, the panel having just saturated.
+**Search.** ~~One-ply value reranking~~ is built and worth +8.3 decisive
+points, on a tripled cap rate
+(`log/2026-09-07-one-ply-buys-eight-points-and-farms-the-cap.md`).
+What gates the rest -- turn-level Gumbel, search-as-teacher -- is the
+critic's *objective*, not its accuracy. That is the open problem.
 
 ## Keeping this honest
 

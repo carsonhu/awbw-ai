@@ -114,6 +114,39 @@ class Trainer:
             threat=args.threat_planes,
             opponent=None if args.selfplay else args.opponent,
         )
+        # Scripted members of a self-play pool. A league of checkpoints alone
+        # cycles into specialists that beat their own past and nothing else,
+        # and `league3`'s `greedy` column stalled because the environment could
+        # not seat a bot beside them at all. It can now, per game.
+        #
+        # Dealt once rather than re-dealt per iteration: `set_opponent`
+        # restarts the game it touches, so re-dealing in flight would truncate
+        # whatever was running. Seats already alternate by index, so taking a
+        # block off the end is a balanced deal.
+        #
+        # `greedy` is deliberately not a default. An opponent beaten 93-96%
+        # leaves the value head nothing to separate but the day cap, measured
+        # twice -- once as a wrecked critic, once as a search that lost 21
+        # points (log/2026-09-07-against-greedy-any-critic-is-worse-than-none.md).
+        self.bot_rows = {}
+        # name -> [games finished, games the learner won]
+        self.bot_record = {}
+        bots = [n for n in (getattr(args, "pool_bots", "") or "").split(",") if n]
+        if bots:
+            if not args.selfplay:
+                raise SystemExit("--pool-bots is a self-play pool; add --selfplay")
+            dealt = int(round(args.envs * args.pool_bot_share))
+            if not 0 <= dealt < args.envs:
+                raise SystemExit(
+                    f"--pool-bot-share {args.pool_bot_share} deals {dealt} of "
+                    f"{args.envs} envs; leave at least one for self-play")
+            for slot in range(dealt):
+                index = args.envs - 1 - slot
+                self.env.set_opponent(index, bots[slot % len(bots)])
+                self.bot_rows[index] = bots[slot % len(bots)]
+            counts = {n: sum(v == n for v in self.bot_rows.values()) for n in bots}
+            print(f"pool: {dealt}/{args.envs} envs scripted "
+                  + ", ".join(f"{n} x{c}" for n, c in counts.items()))
         # Source indices at or past this fire a CO power. Imitation leaves
         # zero mass there (213 labels in 1.9M orders), so whether PPO lifts
         # activation off the floor is a headline metric, not a curiosity.
@@ -396,6 +429,21 @@ class Trainer:
             if mine is not None:
                 buf.mine[t] = mine
             rewards, dones, actors, cut = self.env.step(*raw)
+            # Per scripted member, because the env's counters are one blended
+            # number and a league's whole point is knowing *which* member is
+            # beating you. A finished game's reward carries the result from
+            # the side the row is scored for, which for a bot row is always
+            # the learner's seat.
+            if self.bot_rows:
+                for index, name in self.bot_rows.items():
+                    if dones[index]:
+                        tally = self.bot_record.setdefault(name, [0, 0])
+                        tally[0] += 1
+                        # The terminal is +-1 against a shaping term an order
+                        # of magnitude smaller, so the half-way test reads the
+                        # result and not the shaping, and a draw (terminal 0)
+                        # stays a non-win.
+                        tally[1] += int(rewards[index] > 0.5)
             self.note_orders(raw[0], dones,
                              mine.cpu().numpy() if mine is not None else None)
             buf.rewards[t] = torch.from_numpy(rewards).to(self.device)
@@ -809,6 +857,14 @@ def main() -> int:
     parser.add_argument("--frozen-init", default=None,
                         help="weights for the opponent seat, comma-separated "
                              "for a league (default: a copy of the learner)")
+    # Scripted members alongside the frozen checkpoints. The pool wants
+    # opponents that *contest* the position: JakeMan sits at 55-60% against
+    # this lineage, where `greedy` is beaten 93-96% and starves the critic.
+    parser.add_argument("--pool-bots", default=None,
+                        help="scripted opponents to seat in a share of the "
+                             "self-play envs, comma-separated (e.g. jakeman)")
+    parser.add_argument("--pool-bot-share", type=float, default=0.25,
+                        help="fraction of envs the scripted members hold")
     parser.add_argument("--pool-self-cap", type=float, default=0.5,
                         help="most of the league that may be the learner's "
                              "own promoted lineage")
@@ -1091,6 +1147,17 @@ def main() -> int:
     played, won, drawn = trainer.env.results
     print(f"\n{played} games during training, "
           f"score {(won + 0.5*drawn)/max(played,1):.1%}")
+    # The line above blends every row. A pool holding a frozen checkpoint and
+    # a bot is two different opponents, and a league that cannot say which one
+    # moved is the league that drifted
+    # (log/2026-08-28-league4-decayed-and-no-game-was-ever-one-opponent.md).
+    for name, (games, wins) in sorted(trainer.bot_record.items()):
+        share = wins / games if games else 0.0
+        print(f"  vs {name:<10} {wins}/{games}  {share:.1%}")
+    if trainer.bot_record:
+        scripted = sum(g for g, _ in trainer.bot_record.values())
+        print(f"  vs the frozen pool  {played - scripted} games "
+              f"(self-play rows, ~50% by construction)")
     if args.selfplay:
         print(f"{trainer.refreshes} generations, saved {ROOT / args.out}")
         print("Rate it against what it started from:")

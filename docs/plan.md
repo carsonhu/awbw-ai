@@ -31,15 +31,13 @@ and ~~Tier-4 powers~~ (`log/2026-08-29-the-tier-4-powers-land.md`).
    together, and re-rating the six arms found the frozen one.
 3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 decisive points
    (`log/2026-08-30-the-peak-holds-and-one-arm-stops-winning.md`).
-4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on every panel
-   member, both seeds, and pops 7.52 a game against 4.83
-   (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
+4. ~~The T4 re-clone~~: `bc-net2-t4` beats `bc-net2` on every panel member,
+   both seeds (`log/2026-08-30-the-clone-was-learning-from-a-blind-engine.md`).
 5. ~~Auxiliary value targets~~: negative, two fewer orders a turn
    (`log/2026-09-06-the-aux-targets-cost-two-orders-a-turn.md`).
-6. ~~First mixed-CO rung~~: it leads, not stalls, and saturates
-   `greedy` for all five COs
+6. ~~First mixed-CO rung~~: it leads, not stalls, saturates `greedy` for all
+   five COs, and its pool is the recipe of record
    (`log/2026-09-07-the-mixed-rung-does-not-stall-it-leads.md`).
-   The pool is the recipe of record.
 7. ~~The JakeMan rung~~ (`GRID=mixjm`): three anchored arms clear the
    49.3 record, the leash shows only on decisive share, and Grimm
    blocks a win across all five COs; `mixjm-s43` is the parent
@@ -58,10 +56,12 @@ otherwise made specialists that beat their own past. Four prerequisites:
 2. ~~Scripted bots as pool members~~: `--pool-bots` deals per game and
    balances on games, not seats. Only JakeMan is worth seating -- `greedy`
    93-96%, `capturer` 15/15 -- so the diversity is the frozen half.
-3. `GRID=league` ran and the league never laddered: `--refresh-at 0.7` is
-   unreachable against this pool, so it measured a *static* one and lost
-   JakeMan 22.3 to 45.3 (`log/2026-09-08-the-league-never-promoted.md`).
-   Re-run with the bar priced to the pool, and more than two controls.
+3. `GRID=league` ran and never laddered -- one promotion in 800 arm-iterations
+   (`log/2026-09-08-the-league-never-promoted.md`). The pool is six opponents
+   spanning 50-90% against the parent, and seating prefers the hard ones, so an
+   absolute bar asks a new question every five iterations
+   (`log/2026-09-08-the-pool-is-six-opponents.md`). Promote on the seated
+   member, or set the bar near 0.60; either way, more than two controls.
 4. Search stays out of the first league: it wants a contested opponent and
    amplifies whatever the critic prefers.
 

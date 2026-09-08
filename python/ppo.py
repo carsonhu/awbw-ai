@@ -132,6 +132,13 @@ class Trainer:
         # name -> [games finished, games the learner won]
         self.bot_record = {}
         self.bots = []
+        # Games the scripted rows finished during the current rollout, as
+        # (games, score) on the env's own convention -- a draw is half. The
+        # league credits a rollout by differencing the env's *aggregate*
+        # counters, so without this the bot rows would be booked against
+        # whichever frozen member happens to be seated, and PFSP steers by
+        # exactly those numbers.
+        self.bot_delta = [0, 0.0]
         bots = [n for n in (getattr(args, "pool_bots", "") or "").split(",") if n]
         if bots:
             if not args.selfplay:
@@ -385,6 +392,7 @@ class Trainer:
     @torch.no_grad()
     def collect(self):
         buf = self.buffer
+        self.bot_delta = [0, 0.0]
         self.policy.eval()
         for t in range(buf.steps):
             obs = self.observe()
@@ -445,7 +453,12 @@ class Trainer:
                         # of magnitude smaller, so the half-way test reads the
                         # result and not the shaping, and a draw (terminal 0)
                         # stays a non-win.
-                        tally[1] += int(rewards[index] > 0.5)
+                        result = float(rewards[index])
+                        tally[1] += int(result > 0.5)
+                        self.bot_delta[0] += 1
+                        self.bot_delta[1] += (
+                            1.0 if result > 0.5 else
+                            0.5 if result > -0.5 else 0.0)
                         # Re-deal the seat to whichever member has finished
                         # the fewest games. A fixed deal gives every member
                         # equal *seats*, and a seat is orders, not games:
@@ -829,14 +842,16 @@ class Trainer:
         """Books a rollout's games against whichever member played them."""
         if self.current_member is None:
             return
-        games = after[0] - before[0]
+        # The env's counters are the whole batch, scripted rows included, so
+        # those come back out before anything is booked against a member.
+        games = after[0] - before[0] - self.bot_delta[0]
         if games <= 0:
             return
         won = after[1] - before[1]
         drawn = after[2] - before[2]
         stats = self.pool_stats[self.current_member]
         stats[0] += games
-        stats[1] += won + 0.5 * drawn
+        stats[1] += max(0.0, won + 0.5 * drawn - self.bot_delta[1])
 
     def save(self, path):
         path = ROOT / path
@@ -1181,10 +1196,22 @@ def main() -> int:
         print(f"  vs {name:<10} {wins}/{games}  {share:.1%}"
               f"   (holding {seats} seat{'' if seats == 1 else 's'} "
               f"at the end)")
-    if trainer.bot_record:
+    # The frozen half, per member. `credit` books these off the env's
+    # aggregate counters with the scripted rows subtracted, so these games
+    # plus the scripted ones above should account for the whole run -- and
+    # a shortfall here is that subtraction going wrong, which would steer
+    # PFSP off contaminated scores rather than merely misprint.
+    booked = 0.0
+    for i, origin in enumerate(trainer.pool_origin):
+        games_vs, scored_vs = trainer.pool_stats[i]
+        booked += games_vs
+        if games_vs:
+            print(f"  vs pool[{i}] {origin:<5} {scored_vs:.1f}/{games_vs:.0f}"
+                  f"  {scored_vs / games_vs:.1%}")
+    if trainer.bot_record or trainer.pool:
         scripted = sum(g for g, _ in trainer.bot_record.values())
-        print(f"  vs the frozen pool  {played - scripted} games "
-              f"(self-play rows, ~50% by construction)")
+        print(f"  booked {scripted} scripted + {booked:.0f} pool "
+              f"= {scripted + booked:.0f} of {played} games")
     if args.selfplay:
         print(f"{trainer.refreshes} generations, saved {ROOT / args.out}")
         print("Rate it against what it started from:")

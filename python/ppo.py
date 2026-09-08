@@ -131,6 +131,7 @@ class Trainer:
         self.bot_rows = {}
         # name -> [games finished, games the learner won]
         self.bot_record = {}
+        self.bots = []
         bots = [n for n in (getattr(args, "pool_bots", "") or "").split(",") if n]
         if bots:
             if not args.selfplay:
@@ -144,6 +145,7 @@ class Trainer:
                 index = args.envs - 1 - slot
                 self.env.set_opponent(index, bots[slot % len(bots)])
                 self.bot_rows[index] = bots[slot % len(bots)]
+            self.bots = bots
             counts = {n: sum(v == n for v in self.bot_rows.values()) for n in bots}
             print(f"pool: {dealt}/{args.envs} envs scripted "
                   + ", ".join(f"{n} x{c}" for n, c in counts.items()))
@@ -444,6 +446,22 @@ class Trainer:
                         # result and not the shaping, and a draw (terminal 0)
                         # stays a non-win.
                         tally[1] += int(rewards[index] > 0.5)
+                        # Re-deal the seat to whichever member has finished
+                        # the fewest games. A fixed deal gives every member
+                        # equal *seats*, and a seat is orders, not games:
+                        # `capturer` runs its games to the day cap and
+                        # finished 7 where `jakeman` finished 23 from the
+                        # same four seats. A result is the signal that
+                        # arrives once a game, so the pool is balanced on
+                        # games. The env has already restarted this row, so
+                        # re-dealing here costs one discarded fresh game and
+                        # truncates nothing.
+                        if len(self.bots) > 1:
+                            fewest = min(self.bots, key=lambda n: (
+                                self.bot_record.get(n, [0, 0])[0], n))
+                            if fewest != name:
+                                self.env.set_opponent(index, fewest)
+                                self.bot_rows[index] = fewest
             self.note_orders(raw[0], dones,
                              mine.cpu().numpy() if mine is not None else None)
             buf.rewards[t] = torch.from_numpy(rewards).to(self.device)
@@ -860,9 +878,15 @@ def main() -> int:
     # Scripted members alongside the frozen checkpoints. The pool wants
     # opponents that *contest* the position: JakeMan sits at 55-60% against
     # this lineage, where `greedy` is beaten 93-96% and starves the critic.
+    # For this lineage `jakeman` is the only contested one: `greedy` is beaten
+    # 93-96% and `capturer` 100%, and a member that cannot contest the position
+    # leaves the value head nothing to separate but the day cap
+    # (log/2026-09-07-against-greedy-any-critic-is-worse-than-none.md).
     parser.add_argument("--pool-bots", default=None,
                         help="scripted opponents to seat in a share of the "
-                             "self-play envs, comma-separated (e.g. jakeman)")
+                             "self-play envs, comma-separated. Only members "
+                             "that contest the position are worth seating; "
+                             "jakeman is the only one that does here")
     parser.add_argument("--pool-bot-share", type=float, default=0.25,
                         help="fraction of envs the scripted members hold")
     parser.add_argument("--pool-self-cap", type=float, default=0.5,
@@ -1153,7 +1177,10 @@ def main() -> int:
     # (log/2026-08-28-league4-decayed-and-no-game-was-ever-one-opponent.md).
     for name, (games, wins) in sorted(trainer.bot_record.items()):
         share = wins / games if games else 0.0
-        print(f"  vs {name:<10} {wins}/{games}  {share:.1%}")
+        seats = sum(v == name for v in trainer.bot_rows.values())
+        print(f"  vs {name:<10} {wins}/{games}  {share:.1%}"
+              f"   (holding {seats} seat{'' if seats == 1 else 's'} "
+              f"at the end)")
     if trainer.bot_record:
         scripted = sum(g for g, _ in trainer.bot_record.values())
         print(f"  vs the frozen pool  {played - scripted} games "

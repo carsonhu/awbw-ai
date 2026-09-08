@@ -44,6 +44,8 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-3}"
 export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 
 ARMS=()
+# Files a grid needs beyond the parent, anchor and panel members.
+EXTRA=()
 case "$GRID" in
   phase1)
     : "${ANCHOR:=checkpoints/bc-net2.pt}"
@@ -148,8 +150,52 @@ case "$GRID" in
     ARMS+=("mixjm-noanc-s7|--seed 7")
     ARMS+=("mixjm-noanc-s43|--seed 43")
     ;;
+  league)
+    # Lane C's first honest league. Every self-play run on record drifted into
+    # specialists that beat their own past and nothing else; the one that did
+    # not held four *families*
+    # (log/2026-08-27-the-species-league-holds.md). Two things are different
+    # now. The pool can hold a scripted bot beside the checkpoints, which is
+    # what `league3` lacked and why its `greedy` column stalled. And the
+    # measurements of 2026-09-07 say only JakeMan is worth seating: `greedy` is
+    # beaten 93-96% and `capturer` 15/15, and a member that cannot contest the
+    # position leaves the value head nothing to separate but the day cap.
+    #
+    # So the scripted half is JakeMan alone and the diversity has to come from
+    # the frozen half: the clone, three anchored siblings of the parent, and
+    # the unleashed cap-farmer, which is the nearest thing to a second species
+    # this lineage has. `ppo-adder3` and `bc-powers-scaled2` cannot join -- 64
+    # planes against the pool's 70 -- so they stay panel members.
+    #
+    # `--seat-cap 50` is a guess, not a measurement: without a cap the member
+    # beating the learner is seated almost exclusively and past the first
+    # promotions that is always the learner's own newest generation
+    # (log/2026-08-27-pfsp-peaks-at-gen3-then-eats-itself.md). 200 iterations
+    # at `--seat-hold 5` is 40 seatings, so 50 leaves room to prefer without
+    # letting one member own the run.
+    #
+    # The two controls are the point of the grid. A league that improves has to
+    # beat the alternative use of the same money, which is another JakeMan rung
+    # from the same parent -- and that lineage has gone backwards before
+    # (log/2026-08-30-the-rung-went-backwards.md).
+    PARENT="${PARENT:-checkpoints/mixjm-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    RATE_OPP=jakeman
+    POOL="checkpoints/bc-net2-t4.pt,checkpoints/mixjm-s202.pt"
+    POOL="$POOL,checkpoints/mixjm-s7.pt,checkpoints/mixjm-s101.pt"
+    POOL="$POOL,checkpoints/mixjm-noanc-s43.pt"
+    EXTRA=(${POOL//,/ })
+    RECIPE=(--threat-planes --turn-discount --co "$T4"
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT" --anchor "$ANCHOR" --anchor-kl 0.03)
+    for seed in 7 43 101 202; do
+      ARMS+=("lg-s$seed|--selfplay --frozen-init $POOL --pool-bots jakeman --pool-bot-share 0.25 --seat-cap 50 --seed $seed")
+    done
+    ARMS+=("lgctl-s7|--opponent jakeman --seed 7")
+    ARMS+=("lgctl-s43|--opponent jakeman --seed 43")
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league)"; exit 1;;
 esac
 
 mkdir -p logs
@@ -158,7 +204,21 @@ log() { echo "[$(date +%H:%M)] $*" | tee -a logs/grid.log; }
 # Refuse to start without the files every arm needs. Without this, a box whose
 # checkpoints were never copied in runs eight arms that each die in seconds
 # and prints "grid complete" over an empty result.
-for need in "${PARENT:-}" "$ANCHOR"     checkpoints/bc-powers-scaled2.pt checkpoints/ppo-adder3.pt; do
+# Everything an arm opens before it can start: the parent, the anchor, any
+# pool members, and the two net panel members every rating uses.
+NEEDS=("${PARENT:-}" "$ANCHOR" "${EXTRA[@]}"
+       checkpoints/bc-powers-scaled2.pt checkpoints/ppo-adder3.pt)
+
+# `LIST=1 GRID=league bash tools/grid.sh` prints that list and exits, so
+# rental-setup.sh can tell you what to copy without scraping this file --
+# which went stale the first time a grid needed more than a parent and an
+# anchor, and would have again for the league's five pool members.
+if [ -n "${LIST:-}" ]; then
+  for need in "${NEEDS[@]}"; do [ -z "$need" ] || echo "$need"; done | sort -u
+  exit 0
+fi
+
+for need in "${NEEDS[@]}"; do
   [ -z "$need" ] || [ -f "$need" ] || { echo "missing $need -- copy it into checkpoints/ first"; exit 1; }
 done
 

@@ -55,15 +55,14 @@ ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once
 -- `league3`'s pool of four *families* moved every panel number at once
 (`log/2026-08-27-the-species-league-holds.md`) -- and otherwise cycled into
 specialists that beat their own past and nothing else. Four prerequisites:
-1. Games that end. The terminal reward adds the cap tiebreak (`lib.rs`), so
-   self-play optimises day-60 income on both sides; `decisive_wins` now
-   measures the thing that should be rewarded.
-2. ~~Scripted bots as pool members~~: `set_opponent` deals per game, so one
-   batch mixes bot seats with self-play seats -- what `league3` could not do,
-   and why its `greedy` column stalled while everything else moved.
-3. Seed groups. Every league result on record is one seed, from before the
-   27-point spread was measured.
-4. Search, which is what makes self-play compound rather than drift.
+1. ~~Games that end~~: the cap tiebreak is in the terminal reward and
+   `decisive_wins` measures it.
+2. ~~Scripted bots as pool members~~: `--pool-bots` deals per game and
+   balances on games, not seats. Only JakeMan is worth seating -- `greedy`
+   93-96%, `capturer` 15/15 -- so the diversity is the frozen half.
+3. ~~Seed groups~~: `GRID=league`, four seeds against two rungs as control.
+4. Search exists but stays out of the first league: it wants a contested
+   opponent and amplifies whatever the critic prefers.
 
 ## Endpoint, and the two books after
 

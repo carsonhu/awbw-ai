@@ -420,3 +420,10 @@ outcomes; *searching* with a value head against `greedy` drops decisive
 share 72.5 to 51.0 on 37.5% capped games. Every position is winning, so
 only the cap tiebreak separates them. Rungs and searches both want a
 contested opponent (`log/2026-09-07-one-ply-flattens-the-cos-and-collapses-on-greedy.md`).
+
+**In self-play the promotion bar is also the save bar, and 0.7 is priced for
+the wrong pool.** `ppo.py` writes `--out` only when a rollout window clears
+`--refresh-at`, so four league arms against five siblings plus a quarter-share
+of JakeMan produced one promotion in 800 iterations and three arms with no
+checkpoint but `-last.pt`. Price the bar against the pool actually dealt
+(`log/2026-09-08-the-league-never-promoted.md`).

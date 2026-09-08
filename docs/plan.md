@@ -47,22 +47,23 @@ and ~~Tier-4 powers~~ (`log/2026-08-29-the-tier-4-powers-land.md`).
 8. ~~The Grimm control~~: the CO, not the policy -- humans lose 18.5
    points switching Adder to Grimm, the arms 19.1
    (`log/2026-09-07-the-corpus-prices-grimm.md`).
-9. Capacity, last, only if 8 leaves 96x8 looking like the bound --
-   but with Grimm priced, `s43` and `s202` already meet the endpoint.
+9. ~~Capacity~~: not needed -- `s43` and `s202` already meet the endpoint.
 
-**Lane C -- self-play, deferred and not dropped.** Lane B's endpoint is a
-ceiling: two scripted bots, `greedy` long saturated. Self-play worked here once
--- `league3`'s pool of four *families* moved every panel number at once
-(`log/2026-08-27-the-species-league-holds.md`) -- and otherwise cycled into
-specialists that beat their own past and nothing else. Four prerequisites:
+**Lane C -- self-play.** Lane B's endpoint is a ceiling: two scripted bots,
+`greedy` long saturated. It worked here once -- `league3`'s four *families*
+moved every panel number (`log/2026-08-27-the-species-league-holds.md`) -- and
+otherwise made specialists that beat their own past. Four prerequisites:
 1. ~~Games that end~~: the cap tiebreak is in the terminal reward and
    `decisive_wins` measures it.
 2. ~~Scripted bots as pool members~~: `--pool-bots` deals per game and
    balances on games, not seats. Only JakeMan is worth seating -- `greedy`
    93-96%, `capturer` 15/15 -- so the diversity is the frozen half.
-3. ~~Seed groups~~: `GRID=league`, four seeds against two rungs as control.
-4. Search exists but stays out of the first league: it wants a contested
-   opponent and amplifies whatever the critic prefers.
+3. `GRID=league` ran and the league never laddered: `--refresh-at 0.7` is
+   unreachable against this pool, so it measured a *static* one and lost
+   JakeMan 22.3 to 45.3 (`log/2026-09-08-the-league-never-promoted.md`).
+   Re-run with the bar priced to the pool, and more than two controls.
+4. Search stays out of the first league: it wants a contested opponent and
+   amplifies whatever the critic prefers.
 
 ## Endpoint, and the two books after
 

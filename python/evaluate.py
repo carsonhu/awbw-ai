@@ -416,6 +416,13 @@ def main() -> int:
     if args.versus:
         if args.policy != "net":
             raise SystemExit("--versus needs --policy net on this seat")
+        # `Duel` reads `.policy` off each side and drives the heads
+        # itself, so wrapping a `Rerank` in one silently discards the
+        # search. Refuse rather than quietly rate the wrong thing.
+        if args.rerank > 1:
+            raise SystemExit(
+                "--rerank does not compose with --versus yet: Duel would "
+                "drop the search and rate the plain policy instead")
         other = Net(fit(load(ROOT / args.versus, env, device)), device,
                     args.versus_temperature
                     if args.versus_temperature is not None else args.temperature)

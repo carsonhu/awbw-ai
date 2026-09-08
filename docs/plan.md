@@ -77,11 +77,11 @@ head against recorded human outcomes by phase and rating band, the
 one ground truth no bot supplies. Half does not: a real rating needs
 live games against AWBW players -- etiquette and engineering.
 
-**Search.** ~~One-ply value reranking~~ is built and worth +8.3 decisive
-points, on a tripled cap rate, and any critic buys it
-(`log/2026-09-07-the-ranking-is-real-and-the-accuracy-is-not-why.md`).
-The open problem is that no instrument here predicts what a search
-gets from a critic, so the rungs above cannot yet be gated at all.
+**Search.** ~~One-ply value reranking~~ is built. It flattens the CO
+spread against JakeMan, 31 points to 5, and collapses against `greedy`
+(`log/2026-09-07-one-ply-flattens-the-cos-and-collapses-on-greedy.md`).
+Not a default. No instrument here predicts what a search gets from a
+critic, so the rungs above cannot yet be gated at all.
 
 ## Keeping this honest
 

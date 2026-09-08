@@ -413,3 +413,10 @@ decisive), while a noise ranker gains nothing -- so the ranking is real and
 its quality is not what `value_diag` measures. A rerank claim needs the
 noise control; without it the code path is a live explanation
 (`log/2026-09-07-the-ranking-is-real-and-the-accuracy-is-not-why.md`).
+
+**A saturated opponent starves the value head, twice over.** Training
+against `greedy` at 93-96% left `mix-s43` scoring Brier 0.406 on human
+outcomes; *searching* with a value head against `greedy` drops decisive
+share 72.5 to 51.0 on 37.5% capped games. Every position is winning, so
+only the cap tiebreak separates them. Rungs and searches both want a
+contested opponent (`log/2026-09-07-one-ply-flattens-the-cos-and-collapses-on-greedy.md`).

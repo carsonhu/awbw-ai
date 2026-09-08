@@ -42,7 +42,8 @@ def rate(checkpoint, member, kind, games, co, decide_cap, temperature):
         cmd += ["--co", co]
     if decide_cap:
         cmd += ["--decide-cap"]
-    out = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT).stdout
+    run = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    out = run.stdout
     score, split = "", ""
     for line in out.splitlines():
         text = line.strip()
@@ -58,7 +59,13 @@ def rate(checkpoint, member, kind, games, co, decide_cap, temperature):
             if len(hits) == 2:
                 split = f"decisive {hits[0]}%  capped {hits[1]}%"
     if not score:
-        return "no score (see evaluate.py output)", ""
+        # Say why. `evaluate.py`'s exception is the only thing that explains an
+        # empty rating, and throwing its stderr away turned a missing
+        # checkpoint into a diagnostic round on a box billing by the minute
+        # (log/2026-09-08-the-league-never-promoted.md).
+        why = (run.stderr or run.stdout).strip().splitlines()
+        tail = why[-1].strip() if why else f"exit {run.returncode}, no output"
+        return f"no score ({tail})", ""
     return score, split
 
 

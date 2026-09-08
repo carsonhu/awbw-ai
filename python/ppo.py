@@ -1057,6 +1057,12 @@ def main() -> int:
     seen_pos = (0, 0, 0, 0)
     seen_offer = (0, 0)
     best = -1.0
+    # Whether `--out` itself was ever written. Both branches below write it only
+    # on a keep, and in self-play a keep is a promotion -- so an arm that never
+    # clears `--refresh-at` finishes with no `--out` at all, and every panel and
+    # rating downstream dies on a missing file hours later
+    # (log/2026-09-08-the-league-never-promoted.md).
+    saved_out = False
     for iteration in range(1, args.iterations + 1):
         trainer.take_opponent(iteration)
         before_games = trainer.env.results
@@ -1130,6 +1136,7 @@ def main() -> int:
                 if kept:
                     trainer.promote()
                     trainer.save(args.out)
+                    saved_out = True
                     # Each generation is kept under its own name as well, so the
                     # ladder can be played against itself afterwards. Whether
                     # generation three actually beats generation one is the only
@@ -1151,6 +1158,7 @@ def main() -> int:
                 if kept:
                     best = score
                     trainer.save(args.out)
+                    saved_out = True
             mark = f"  gen {trainer.refreshes}" if kept else ""
             # `cut` is the share the day cap stopped. It is reported because it
             # is not a neutral number: those games carry no result, and how
@@ -1183,6 +1191,13 @@ def main() -> int:
 
     last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")
     trainer.save(last)
+    if not saved_out:
+        # Nothing ever cleared the bar. The final weights are then the only
+        # weights this run has, and they are worth more than a name that does
+        # not resolve: `-last.pt` is what gets rated in that case anyway.
+        print(f"  no checkpoint ever kept -- writing {args.out} from the "
+              "final weights; the run's own bar was never cleared")
+        trainer.save(args.out)
     played, won, drawn = trainer.env.results
     print(f"\n{played} games during training, "
           f"score {(won + 0.5*drawn)/max(played,1):.1%}")

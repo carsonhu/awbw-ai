@@ -25,8 +25,7 @@
 and ~~Tier-4 powers~~ (`log/2026-08-29-the-tier-4-powers-land.md`).
 
 **Lane B -- rented grids, about $3 each, seed-grouped always.**
-1. ~~`jakeman2`~~: negative, every arm below its parent
-   (`log/2026-08-30-the-rung-went-backwards.md`).
+1. ~~`jakeman2`~~: negative (`log/2026-08-30-the-rung-went-backwards.md`).
 2. ~~The cap instrument~~ (`5543bde`): score and decisive share ride
    together, and re-rating the six arms found the frozen one.
 3. ~~`-last.pt` for the six arms~~: the peak wins by 14.3 decisive points
@@ -57,11 +56,12 @@ otherwise made specialists that beat their own past. Four prerequisites:
    balances on games, not seats. Only JakeMan is worth seating -- `greedy`
    93-96%, `capturer` 15/15 -- so the diversity is the frozen half.
 3. `GRID=league` ran and never laddered -- one promotion in 800 arm-iterations
-   (`log/2026-09-08-the-league-never-promoted.md`). The pool is six opponents
-   spanning 50-90% against the parent, and seating prefers the hard ones, so an
-   absolute bar asks a new question every five iterations
-   (`log/2026-09-08-the-pool-is-six-opponents.md`). Promote on the seated
-   member, or set the bar near 0.60; either way, more than two controls.
+   (`log/2026-09-08-the-league-never-promoted.md`), because a blended bar asks
+   a new question every seat (`log/2026-09-08-the-pool-is-six-opponents.md`).
+   The rule is rebuilt per member and priced: 0.60 over 30 games each fires on
+   4.5% of runs that gain nothing, 78% of runs ten points better
+   (`log/2026-09-08-the-promotion-bar-is-calibrated.md`). Re-run it, with
+   more than two controls.
 4. Search stays out of the first league: it wants a contested opponent and
    amplifies whatever the critic prefers.
 

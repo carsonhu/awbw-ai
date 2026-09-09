@@ -242,6 +242,10 @@ class Trainer:
         self.pool = []
         self.pool_origin = []
         self.pool_stats = []
+        # Per member, but only since the last promotion: `pool_stats` is the
+        # run's whole history and steers seating, and a promotion bar read off
+        # it lags by every game the weaker past weights played.
+        self.pool_recent = []
         self.pool_seatings = []
         self.current_member = None
         self.held = 0
@@ -268,6 +272,7 @@ class Trainer:
             # against it: [games, score]. Both drive who gets seated next.
             self.pool_origin = ["seed"] * len(self.pool)
             self.pool_stats = [[0.0, 0.0] for _ in self.pool]
+            self.pool_recent = [[0.0, 0.0] for _ in self.pool]
             self.pool_seatings = [0] * len(self.pool)
             self.frozen = (copy.deepcopy(self.policy).eval() if not self.pool
                            else self.load_policy(names[0], remember=False).eval())
@@ -767,6 +772,10 @@ class Trainer:
                 self.pool_origin.append("self")
                 self.pool_stats.append([0.0, 0.0])
                 self.pool_seatings.append(0)
+        # A new generation is a different learner, so every member's recent
+        # rate is about weights that no longer exist. The next promotion is
+        # earned from scratch against the whole pool, this one included.
+        self.pool_recent = [[0.0, 0.0] for _ in self.pool]
         self.frozen.load_state_dict(self.policy.state_dict())
         self.frozen.eval()
         self.frozen.requires_grad_(False)
@@ -849,9 +858,47 @@ class Trainer:
             return
         won = after[1] - before[1]
         drawn = after[2] - before[2]
-        stats = self.pool_stats[self.current_member]
-        stats[0] += games
-        stats[1] += max(0.0, won + 0.5 * drawn - self.bot_delta[1])
+        scored = max(0.0, won + 0.5 * drawn - self.bot_delta[1])
+        for book in (self.pool_stats, self.pool_recent):
+            stats = book[self.current_member]
+            stats[0] += games
+            stats[1] += scored
+
+    def pool_cleared(self, bar, need):
+        """Whether every league member is being beaten at `bar` right now.
+
+        The rollout score cannot answer this. One member holds the seat at a
+        time and the seat cap prefers whoever is winning, so the blended number
+        asks a different question every seat -- the same weights read 73% and
+        27% five iterations apart, on the deal rather than on the policy
+        (`log/2026-09-08-the-pool-is-six-opponents.md`). Asking it member by
+        member is invariant to who sat down, and to a roster spanning 50% to
+        90% against the same checkpoint.
+
+        Every member must have `need` games since the last promotion, so a
+        generation cannot be earned against the easy half of the pool while the
+        half that beats it goes unplayed. Returns the floor member too, because
+        the promotion line is worth reading.
+
+        The bar is the rate itself, with no confidence margin. A margin looks
+        prudent -- a member the learner is level with clears 0.60 on 18% of
+        single 30-game checks, and this is checked every iteration against an
+        estimate that only accumulates. But every member must clear at once,
+        which is far stricter than any one of them crossing: simulated on the
+        measured roster (`log/2026-09-08-the-pool-is-six-opponents.md`), the
+        bare rule promotes on 4.5% of runs that improve nothing and 78% of runs
+        ten points better on every member, while one standard error of margin
+        drops that 78% to 28%. The false alarms are the cheaper mistake.
+        """
+        if not self.pool_recent:
+            return False, None
+        rates = []
+        for i, (games, score) in enumerate(self.pool_recent):
+            if games < need:
+                return False, i
+            rates.append((score / games, i))
+        floor, which = min(rates)
+        return floor >= bar, which
 
     def save(self, path):
         path = ROOT / path
@@ -922,10 +969,17 @@ def main() -> int:
                         help="iterations a drawn member keeps the seat, so a "
                              "game is mostly one opponent (1: swap every "
                              "iteration, the pre-league4 behaviour)")
-    parser.add_argument("--refresh-at", type=float, default=0.7,
-                        help="score over a window that promotes the learner")
+    # Read against the *worst* league member, not a blended window, so 0.7 is
+    # not the same 0.7 it was: the parent of the first league rated 90.0% on
+    # one sibling and 50.0% on another, and a bar the whole pool must clear is
+    # the strictest of those, not their average
+    # (`log/2026-09-08-the-pool-is-six-opponents.md`).
+    parser.add_argument("--refresh-at", type=float, default=0.6,
+                        help="score against every league member, the worst "
+                             "included, that promotes the learner")
     parser.add_argument("--refresh-games", type=int, default=30,
-                        help="games that window needs before it may promote")
+                        help="games each member needs, since the last "
+                             "promotion, before it may promote")
     parser.add_argument("--refresh-warmup", type=int, default=10,
                         help="critic-only iterations after each promotion")
     # Off, and it stays off until somebody understands why refitting hurts.
@@ -1132,8 +1186,21 @@ def main() -> int:
                 # `best` would just track staleness. Promote instead: beating
                 # the last generation convincingly is the improvement, and the
                 # promoted weights are what gets kept.
-                kept = not warming and closed and score >= args.refresh_at
+                #
+                # Measured against the pool member by member, not off `score`:
+                # that blends whoever is seated with the scripted rows, and a
+                # bar over it fired once in 800 arm-iterations while the arms
+                # were level with half the pool
+                # (`log/2026-09-08-the-league-never-promoted.md`).
+                kept, floor = trainer.pool_cleared(args.refresh_at,
+                                                   args.refresh_games)
+                kept = kept and not warming
                 if kept:
+                    origin = trainer.pool_origin[floor]
+                    games_at, score_at = trainer.pool_recent[floor]
+                    print(f"  promoting: worst member is #{floor} ({origin}) "
+                          f"at {score_at / games_at:.1%} over "
+                          f"{games_at:.0f} games")
                     trainer.promote()
                     trainer.save(args.out)
                     saved_out = True

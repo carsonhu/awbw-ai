@@ -194,8 +194,49 @@ case "$GRID" in
     ARMS+=("lgctl-s7|--opponent jakeman --seed 7")
     ARMS+=("lgctl-s43|--opponent jakeman --seed 43")
     ;;
+  league2)
+    # The league again, on a promotion rule that can fire. `league` measured a
+    # static pool: `--refresh-at 0.7` read one blended score against whoever
+    # held the seat, the same weights read 73% and 27% five iterations apart,
+    # and the bar cleared once in 800 arm-iterations
+    # (log/2026-09-08-the-league-never-promoted.md). `ppo.py` now asks it per
+    # member -- every member beaten at `--refresh-at`, 30 games each since the
+    # last promotion -- which is invariant to who sat down.
+    #
+    # `mixjm-s101` leaves the pool. The parent beats it 90.0% and the four
+    # that stay hold it to 73.0, 70.5, 54.0 and 50.0
+    # (log/2026-09-08-the-pool-is-six-opponents.md); simulated, dropping it
+    # buys 4.5 points of promotion power for 2 of false alarms, because a seat
+    # spent on a solved member is a seat not spent measuring a contested one
+    # (log/2026-09-08-the-promotion-bar-is-calibrated.md, tools/promote_sim.py).
+    # The clone stays despite rating 70.5: it is the only member not of the
+    # `mixjm` lineage, and diversity is what the one league that worked had.
+    #
+    # JakeMan keeps its quarter of the seats. It is a bot, `credit` books it
+    # apart from the pool, so the new rule never sees it -- its share shapes
+    # what the learner trains against and no longer taxes what it must beat.
+    # `--seat-cap 50` stays and now earns itself: every member needs 30 games
+    # before any promotion, so forcing the seat around is the rule's own work.
+    #
+    # Four controls, not two. `league`'s pair landed 32 points apart on
+    # `greedy` -- wider than the gap between the groups it was there to
+    # measure -- so the comparison could not be made at all. Eight arms.
+    PARENT="${PARENT:-checkpoints/mixjm-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    RATE_OPP=jakeman
+    POOL="checkpoints/bc-net2-t4.pt,checkpoints/mixjm-s202.pt"
+    POOL="$POOL,checkpoints/mixjm-s7.pt,checkpoints/mixjm-noanc-s43.pt"
+    EXTRA=(${POOL//,/ })
+    RECIPE=(--threat-planes --turn-discount --co "$T4"
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT" --anchor "$ANCHOR" --anchor-kl 0.03)
+    for seed in 7 43 101 202; do
+      ARMS+=("lg2-s$seed|--selfplay --frozen-init $POOL --pool-bots jakeman --pool-bot-share 0.25 --seat-cap 50 --seed $seed")
+      ARMS+=("lg2ctl-s$seed|--opponent jakeman --seed $seed")
+    done
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2)"; exit 1;;
 esac
 
 mkdir -p logs

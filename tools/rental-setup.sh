@@ -51,10 +51,10 @@ PYO3_PYTHON="$(command -v python3)" cargo build --release -p awbw-py
 cp target/release/libawbw.so python/awbw.so
 python3 python/smoke_test.py
 
-# What to copy is a per-grid question -- the league needs five pool members
+# What to copy is a per-grid question -- a league needs its pool members
 # besides its parent and anchor -- so grid.sh answers it rather than this
 # script guessing from the shape of that file.
-GRID="${GRID:-league}"
+GRID="${GRID:-league2}"
 NEEDED="$(LIST=1 GRID="$GRID" bash tools/grid.sh 2>/dev/null | tr '\n' ' ')"
 NEEDED="${NEEDED:-the checkpoints your GRID names}"
 

@@ -116,6 +116,12 @@ class Policy(nn.Module):
         self.pool_bias = pool_bias
         self.value_pool = value_pool
         self.aux = aux
+        # Run the trunk in bfloat16. A runtime choice, not part of the config:
+        # the weights are the same either way, and the heads still score in
+        # float32, so a masked log-softmax never sees bf16's 8-bit mantissa.
+        # Worth it only on a card with bf16 tensor cores (Ampere and later);
+        # Turing has none and the cast is pure overhead there.
+        self.amp = False
 
         # Globals are broadcast into their own planes. A board-wide scalar like
         # "day 14" is genuinely about every tile, and this is cheaper than
@@ -202,7 +208,10 @@ class Policy(nn.Module):
         scalars = obs[:, split:].view(n, self.globals_, 1, 1)
         scalars = scalars.expand(n, self.globals_, self.height, self.width)
 
-        features = self.body(self.stem(torch.cat([board, scalars], dim=1)))
+        with torch.autocast(obs.device.type, dtype=torch.bfloat16,
+                            enabled=self.amp):
+            features = self.body(self.stem(torch.cat([board, scalars], dim=1)))
+        features = features.float()
         flat = features.flatten(2)  # (N, C, tiles)
         pooled = flat.mean(dim=2)  # (N, C)
         return features, flat, pooled

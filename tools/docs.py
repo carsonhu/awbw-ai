@@ -89,7 +89,11 @@ BUDGETS = {
     # and two successor books. Only CLAUDE.md is loaded every session, so this
     # budget buys readability, not context; squeezing prose to save single
     # lines was costing more than the limit saved, same as architecture.md.
-    "docs/plan.md": 90,
+    #
+    # Up 20 more on 2026-10-15, by the owner's call that the budgets had become
+    # tighter than useful: Lane C gained the experience item, and a plan that
+    # cannot hold its next three moves is not the agenda of record.
+    "docs/plan.md": 110,
 }
 
 # decisions.md is measured per entry instead of in total. It is append-only by
@@ -103,7 +107,11 @@ ENTRY_BUDGET = 6
 # and what they mean. That fits comfortably here. An entry pushing this limit is
 # usually two experiments, or is arguing a conclusion that belongs in
 # decisions.md with the entry as its evidence.
-LOG_BUDGET = 60
+#
+# Raised from 60 on 2026-10-15, by the owner's call: a review that compares the
+# project against outside systems and measures its own throughput needs two
+# tables and the changes they caused, and 60 was forcing the numbers out.
+LOG_BUDGET = 100
 
 LOG_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-[a-z0-9][a-z0-9-]*\.md$")
 

@@ -11,7 +11,7 @@ the default; the checkpoint config is authoritative).
 
 ```
 obs (70 planes + 23 globals broadcast, 18x17)
-  -> 3x3 stem -> 8 residual blocks (96ch, BatchNorm)
+  -> 3x3 stem -> 8 residual blocks (96ch, GroupNorm)
   -> features (96x306), pooled = spatial mean
 source: 1x1 conv per-tile logit + linear off pooled for end-turn/COP/SCOP
 dest:   pointer -- tiles scored against query(f_source, pooled)
@@ -55,13 +55,10 @@ low-budget Gumbel-style search later, the largest untouched lever here.
 
 ## Known deficiencies, in priority order
 
-**1. BatchNorm is wrong for this regime, twice measured.** Recalibration
-silently cost seventeen points; train-mode minibatch statistics moved
-logits by 24 and flipped half the argmaxes. Both are BN's batch-coupled
-statistics interacting with policy-gradient training -- a known RL failure
-class; AlphaStar and OpenAI Five use layer-type norms, KataGo moved off
-plain BN. GroupNorm is a drop-in swap, per-sample, and retires the whole
-bug class for the cost of one re-clone.
+**1. BatchNorm -- retired.** Recalibration silently cost seventeen points
+and train-mode statistics flipped half the argmaxes, BN's batch coupling
+meeting policy gradients. Every checkpoint since net-v2 is GroupNorm
+(`norm: group` in its config); BN survives only to load older ones.
 
 **2. Surgery across observation breaks -- built (`surgery.py`).** Every
 plane-count change had orphaned every checkpoint, the most expensive event
@@ -86,5 +83,7 @@ which is where most of that efficiency came from. Cloning-only -- PPO
 leaves the heads where BC left them, and play never reads them.
 
 **4. Capacity last.** Nothing measured says 96x8 is the bound; widen when a
-rented grid makes retrains cheap. The net is not a contract boundary -- a
+rented grid makes retrains cheap. The Showdown #1 bots run 8.5-8.7M
+parameters, but on 1e8 games; experience binds here first
+(`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`). The net is not a contract boundary -- a
 net change costs a retrain, an encoding change costs every checkpoint.

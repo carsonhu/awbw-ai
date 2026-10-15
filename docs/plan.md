@@ -60,10 +60,16 @@ otherwise made specialists that beat their own past. Four prerequisites:
    a new question every seat (`log/2026-09-08-the-pool-is-six-opponents.md`).
    The rule is rebuilt per member and priced: 0.60 over 30 games each fires on
    4.5% of runs that gain nothing, 78% of runs ten points better
-   (`log/2026-09-08-the-promotion-bar-is-calibrated.md`). Re-run it, with
-   more than two controls.
+   (`log/2026-09-08-the-promotion-bar-is-calibrated.md`). `GRID=league2`
+   re-runs it with four controls.
 4. Search stays out of the first league: it wants a contested opponent and
    amplifies whatever the critic prefers.
+5. **Experience is the gap.** The Showdown #1 bots share this recipe and train
+   on 1e8+ games at 262k rows an update; an arm here plays ~1,800 at 8,192
+   (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`). In order:
+   `GRID=batch` (is "decays from level" noise?); time `--amp` on the rented
+   card; then, if batch is the cause, the live learner in half the league's
+   seats (both sides on-policy) and terminal-only reward once self-play leads.
 
 ## Endpoint, and the two books after
 

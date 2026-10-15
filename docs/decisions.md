@@ -270,11 +270,11 @@ break, so it is unloadable and its rating is of a different game. The current
 lineage's best against JakeMan is 49.3, still losing: the ladder is not
 exhausted for anything trainable today (`log/2026-08-26-jakeman-beaten.md`).
 
-**Self-play's learner drifts below its own frozen copy, cause unknown.** 35-41%
-across recalibration off, an advantage floor and no shaping alike, so it
-promotes nothing. The harness, the opening fix and the update are all cleared
-by a working control; what that control never exercises is the two-player
-advantage path (`log/2026-08-26-selfplay-drift.md`).
+**Self-play's drift below its own frozen copy was recalibration.** The 35-41%
+(`log/2026-08-26-selfplay-drift.md`) was read with batch-norm refits on; the
+same parity run with them off promoted three times, and the two-player
+advantage path is cleared
+(`log/2026-08-27-parity-was-never-the-problem.md`).
 
 **Most of the source head's error is ordering, not judgement — and fixing that
 bought nothing.** Its top pick is a unit the human moved somewhere in the turn
@@ -427,3 +427,10 @@ the wrong pool.** `ppo.py` writes `--out` only when a rollout window clears
 of JakeMan produced one promotion in 800 iterations and three arms with no
 checkpoint but `-last.pt`. Price the bar against the pool actually dealt
 (`log/2026-09-08-the-league-never-promoted.md`).
+
+**The board stays one map; human data is a bootstrap, not the engine.** The
+Showdown #1 bots are single-format specialists that used no human games at
+all, so specialising to A River Supreme is not what separates this project
+from them -- experience is, by four orders of magnitude. The map's corpus is
+spent (2,945 of 2,976 archived games); off-map games enter only as a priced
+tactics prior (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`).

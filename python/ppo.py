@@ -262,10 +262,10 @@ class Trainer:
             # 93.5% while losing 42 points to `greedy`
             # (`log/2026-08-27-selfplay-does-not-transfer.md`). The pool holds
             # weights, one is drawn per iteration, and each promotion adds the
-            # generation just made. Per iteration rather than per env because
-            # both sides run on the whole batch -- each head's mask depends on
-            # the last head's pick, so the sides advance in step and a pool of
-            # five sampled per env would be five forward passes a step.
+            # generation just made. Per iteration rather than per env: each
+            # head's mask depends on the last head's pick, so the sides advance
+            # in step and a pool of five sampled per env would be five forward
+            # passes a step.
             names = [n for n in (getattr(args, "frozen_init", "") or "").split(",") if n]
             self.pool = [self.load_policy(n, remember=False).state_dict() for n in names]
             # Where each member came from, and how the learner has fared
@@ -302,6 +302,9 @@ class Trainer:
         config = saved["config"]
         policy = netmod.from_config(config).to(self.device)
         policy.load_state_dict(saved["policy"])
+        # Every net this run touches -- learner, anchor, frozen side -- runs
+        # its trunk at one precision, or the importance ratio compares two.
+        policy.amp = self.args.amp
         # A checkpoint from the other observation lineage would silently
         # slice the board wrong -- planes it never saw would be read as
         # globals. Refuse it before it plays a single order.
@@ -358,20 +361,25 @@ class Trainer:
         return torch.from_numpy(self.env.param_mask(s, d, k)).to(self.device)
 
     def heads_of(self, policy, obs, chosen, raw, head, carried):
-        """One head's logits, conditioned on what the earlier heads chose."""
+        """One head's logits and mask, conditioned on what the earlier heads
+        chose. The mask is fetched once here and shared with the frozen side:
+        asking the env twice cost a round trip a head and counted every
+        offered power twice."""
+        logits = self.head_logits(policy, chosen, head, carried)
+        return logits, self.current_masks(*raw[:head])
+
+    @staticmethod
+    def head_logits(policy, chosen, head, carried):
+        """One head's logits alone, for whichever rows `carried` holds."""
         features, flat, pooled = carried
         if head == 0:
-            return policy.source_logits(features, pooled), self.current_masks()
+            return policy.source_logits(features, pooled)
         if head == 1:
-            return (policy.dest_logits(features, flat, pooled, chosen[0]),
-                    self.current_masks(raw[0]))
-        if head == 2:
-            return (policy.kind_logits(policy.context_of(
-                flat, pooled, chosen[0], chosen[1])),
-                self.current_masks(raw[0], raw[1]))
+            return policy.dest_logits(features, flat, pooled, chosen[0])
         context = policy.context_of(flat, pooled, chosen[0], chosen[1])
-        return (policy.param_logits(features, context, chosen[2]),
-                self.current_masks(raw[0], raw[1], raw[2]))
+        if head == 2:
+            return policy.kind_logits(context)
+        return policy.param_logits(features, context, chosen[2])
 
     def note_orders(self, sources, dones, mine):
         """Advance each env's position in its turn, and record where pops land.
@@ -412,7 +420,15 @@ class Trainer:
             # moves next, which is what the bootstrap wants.
             mine = (torch.from_numpy(self.env.current_player()).to(self.device)
                     == self.seat) if self.frozen is not None else None
-            theirs = self.frozen.trunk(obs) if self.frozen is not None else None
+            # The frozen side runs on its own rows only. A bot game never
+            # reaches it -- the env moves the bot before the learner looks --
+            # and in a checkpoint game it holds half the orders, so running it
+            # over the whole batch spent a second trunk pass on rows whose
+            # sample was thrown away.
+            theirs_rows = theirs = None
+            if mine is not None and not bool(mine.all()):
+                theirs_rows = (~mine).nonzero(as_tuple=True)[0]
+                theirs = self.frozen.trunk(obs[theirs_rows])
 
             chosen, total_logp, raw = [], 0.0, []
             for head in range(HEADS):
@@ -421,16 +437,18 @@ class Trainer:
                 distribution = torch.distributions.Categorical(
                     logits=masked_logits(logits, mask))
                 action = distribution.sample()
-                if self.frozen is not None:
-                    # Both networks run on the whole batch and the rows are
-                    # selected between, because each head's mask depends on what
-                    # the previous head actually chose -- the two sides have to
-                    # advance in step.
-                    other, _ = self.heads_of(
-                        self.frozen, obs, chosen, raw, head, theirs)
-                    other = torch.distributions.Categorical(
-                        logits=masked_logits(other, mask)).sample()
-                    action = torch.where(mine, action, other)
+                if theirs_rows is not None:
+                    # Each head's mask depends on what the previous head
+                    # actually chose, so the two sides advance head by head on
+                    # one shared mask, and the frozen picks are written over
+                    # the learner's on the rows the frozen side owns.
+                    other = self.head_logits(
+                        self.frozen, [c[theirs_rows] for c in chosen], head,
+                        theirs)
+                    other = torch.distributions.Categorical(logits=masked_logits(
+                        other, mask[theirs_rows])).sample()
+                    action = action.clone()
+                    action[theirs_rows] = other
                 # Scored under the learner regardless of who chose, so an
                 # opponent row carries a coherent number; it is masked out of
                 # the update anyway.
@@ -1066,6 +1084,12 @@ def main() -> int:
     # lineage. Explicit rather than sniffed from the init, so a mixed pool
     # fails loudly at load instead of silently reading garbage channels.
     parser.add_argument("--threat-planes", action="store_true")
+    # Unmeasured for strength, so off by default. The trunk is nearly all of
+    # the compute and the update alone was 60% of wall time on a profile
+    # (log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md); convs
+    # already run TF32 on Ampere and later, so expect up to 2x, not more.
+    parser.add_argument("--amp", action="store_true",
+                        help="run the trunk in bfloat16 (Ampere or later)")
     parser.add_argument("--anchor", default=None,
                         help="a clone to hold the policy near, by KL. The "
                              "reward cannot see composition, so PPO drifts off "
@@ -1106,6 +1130,10 @@ def main() -> int:
           f"{per} orders per iteration, shaping {args.shaping}")
 
     start = time.perf_counter()
+    # Wall time spent playing against updating. Whether a run is bound by the
+    # rollout or by the gradient step decides what speeding it up means, and a
+    # rented box shared by five arms cannot be profiled the way a local one can.
+    spent = {"collect": 0.0, "update": 0.0}
     seen = (0, 0, 0, 0)
     pops = seen_pops = 0
     seen_pos = (0, 0, 0, 0)
@@ -1120,7 +1148,9 @@ def main() -> int:
     for iteration in range(1, args.iterations + 1):
         trainer.take_opponent(iteration)
         before_games = trainer.env.results
+        clock = time.perf_counter()
         last, last_actor = trainer.collect()
+        spent["collect"] += time.perf_counter() - clock
         trainer.credit(before_games, trainer.env.results)
         # The learner's own power activations this rollout.
         pops += int(((trainer.buffer.actions[..., 0] >= trainer.pop_floor)
@@ -1136,7 +1166,9 @@ def main() -> int:
         warming = iteration <= args.value_warmup or trainer.recalibrating > 0
         if trainer.recalibrating > 0:
             trainer.recalibrating -= 1
+        clock = time.perf_counter()
         stats = trainer.update(adv, returns, critic_only=warming)
+        spent["update"] += time.perf_counter() - clock
         if args.recalibrate:
             trainer.recalibrate()
 
@@ -1180,6 +1212,7 @@ def main() -> int:
                             trainer.turn_len_sum, trainer.turn_len_n)
                 seen_offer = (trainer.pop_offered, trainer.pop_decisions)
             rate = iteration * per / (time.perf_counter() - start)
+            share = spent["update"] / max(sum(spent.values()), 1e-9)
             if args.selfplay:
                 # The score is against a moving opponent, so a high one means
                 # the snapshot is stale rather than that the learner is good --
@@ -1242,7 +1275,7 @@ def main() -> int:
                   f"H {stats['entropy']:.2f} kl {stats['kl']:.4f} "
                   f"clip {stats['clipped']:.2f} stop {stats['stopped']} "
                   f"spread {stats['spread']:.4f}  "
-                  f"{rate:,.0f}/s{mark}")
+                  f"{rate:,.0f}/s upd {share:.0%}{mark}")
             # Who the run is actually spending itself on. A league that has
             # quietly filled with the learner's own generations reads as a
             # row of high scores against `self` members and nothing else.

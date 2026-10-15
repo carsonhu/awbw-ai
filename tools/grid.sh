@@ -235,8 +235,42 @@ case "$GRID" in
       ARMS+=("lg2ctl-s$seed|--opponent jakeman --seed $seed")
     done
     ;;
+  batch)
+    # Is "decays from level" noise? An update here learns from ~9 finished
+    # games: 32 envs x 256 orders, 8,192 rows. The two Pokemon bots that
+    # reached #1 on Showdown by self-play PPO, mikumiku37 and Jaxcalibur,
+    # update on 8,192 battles x 32 steps = 262k rows, and played 1e8-3e8
+    # games (log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md).
+    # At level the win/loss signal is small, the noise is not, and every rung
+    # since August has drifted down from its own start -- lowering the step
+    # size could not help, since it scales signal and noise together. Only
+    # more games per update moves the ratio.
+    #
+    # So: the lg2ctl recipe exactly (JakeMan, from mixjm-s43, which starts
+    # level with it), at 32 envs and at 128. The minibatch scales with the
+    # rollout, so both groups take the same 96 gradient steps an iteration at
+    # the same learning rate -- the only thing that changes is how many games
+    # each step averages over. b128 plays 4x the games, which is the point,
+    # and costs 4x the rollout. If b128 ends further above its parent
+    # and spreads less across seeds, the fix is batch, not bars.
+    #
+    # Memory: minibatch 1024 peaks at 5.9 GiB allocated against 1.5 at 256,
+    # and a b128 rollout holds 2.6 GB of observations on the host. On a 24GB
+    # card run CONCURRENT=3; on 48GB, 6.
+    PARENT="${PARENT:-checkpoints/mixjm-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    RATE_OPP=jakeman
+    RECIPE=(--threat-planes --turn-discount --co "$T4"
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT" --anchor "$ANCHOR" --anchor-kl 0.03
+            --opponent jakeman)
+    for seed in 7 43 101 202; do
+      ARMS+=("b32-s$seed|--envs 32 --minibatch 256 --seed $seed")
+      ARMS+=("b128-s$seed|--envs 128 --minibatch 1024 --seed $seed")
+    done
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2|batch)"; exit 1;;
 esac
 
 mkdir -p logs

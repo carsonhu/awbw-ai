@@ -65,8 +65,8 @@ def rate(checkpoint, member, kind, games, co, decide_cap, temperature):
         # (log/2026-09-08-the-league-never-promoted.md).
         why = (run.stderr or run.stdout).strip().splitlines()
         tail = why[-1].strip() if why else f"exit {run.returncode}, no output"
-        return f"no score ({tail})", ""
-    return score, split
+        return f"no score ({tail})", "", out
+    return score, split, out
 
 
 def main() -> int:
@@ -78,6 +78,14 @@ def main() -> int:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--no-decide-cap", action="store_true",
                         help="draw day-capped games instead of settling them")
+    # A grid also rates each arm as each CO against its own opponent, and
+    # when that opponent is a panel bot the panel's CO is one of those
+    # ratings, played again with the same settings and seeds -- the same
+    # 200 games, twice. Keeping each member's full output lets the caller
+    # reuse it.
+    parser.add_argument("--raw-dir", default=None,
+                        help="also write each member's evaluate.py output "
+                             "to <dir>/<member>.txt")
     args = parser.parse_args()
 
     name = Path(args.checkpoint).stem
@@ -91,9 +99,14 @@ def main() -> int:
             print(f"  {Path(member).stem:<24} missing")
             continue
         label = member if kind == "bot" else Path(member).stem
-        score, split = rate(args.checkpoint, member, kind, args.games, args.co,
-                            not args.no_decide_cap, args.temperature)
+        score, split, out = rate(args.checkpoint, member, kind, args.games,
+                                 args.co, not args.no_decide_cap,
+                                 args.temperature)
         print(f"  {label:<24} {score}   {split}")
+        if args.raw_dir:
+            raw = Path(args.raw_dir)
+            raw.mkdir(parents=True, exist_ok=True)
+            (raw / f"{label}.txt").write_text(out)
     return 0
 
 

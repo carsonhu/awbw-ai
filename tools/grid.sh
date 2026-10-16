@@ -6,20 +6,43 @@
 #
 #   bash tools/grid.sh                  # the default grid, see GRID below
 #   GRID=mixjm bash tools/grid.sh       # a named grid, see the case list
-#   CONCURRENT=4 bash tools/grid.sh     # fewer lanes on a smaller card
+#   CONCURRENT=4 bash tools/grid.sh     # cap the lanes by hand
+#   PLAN=1 GRID=batch bash tools/grid.sh  # launch order, cost, memory; exit
 #
-# Each arm is  train -> panel -> play_diag -> per-CO ratings  as one chain;
-# chains run CONCURRENT at a time (default 5: arms measured 4.4GB apiece, five
-# fit in 24GB). Logs and results land in logs/, checkpoints in checkpoints/.
+# Each arm is  train -> panel -> play_diag -> per-CO ratings  as one chain.
+# Logs and results land in logs/, checkpoints in checkpoints/.
 # Watch progress:  tail -f logs/grid.log
+#
+# Rerunnable. A finished arm leaves logs/rated-<name> holding its exact
+# command and is skipped next time; an arm the box lost mid-training resumes
+# from its own state file. So an interrupted box -- or an interruptible one,
+# at a fraction of the price -- costs the games in flight, not the grid, and
+# an arm two grids share by name (a control, say) runs once. A name reused
+# for a different recipe refuses rather than reuse the wrong result.
+#
+# Lanes: arms launch longest first, as many at once as the CPU share and the
+# card's memory allow (CONCURRENT=auto). The batch grid ran six lanes of
+# eight on a card with room for all of them, and its last arm then ran alone
+# for three hours on a mostly idle GPU
+# (log/2026-10-15-the-league-lost-to-a-pool-that-never-moved.md).
 #
 # Run it under nohup or tmux: an ssh drop on a box billing by the minute
 # otherwise kills every arm at once.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-CONCURRENT="${CONCURRENT:-5}"
+CONCURRENT="${CONCURRENT:-auto}"
 GRID="${GRID:-mixed}"
+# Which weights the ratings read. `last` is what the run produced. `kept` is
+# the best rollout window, and for most 32-env arms that was iteration 30-60,
+# a handful of updates past the warm-up: their panels re-rated the parent,
+# and league2's comparison set those against league arms' final weights
+# (log/2026-10-15-the-league-lost-to-a-pool-that-never-moved.md).
+RATE_CKPT="${RATE_CKPT:-last}"
+# Games per rating. 200 is the floor a rating needs (panel.py); only the
+# smoke grid lowers it, to exercise the chain rather than measure anything.
+# Defaulted after the case list, so a case can set its own.
+RATE_GAMES="${RATE_GAMES:-}"
 # The anchor is per grid: the three August grids leash to bc-net2, anything
 # after the T4 re-clone leashes to bc-net2-t4, and a stale default here pulls
 # a rung toward a clone that barely pops. Each case sets its own.
@@ -31,6 +54,12 @@ ANCHOR="${ANCHOR:-}"
 # a harder instrument sets its own.
 RATE_OPP="${RATE_OPP:-greedy}"
 PY="${PY:-python3}"
+# Vast's PyTorch image keeps torch in a venv; a grid launched from a fresh
+# shell would otherwise start eight arms that die on `import torch`.
+if [ "$PY" = python3 ] && ! python3 -c "import torch" 2>/dev/null     && [ -f /venv/main/bin/activate ]; then
+  # shellcheck disable=SC1091
+  source /venv/main/bin/activate
+fi
 # The five COs whose powers the engine models, and so the only five a rung
 # can honestly be dealt (plan.md).
 T4="Adder,Jake,Koal,Jess,Grimm"
@@ -236,8 +265,9 @@ case "$GRID" in
     done
     ;;
   batch)
-    # Is "decays from level" noise? An update here learns from ~9 finished
-    # games: 32 envs x 256 orders, 8,192 rows. The two Pokemon bots that
+    # Is "decays from level" noise? An update here learns from ~15 finished
+    # games (~9 in a league arm): 32 envs x 256 orders, 8,192 rows. The two
+    # Pokemon bots that
     # reached #1 on Showdown by self-play PPO, mikumiku37 and Jaxcalibur,
     # update on 8,192 battles x 32 steps = 262k rows, and played 1e8-3e8
     # games (log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md).
@@ -269,9 +299,28 @@ case "$GRID" in
       ARMS+=("b128-s$seed|--envs 128 --minibatch 1024 --seed $seed")
     done
     ;;
+  smoke)
+    # The harness, in minutes: two tiny arms through the whole chain --
+    # train, resume state, panel, per-CO ratings, markers. Run it first on a
+    # fresh box: it costs pennies and catches a broken build, a missing
+    # checkpoint or a bad flag before eight arms die on it. Not a result.
+    PARENT="${PARENT:-checkpoints/mixjm-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    RATE_OPP=jakeman
+    : "${RATE_GAMES:=10}"
+    EXTRA=(checkpoints/bc-net2-t4.pt)
+    RECIPE=(--threat-planes --turn-discount --co "$T4"
+            --steps 32 --lam 0.99 --decide-cap --iterations 4
+            --value-warmup 1 --state-every 2
+            --init "$PARENT" --anchor "$ANCHOR" --anchor-kl 0.03)
+    ARMS+=("smoke-ctl|--opponent jakeman --envs 8 --minibatch 64 --seed 7")
+    ARMS+=("smoke-lg|--selfplay --frozen-init checkpoints/bc-net2-t4.pt --pool-bots jakeman --envs 8 --minibatch 64 --seed 7")
+    ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2|batch)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2|batch|smoke)"; exit 1;;
 esac
+
+: "${RATE_GAMES:=200}"
 
 mkdir -p logs
 log() { echo "[$(date +%H:%M)] $*" | tee -a logs/grid.log; }
@@ -293,50 +342,189 @@ if [ -n "${LIST:-}" ]; then
   exit 0
 fi
 
+# The value of a flag in an arm's command line, the last occurrence winning,
+# as argparse reads it; the default is ppo.py's own.
+flag_of() {
+  local want="$1" value="$2" prev="" word; shift 2
+  for word in "$@"; do [ "$prev" = "$want" ] && value="$word"; prev="$word"; done
+  echo "$value"
+}
+# Orders an arm trains on, and the GPU memory it holds. Memory is fitted to
+# the batch grid's measurement: minibatch 256 peaks at 1.5 GiB allocated and
+# 1024 at 5.9, and nvidia-smi read 2.0 and ~6.3 GB a process with the CUDA
+# context on top.
+cost_of() {
+  # shellcheck disable=SC2086
+  set -- "${RECIPE[@]}" $1
+  echo $(( $(flag_of --envs 32 "$@") * $(flag_of --steps 64 "$@") \
+           * $(flag_of --iterations 200 "$@") ))
+}
+mem_of() {
+  # shellcheck disable=SC2086
+  set -- "${RECIPE[@]}" $1
+  echo $(( 600 + 5700 * $(flag_of --minibatch 256 "$@") / 1024 ))
+}
+
+# Longest first, so the grid's tail is the short arms finishing in parallel
+# rather than one long arm alone on an idle card. Stable, so arms of equal
+# cost keep the case's order -- which interleaves treatment and control per
+# seed, and a box lost early still leaves matched pairs.
+ORDERED=()
+while IFS=$'\t' read -r _ index; do ORDERED+=("${ARMS[$index]}"); done < <(
+  for i in "${!ARMS[@]}"; do
+    printf '%s\t%s\n' "$(cost_of "${ARMS[$i]#*|}")" "$i"
+  done | sort -s -t$'\t' -k1,1nr)
+ARMS=("${ORDERED[@]}")
+
+# The CPU share, not the host: containers report the host's cores (see the
+# OMP note above), and a lane is the env thread plus OMP_NUM_THREADS.
+cores() {
+  local quota period
+  if [ -r /sys/fs/cgroup/cpu.max ]; then
+    read -r quota period < /sys/fs/cgroup/cpu.max
+    [ "$quota" != max ] && { echo $(( (quota + period - 1) / period )); return; }
+  elif [ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+    quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
+    period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+    [ "$quota" -gt 0 ] && { echo $(( (quota + period - 1) / period )); return; }
+  fi
+  nproc
+}
+if [ "$CONCURRENT" = auto ]; then
+  # Eight lanes on a 21-core share kept a 4090 at 100% with OMP at 2.
+  CONCURRENT=$(( $(cores) * 2 / 5 ))
+  [ "$CONCURRENT" -ge 1 ] || CONCURRENT=1
+fi
+# 90% of the card, leaving room for the rating processes that follow
+# training inside each lane. 0 means no GPU memory limit.
+GPU_MEM_MB="${GPU_MEM_MB:-$(nvidia-smi --query-gpu=memory.total \
+  --format=csv,noheader,nounits 2>/dev/null | head -1 | awk '{print int($1*0.9)}')}"
+GPU_MEM_MB="${GPU_MEM_MB:-0}"
+
+if [ -n "${PLAN:-}" ]; then
+  echo "grid $GRID: ${#ARMS[@]} arms, $CONCURRENT lanes, ${GPU_MEM_MB} MB of GPU"
+  for arm in "${ARMS[@]}"; do
+    name="${arm%%|*}"; flags="${arm#*|}"
+    state=new
+    [ -f "logs/trained-$name" ] && state=trained
+    [ -f "logs/rated-$name" ] && state=rated
+    printf '  %-14s %9s orders  %5s MB  %s\n' "$name" \
+      "$(cost_of "$flags")" "$(mem_of "$flags")" "$state"
+  done
+  exit 0
+fi
+
 for need in "${NEEDS[@]}"; do
   [ -z "$need" ] || [ -f "$need" ] || { echo "missing $need -- copy it into checkpoints/ first"; exit 1; }
 done
 
 run_arm() {
   local name="$1" flags="$2"
-  log "start $name"
-  # shellcheck disable=SC2086
-  if $PY python/ppo.py "${RECIPE[@]}" $flags \
-      --out "checkpoints/$name.pt" > "logs/train-$name.log" 2>&1; then
-    $PY python/panel.py --checkpoint "checkpoints/$name.pt" \
-      > "logs/panel-$name.txt" 2>&1
-    $PY python/play_diag.py --checkpoint "checkpoints/$name.pt" \
-      --co Adder --opponent greedy --games 30 \
-      > "logs/diag-$name.txt" 2>&1
-    log "done  $name  $(grep -m1 greedy "logs/panel-$name.txt" | tr -s ' ')"
-    # The panel rates every arm as Adder so its columns stay comparable with
-    # every entry on record. "Wins across the Tier-4 COs" is a different
-    # claim, so each arm is also rated as each CO -- a mirror against greedy,
-    # the rung's own opponent -- and read through play_diag per CO, because
-    # a mixed arm whose indirect share does not move when it is Jake has
-    # learned a generalist, not five players. Control arms get it too: an
-    # Adder-only rung's score as Grimm is the baseline the mixed arms beat.
-    # The mirror is against $RATE_OPP -- usually the rung's own opponent, but
-    # `greedy` no longer separates anything (see the RATE_OPP note above).
-    for co in ${T4//,/ }; do
-      $PY python/evaluate.py --checkpoint "checkpoints/$name.pt" \
-        --opponent "$RATE_OPP" --co "$co" --games 200 --temperature 1.0 --decide-cap \
-        > "logs/co-$name-$co.txt" 2>&1
-      $PY python/play_diag.py --checkpoint "checkpoints/$name.pt" \
-        --co "$co" --opponent "$RATE_OPP" --games 30 \
-        > "logs/diag-$name-$co.txt" 2>&1
-    done
-    log "rated $name  $(for co in ${T4//,/ }; do printf '%s %s  ' "$co" "$(grep -m1 '^ *score' "logs/co-$name-$co.txt" | awk '{print $2}')"; done)"
-  else
-    log "FAILED $name (see logs/train-$name.log)"
+  # What this arm is, exactly. A name two grids share must mean one run --
+  # that is how a control is shared instead of re-run -- so the markers hold
+  # the full command, and a mismatch refuses instead of reusing a result
+  # from a different recipe.
+  local recipe="${RECIPE[*]} $flags"
+  local trained="logs/trained-$name" rated="logs/rated-$name"
+  if [ -f "$rated" ]; then
+    if [ "$(cat "$rated")" = "$recipe" ]; then
+      log "skip  $name (rated earlier)"
+    else
+      log "FAILED $name: the name is already used by another recipe ($rated)"
+    fi
+    return
   fi
+  if [ -f "$trained" ] && [ "$(cat "$trained")" != "$recipe" ]; then
+    log "FAILED $name: the name is already used by another recipe ($trained)"
+    return
+  fi
+  if [ ! -f "$trained" ]; then
+    log "start $name"
+    # `--resume` continues from the arm's state file if a lost box left one,
+    # and starts fresh otherwise; the log appends so a resume keeps history.
+    # shellcheck disable=SC2086
+    if ! $PY python/ppo.py "${RECIPE[@]}" $flags --resume \
+        --out "checkpoints/$name.pt" >> "logs/train-$name.log" 2>&1; then
+      log "FAILED $name (see logs/train-$name.log)"
+      return
+    fi
+    printf '%s' "$recipe" > "$trained"
+  else
+    log "rate  $name (trained earlier)"
+  fi
+  local ckpt="checkpoints/$name.pt"
+  if [ "$RATE_CKPT" = last ] && [ -f "checkpoints/$name-last.pt" ]; then
+    ckpt="checkpoints/$name-last.pt"
+  fi
+  local diag_games=$(( RATE_GAMES < 30 ? RATE_GAMES : 30 ))
+  $PY python/panel.py --checkpoint "$ckpt" --raw-dir "logs/panelraw-$name" \
+    --games "$RATE_GAMES" > "logs/panel-$name.txt" 2>&1
+  $PY python/play_diag.py --checkpoint "$ckpt" \
+    --co Adder --opponent greedy --games "$diag_games" \
+    > "logs/diag-$name.txt" 2>&1
+  log "done  $name  $(grep -m1 greedy "logs/panel-$name.txt" | tr -s ' ')"
+  # The panel rates every arm as Adder so its columns stay comparable with
+  # every entry on record. "Wins across the Tier-4 COs" is a different
+  # claim, so each arm is also rated as each CO -- a mirror against greedy,
+  # the rung's own opponent -- and read through play_diag per CO, because
+  # a mixed arm whose indirect share does not move when it is Jake has
+  # learned a generalist, not five players. Control arms get it too: an
+  # Adder-only rung's score as Grimm is the baseline the mixed arms beat.
+  # The mirror is against $RATE_OPP -- usually the rung's own opponent, but
+  # `greedy` no longer separates anything (see the RATE_OPP note above).
+  #
+  # When $RATE_OPP is a panel bot, the panel already played it as Adder with
+  # these exact settings and seeds -- identical games, so it is reused.
+  for co in ${T4//,/ }; do
+    if [ "$co" = Adder ] && [ -s "logs/panelraw-$name/$RATE_OPP.txt" ]; then
+      cp "logs/panelraw-$name/$RATE_OPP.txt" "logs/co-$name-$co.txt"
+    else
+      $PY python/evaluate.py --checkpoint "$ckpt" \
+        --opponent "$RATE_OPP" --co "$co" --games "$RATE_GAMES" --temperature 1.0 --decide-cap \
+        > "logs/co-$name-$co.txt" 2>&1
+    fi
+    $PY python/play_diag.py --checkpoint "$ckpt" \
+      --co "$co" --opponent "$RATE_OPP" --games "$diag_games" \
+      > "logs/diag-$name-$co.txt" 2>&1
+  done
+  # Against the weights it grew from, head to head. The per-CO column is the
+  # rung's own opponent and cannot tell a stronger player from a specialist:
+  # two batch arms gained twenty points a CO on JakeMan and lost to their
+  # parent 36.5% and 42.5%, while the third beat it 61.0%
+  # (log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md).
+  local vs_parent=""
+  if [ -n "${PARENT:-}" ] && [ -f "$PARENT" ]; then
+    $PY python/evaluate.py --checkpoint "$ckpt" --versus "$PARENT"       --co Adder --games "$RATE_GAMES" --temperature 1.0 --decide-cap       > "logs/h2h-$name-vs-parent.txt" 2>&1
+    vs_parent="parent $(grep -m1 '^ *score' "logs/h2h-$name-vs-parent.txt" | awk '{print $2}')"
+  fi
+  log "rated $name  $(for co in ${T4//,/ }; do printf '%s %s  ' "$co" "$(grep -m1 '^ *score' "logs/co-$name-$co.txt" | awk '{print $2}')"; done)$vs_parent"
+  printf '%s' "$recipe" > "$rated"
 }
 
-log "grid: $GRID, ${#ARMS[@]} arms, $CONCURRENT concurrent"
+log "grid: $GRID, ${#ARMS[@]} arms, up to $CONCURRENT lanes, ${GPU_MEM_MB} MB GPU, rating $RATE_CKPT"
+# GPU memory held by the lanes still running, from each one's estimate.
+declare -A LANE_MB=()
+held_mb() {
+  local pid total=0
+  for pid in "${!LANE_MB[@]}"; do
+    kill -0 "$pid" 2>/dev/null && total=$(( total + LANE_MB[$pid] ))
+  done
+  echo "$total"
+}
 for arm in "${ARMS[@]}"; do
   name="${arm%%|*}"; flags="${arm#*|}"
-  while [ "$(jobs -rp | wc -l)" -ge "$CONCURRENT" ]; do wait -n; done
+  need=$(mem_of "$flags")
+  # A lane opens when one is free and the card has room -- or when nothing
+  # runs at all, so an arm bigger than the budget still runs.
+  while :; do
+    lanes=$(jobs -rp | wc -l)
+    [ "$lanes" -eq 0 ] && break
+    if [ "$lanes" -lt "$CONCURRENT" ] && { [ "$GPU_MEM_MB" -eq 0 ] \
+        || [ $(( $(held_mb) + need )) -le "$GPU_MEM_MB" ]; }; then break; fi
+    wait -n
+  done
   run_arm "$name" "$flags" &
+  LANE_MB[$!]=$need
 done
 wait
 log "grid complete"

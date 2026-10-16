@@ -338,12 +338,12 @@ nets and retires. Power timing needs no RL intervention at all — pop-weighted
 BC labels fixed it in the clone, and all ten arms kept it
 (`log/2026-08-29-the-grid-confirms-the-anchor.md`).
 
-**A rollout peak is a good selector and a bad number.** Over eight JakeMan arms
-the peak-kept checkpoint rated 5.8 points above the same arm's final weights on
-JakeMan and 5.0 on `ppo-adder3`, so `ppo.py` keeps saving it -- but the peak
-*value* ran twelve points above the panel at r=0.07, and the second-highest peak
-of the eight panelled worst. Select on it, never report it, and read a rung's
-progress from panels (`log/2026-08-29-the-peak-beats-the-endpoint.md`).
+**Rate a rung's final weights; its rollout peak can be its parent.** In a run
+that decays, the best 30-game window comes early: eight 32-env arms kept
+iteration 30-60, and their panels re-rated `mixjm-s43` while the weights 200
+iterations produced sat 15-33 points below it. The peak still saves, but
+`grid.sh` rates `-last.pt` (`log/2026-10-15-the-league-lost-to-a-pool-that-never-moved.md`,
+superseding `log/2026-08-29-the-peak-beats-the-endpoint.md`).
 
 **`--decide-cap` pays for stalling, and silences the metric that would show it.**
 A policy that pushes games to the 60-day cap banks the income tiebreak: the best
@@ -434,3 +434,16 @@ all, so specialising to A River Supreme is not what separates this project
 from them -- experience is, by four orders of magnitude. The map's corpus is
 spent (2,945 of 2,976 archived games); off-map games enter only as a priced
 tactics prior (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`).
+
+**An update needs more than fifteen games: 128 envs, minibatch 1024.** Same
+recipe, same 96 gradient steps an iteration, four seeds each: at 32 envs every
+arm ends 14-20 points a CO below its parent on JakeMan, at 128 every arm ends
+15-18 above, seeds within 3.2 points. "Decays from level" was update noise
+(`log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md`).
+
+**A rung of one opponent is finished; arms are rated against their parent.**
+Optimised well, one opponent is learned quirks and all: every 128-env arm's
+final weights beat JakeMan sixteen points a CO better than the parent and
+lose to it head to head, 33.0-38.5%. `grid.sh` plays every arm against
+`PARENT`; rungs need opponent diversity
+(`log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md`).

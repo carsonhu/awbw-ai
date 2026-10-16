@@ -72,7 +72,11 @@ BUDGETS = {
     # found. The trim that paid for part of it was real staleness -- `--amp`
     # had been advice about a flag `ppo.py` does not have, and the documented
     # recipe said `--gamma 0.99` where all eight logged runs passed `--lam`.
-    "docs/workflow.md": 116,
+    #
+    # Up 12 on 2026-10-16, at the owner's call that the budgets were too
+    # tight: the rented-box procedure (smoke, plan, resume, stopping the box)
+    # had lived only in a conversation, which is how procedures get lost.
+    "docs/workflow.md": 128,
     # The network reviewed against the systems it descends from (AlphaZero
     # trunk, AlphaStar decoder), and the ordered list of what to change.
     # Reference, not a log entry: it states what the design is and why, and

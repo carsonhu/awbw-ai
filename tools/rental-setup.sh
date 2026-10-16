@@ -42,6 +42,11 @@ if grep -qU $'\r' tools/*.sh 2>/dev/null; then
   echo "note: stripped CRLF from tools/*.sh -- this checkout predates .gitattributes"
 fi
 
+# Vast's PyTorch image keeps torch in a venv, not on the system python3.
+if ! python3 -c "import torch" 2>/dev/null && [ -f /venv/main/bin/activate ]; then
+  # shellcheck disable=SC1091
+  source /venv/main/bin/activate
+fi
 python3 -c "import torch; assert torch.cuda.is_available(), 'no CUDA'"
 python3 -c "import numpy" 2>/dev/null || pip install -q numpy
 
@@ -63,5 +68,8 @@ echo
 echo "Setup complete in $PWD. GRID=$GRID needs these checkpoints; copy them"
 echo "from the local machine, or upload them through the file browser:"
 for f in $NEEDED; do echo "  $f"; done
-echo "then here, naming the grid, under nohup so an ssh drop cannot kill the arms:"
+echo "then check the box end to end in about three minutes:"
+echo "  cd $PWD && GRID=smoke bash tools/grid.sh"
+echo "and launch, naming the grid, under nohup so an ssh drop cannot kill the arms:"
 echo "  cd $PWD && GRID=$GRID nohup bash tools/grid.sh > logs/nohup.log 2>&1 &"
+echo "PLAN=1 GRID=$GRID bash tools/grid.sh shows the launch order and lanes first."

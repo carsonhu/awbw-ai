@@ -18,6 +18,7 @@ distributions.
 
 import argparse
 import copy
+import os
 import sys
 import time
 from pathlib import Path
@@ -108,7 +109,8 @@ class Trainer:
         # Self-play takes no scripted opponent at all: the caller moves both
         # seats, and `agent_seat` says which rows are the learner's.
         self.env = awbw.VecEnv(
-            num_envs=args.envs, seed=args.seed, max_day=args.max_day,
+            num_envs=args.envs, seed=getattr(args, "env_seed", args.seed),
+            max_day=args.max_day,
             shaping=args.shaping, potential=args.potential,
             decide_cap=args.decide_cap, co=args.co,
             threat=args.threat_planes,
@@ -924,6 +926,45 @@ class Trainer:
         torch.save({"policy": self.policy.state_dict(), "config": self.config,
                     "teacher": "ppo", "map_name": self.env.map_name}, path)
 
+    def snapshot(self):
+        """Everything a resumed run needs beyond its arguments.
+
+        The games in flight are not in it: the engine's positions are not
+        serialised, so a resumed run deals fresh games and the few it was
+        partway through are lost. Everything that steers the run -- weights,
+        both optimisers' moments, the league's books and seating -- is.
+        """
+        return {
+            "policy": self.policy.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "critic_optimizer": self.critic_optimizer.state_dict(),
+            "frozen": (self.frozen.state_dict()
+                       if self.frozen is not None else None),
+            "pool": self.pool,
+            "pool_origin": self.pool_origin,
+            "pool_stats": self.pool_stats,
+            "pool_recent": self.pool_recent,
+            "pool_seatings": self.pool_seatings,
+            "current_member": self.current_member,
+            "held": self.held,
+            "refreshes": self.refreshes,
+            "recalibrating": self.recalibrating,
+            "bot_record": self.bot_record,
+        }
+
+    def restore(self, state):
+        self.policy.load_state_dict(state["policy"])
+        self.optimizer.load_state_dict(state["optimizer"])
+        self.critic_optimizer.load_state_dict(state["critic_optimizer"])
+        if self.frozen is not None and state["frozen"] is not None:
+            self.frozen.load_state_dict(state["frozen"])
+            self.frozen.eval()
+            self.frozen.requires_grad_(False)
+        for key in ("pool", "pool_origin", "pool_stats", "pool_recent",
+                    "pool_seatings", "current_member", "held", "refreshes",
+                    "recalibrating", "bot_record"):
+            setattr(self, key, state[key])
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1109,12 +1150,40 @@ def main() -> int:
                              "so the orders that follow it can price the buff")
     parser.add_argument("--co", default=None)
     parser.add_argument("--seed", type=int, default=11)
+    # An interruptible box is a fraction of the price of an on-demand one,
+    # and without this a preempted arm is a lost arm. The state file sits
+    # beside `--out` and goes away when the run finishes cleanly, so a stale
+    # one can never resume a run that already ended.
+    parser.add_argument("--resume", action="store_true",
+                        help="continue from <out>-state.pt if it exists")
+    parser.add_argument("--state-every", type=int, default=10,
+                        help="iterations between state saves (0: never)")
     parser.add_argument("--report-every", type=int, default=10)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    state_path = ROOT / Path(args.out).with_name(
+        Path(args.out).stem + "-state.pt")
+    state = None
+    if args.resume and state_path.exists():
+        # A local file this run wrote, holding optimiser state and the
+        # league's books as plain Python -- not a weights-only checkpoint.
+        state = torch.load(state_path, map_location=device, weights_only=False)
+        # Fresh games, not the opening deal replayed from the same seed.
+        args.env_seed = args.seed + state["iteration"]
     trainer = Trainer(args, device)
+    first = 1
+    if state is not None:
+        trainer.restore(state["trainer"])
+        torch.set_rng_state(state["rng"].cpu())
+        if torch.cuda.is_available() and state.get("cuda_rng") is not None:
+            torch.cuda.set_rng_state_all([r.cpu() for r in state["cuda_rng"]])
+        first = state["iteration"] + 1
+        print(f"resuming at iteration {first} from {state_path.name}; "
+              f"games in flight were lost, counters below start from here")
+    elif args.resume:
+        print(f"--resume: no {state_path.name}, starting fresh")
 
     per = args.envs * args.steps
     print(f"device {device}, {sum(p.numel() for p in trainer.policy.parameters())/1e6:.2f}M "
@@ -1138,14 +1207,14 @@ def main() -> int:
     pops = seen_pops = 0
     seen_pos = (0, 0, 0, 0)
     seen_offer = (0, 0)
-    best = -1.0
+    best = state["best"] if state is not None else -1.0
     # Whether `--out` itself was ever written. Both branches below write it only
     # on a keep, and in self-play a keep is a promotion -- so an arm that never
     # clears `--refresh-at` finishes with no `--out` at all, and every panel and
     # rating downstream dies on a missing file hours later
     # (log/2026-09-08-the-league-never-promoted.md).
-    saved_out = False
-    for iteration in range(1, args.iterations + 1):
+    saved_out = state["saved_out"] if state is not None else False
+    for iteration in range(first, args.iterations + 1):
         trainer.take_opponent(iteration)
         before_games = trainer.env.results
         clock = time.perf_counter()
@@ -1211,7 +1280,8 @@ def main() -> int:
                 seen_pos = (trainer.pop_index_sum, trainer.pop_index_n,
                             trainer.turn_len_sum, trainer.turn_len_n)
                 seen_offer = (trainer.pop_offered, trainer.pop_decisions)
-            rate = iteration * per / (time.perf_counter() - start)
+            rate = ((iteration - first + 1) * per
+                    / (time.perf_counter() - start))
             share = spent["update"] / max(sum(spent.values()), 1e-9)
             if args.selfplay:
                 # The score is against a moving opponent, so a high one means
@@ -1289,8 +1359,26 @@ def main() -> int:
                     members.append(f"{origin[0]}{seat}{rate_vs}")
                 print(f"        league {' '.join(members)}")
 
+        if args.state_every and (iteration % args.state_every == 0
+                                 and iteration < args.iterations):
+            # Written aside and renamed into place, so a box preempted
+            # mid-write leaves the previous state, not half of this one.
+            snapshot = {
+                "iteration": iteration, "best": best, "saved_out": saved_out,
+                "trainer": trainer.snapshot(), "rng": torch.get_rng_state(),
+                "cuda_rng": (torch.cuda.get_rng_state_all()
+                             if torch.cuda.is_available() else None),
+            }
+            partial = state_path.with_suffix(".tmp")
+            torch.save(snapshot, partial)
+            os.replace(partial, state_path)
+
     last = Path(args.out).with_name(Path(args.out).stem + "-last.pt")
     trainer.save(last)
+    # Finished cleanly: nothing left to resume, and a stale state file would
+    # otherwise let `--resume` restart a run that already ended.
+    if state_path.exists():
+        state_path.unlink()
     if not saved_out:
         # Nothing ever cleared the bar. The final weights are then the only
         # weights this run has, and they are worth more than a name that does

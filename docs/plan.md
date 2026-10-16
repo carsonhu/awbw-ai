@@ -60,16 +60,27 @@ otherwise made specialists that beat their own past. Four prerequisites:
    a new question every seat (`log/2026-09-08-the-pool-is-six-opponents.md`).
    The rule is rebuilt per member and priced: 0.60 over 30 games each fires on
    4.5% of runs that gain nothing, 78% of runs ten points better
-   (`log/2026-09-08-the-promotion-bar-is-calibrated.md`). `GRID=league2`
-   re-runs it with four controls.
+   (`log/2026-09-08-the-promotion-bar-is-calibrated.md`). ~~`GRID=league2`~~:
+   no promotions, and every 32-env arm, league or control, decayed below
+   its parent (`log/2026-10-15-the-league-lost-to-a-pool-that-never-moved.md`).
 4. Search stays out of the first league: it wants a contested opponent and
    amplifies whatever the critic prefers.
 5. **Experience is the gap.** The Showdown #1 bots share this recipe and train
-   on 1e8+ games at 262k rows an update; an arm here plays ~1,800 at 8,192
-   (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`). In order:
-   `GRID=batch` (is "decays from level" noise?); time `--amp` on the rented
-   card; then, if batch is the cause, the live learner in half the league's
-   seats (both sides on-policy) and terminal-only reward once self-play leads.
+   on 1e8+ games at 262k rows an update
+   (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`).
+   ~~`GRID=batch`~~: it was. 128 envs climbs +15-18 a CO on JakeMan, every
+   seed, where 32 decays -- and every arm's final weights lose to the parent
+   head to head, 33-38.5%: one opponent, optimised well, is a specialist
+   (`log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md`).
+   `--amp` is +15%, off. Next grid, one box:
+   - **the league at 128 envs**, four arms, rated head to head against the
+     parent; the batch grid's `b128` arms are its controls, reused by name.
+   - **the league at 256 envs**, two seeds: does scaling still pay once the
+     opponents are diverse?
+   - **32 envs for 800 iterations**, two seeds: noise per update, or total
+     experience? (cost, not direction)
+   Then the live learner in half the league's seats (both sides on-policy),
+   and terminal-only reward once self-play leads.
 
 ## Endpoint, and the two books after
 

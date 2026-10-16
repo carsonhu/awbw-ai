@@ -58,9 +58,19 @@ py -3.12 python/play_diag.py --checkpoint <ckpt> --baseline  # what it builds
 py -3.12 python/order_diag.py                         # ordering vs judgement
 ```
 
-The rung of record: `--threat-planes --opponent greedy --turn-discount
---steps 256 --lam 0.99 --decide-cap --co Adder,Jake,Koal,Jess,Grimm` (the Tier-4
-pool; panels rate as Adder). Seed groups through `tools/grid.sh`, never single runs.
+The rung of record: `--threat-planes --turn-discount --steps 256 --lam 0.99
+--decide-cap --co Adder,Jake,Koal,Jess,Grimm --envs 128 --minibatch 1024`
+(the Tier-4 pool; panels rate as Adder). 32 envs decays from level; 128 climbs.
+Seed groups through `tools/grid.sh`, never single runs.
+
+On a rented box: `tools/rental-setup.sh`, then `GRID=smoke` (three minutes,
+the whole chain), `PLAN=1` (launch order and lanes), then the grid under
+`nohup`. It rates final weights and every arm against `PARENT`, skips arms
+already rated, and resumes an arm from its state file, so a lost or
+interruptible box costs only the games in flight. When results are home,
+stop the box with the REST API: the bundled `vastai` CLI is refused for the
+instance's own key, `PUT /api/v0/instances/$CONTAINER_ID/` with
+`{"state":"stopped"}` and `Authorization: Bearer $CONTAINER_API_KEY` works.
 
 Read `kl` and `clip`, never entropy. Rate at 1.0 (0.3 flatters a clone
 threefold) through `panel.py`, since a ladder's head-to-head only proves it

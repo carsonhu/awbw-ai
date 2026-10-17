@@ -19,6 +19,9 @@ fights that make sense.
 
 Pop position comes along for the ride, because the log that found the agent
 firing its power as the turn's last order read it from exactly these records.
+And for a power that adds movement (Adder, Koal, Jess, Jake's SCOP), whether
+the movement is spent: a pop at order 4 is early, but a power whose moves all
+stay inside base range bought only its attack.
 
     py -3.12 python/play_diag.py --checkpoint checkpoints/ppo-t2v1.pt
         --co Adder --baseline
@@ -26,18 +29,24 @@ firing its power as the turn's last order read it from exactly these records.
 
 import argparse
 import collections
+import heapq
 import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
+sys.path.insert(0, str(ROOT / "tools"))
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 import awbw  # noqa: E402
 import evaluate  # noqa: E402
+# The generators' own tables, so movement here is priced from the same source
+# as the engine's and cannot drift from it.
+import gen_cos  # noqa: E402
+import gen_tables  # noqa: E402
 
 UNITS = json.loads((ROOT / "data" / "units.json").read_text())
 COST = {name: u["cost"] for name, u in UNITS.items()}
@@ -62,6 +71,152 @@ def named(kind):
     return resolved
 
 
+# Clear-weather step costs per AWBW terrain id and move type, None where the
+# type cannot enter. Every game here is on clear weather.
+_CHART = {row["gif"]: row for row in
+          json.loads((ROOT / "data" / "terrain_chart.json").read_text())}
+_GIF = dict(gen_tables.TERRAIN_KINDS)
+STEP = {int(tid): _CHART[_GIF[gen_tables.KIND_JSON_TO_RUST[t["kind"]]]]
+        ["costs"]["clear"]
+        for tid, t in json.loads(
+            (ROOT / "data" / "terrain_ids.json").read_text()).items()}
+# The training board, row-major like the corpus; the map file stores columns.
+_BOARD = json.loads((ROOT / "data" / "maps" / "119544.json").read_text())
+BOARD_ID = 119544
+BOARD = [list(row) for row in zip(*_BOARD["Terrain Map"])]
+
+
+def power_move(co, power):
+    """Movement a power adds, per unit type: {} for a power that adds none."""
+    effect = gen_cos.POWER_EFFECTS.get(co, {}).get(
+        "cop_move" if power == "Y" else "scop_move")
+    if not effect:
+        return {}
+    units, delta = effect
+    return {named(name): delta for name in units}
+
+
+def in_base_reach(grid, kind, path):
+    """Whether the move's destination is inside the unit's base movement.
+
+    Judged on terrain alone, from the cheapest route rather than the path the
+    log walked: a human can draw a roundabout path in AWBW, and the engine and
+    the corpus are only comparable on one definition. Units are ignored, so a
+    move pushed long by a blocker reads as in range -- the count of moves that
+    needed the power is a floor, the same floor for both.
+    """
+    (x0, y0), goal = path[0], path[-1]
+    budget, mtype = UNITS[kind]["move_points"], UNITS[kind]["move_type"]
+    best = {(x0, y0): 0}
+    queue = [(0, x0, y0)]
+    while queue:
+        cost, x, y = heapq.heappop(queue)
+        if (x, y) == goal:
+            return True
+        if cost > best.get((x, y), budget + 1):
+            continue
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if not (0 <= ny < len(grid) and 0 <= nx < len(grid[0])):
+                continue
+            step = STEP[grid[ny][nx]][mtype]
+            if step is None or cost + step > budget:
+                continue
+            if cost + step < best.get((nx, ny), budget + 1):
+                best[(nx, ny)] = cost + step
+                heapq.heappush(queue, (cost + step, nx, ny))
+    return False
+
+
+class PowerMoves:
+    """Whether a power that adds movement is spent on movement, per CO and
+    power -- a SCOP adds twice a COP's movement, so the two are kept apart.
+
+    Fed one turn at a time as ("power", "Y" or "S", co) and ("unit", type,
+    path) records, so the engine's logs and the human corpus are read by the
+    same code. Only turns that fire a movement power count.
+    """
+
+    def __init__(self):
+        self.by_co = collections.defaultdict(collections.Counter)
+
+    def turn(self, orders, grid):
+        at = next((i for i, o in enumerate(orders) if o[0] == "power"), None)
+        if at is None:
+            return
+        _, power, co = orders[at]
+        boost = power_move(co, power)
+        if not boost:
+            return
+        t = self.by_co[(co, "SCOP" if power == "S" else "COP")]
+        t["pops"] += 1
+        for order in orders[:at]:
+            if order[0] == "unit":
+                t["before"] += 1
+                t["before_moving"] += len(order[2]) > 1
+        used = 0
+        for order in orders[at + 1:]:
+            if order[0] != "unit" or not boost.get(order[1]):
+                continue
+            t["powered"] += 1
+            if len(order[2]) > 1 and not in_base_reach(grid, order[1], order[2]):
+                used += 1
+        t["used"] += used
+        t["pops_used"] += used > 0
+
+    def report(self, label, cos=None):
+        for (co, power), t in sorted(self.by_co.items()):
+            if cos is not None and co not in cos:
+                continue
+            n = max(t["pops"], 1)
+            print(f"  {label} {co} {power:<4}: {t['pops']:>5} pops, "
+                  f"after {t['before'] / n:.1f} "
+                  f"unit orders ({t['before_moving'] / n:.1f} moving); "
+                  f"{t['used'] / max(t['powered'], 1):.1%} of "
+                  f"{t['powered']} powered moves needed the bonus, "
+                  f"{t['used'] / n:.1f} a pop, "
+                  f"{t['pops_used'] / n:.0%} of pops used it")
+
+
+def engine_turn(orders):
+    """An engine log's orders as PowerMoves reads them."""
+    out = []
+    for order in orders:
+        kind = order.get("kind")
+        unit = order.get("unit") or order.get("mover")
+        if kind == "Power":
+            out.append(("power", order.get("coPower"), order.get("coName")))
+        elif order.get("path") and isinstance(unit, dict):
+            out.append(("unit", named(unit["type"]),
+                        [(p["x"], p["y"]) for p in order["path"]]))
+    return out
+
+
+def corpus_turn(actions):
+    """A recorded human turn's actions as PowerMoves reads them.
+
+    A unit order carries its move as `Move`, nested unless it is a plain move;
+    an empty one is a unit acting where it stands.
+    """
+    out = []
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        if action.get("action") == "Power":
+            out.append(("power", action.get("coPower"), action.get("coName")))
+            continue
+        move = action if action.get("action") == "Move" else action.get("Move")
+        if move is None:
+            continue
+        unit = (move.get("unit") or {}).get("global") if isinstance(move, dict) else None
+        steps = (move.get("paths") or {}).get("global") if isinstance(move, dict) else None
+        if isinstance(unit, dict) and steps:
+            out.append(("unit", named(unit["units_name"]),
+                        [(s["x"], s["y"]) for s in steps]))
+        else:
+            out.append(("unit", None, [None]))
+    return out
+
+
 class Tally:
     def __init__(self):
         self.builds = collections.Counter()
@@ -71,6 +226,7 @@ class Tally:
         self.losing = collections.Counter()
         self.pop_index = []
         self.turn_len = []
+        self.moves = PowerMoves()
         self.games = 0
 
     def add_game(self, game, seat):
@@ -89,6 +245,7 @@ class Tally:
             ours = turn.get("active") == seat
             if ours:
                 self.turn_len.append(len(orders))
+                self.moves.turn(engine_turn(orders), BOARD)
             for i, order in enumerate(orders):
                 kind = order.get("kind")
                 if kind == "Fire":
@@ -124,7 +281,8 @@ class Tally:
         if dealt < lost:
             self.losing[bucket] += 1
 
-    def report(self, label, against, baseline=None, base_games=0):
+    def report(self, label, against, baseline=None, base_games=0,
+               human_moves=None):
         print(f"\n{label} vs {against}, {self.games} games\n")
         total = sum(self.builds.values())
         spend = sum(COST.get(n, 0) * c for n, c in self.builds.items())
@@ -180,6 +338,11 @@ class Tally:
                   f"of a {mean_len:.1f}-order turn")
         else:
             print("\n  no powers fired")
+        if self.moves.by_co:
+            print()
+            self.moves.report("policy")
+            if human_moves is not None:
+                human_moves.report("human", {co for co, _ in self.moves.by_co})
 
 
 def corpus_mix(prepared):
@@ -189,8 +352,12 @@ def corpus_mix(prepared):
     wrong once you know humans build 6%. The corpus is every prepared game on
     the board, all COs, so it is the mix of the population the agent would have
     to be competent against rather than of any one opponent.
+
+    Power movement rides the same pass, from the games on the training board
+    without fog, whose terrain and visibility match the engine's.
     """
     builds = collections.Counter()
+    moves = PowerMoves()
     games = 0
     for path in sorted(Path(prepared).glob("*.json")):
         try:
@@ -198,7 +365,11 @@ def corpus_mix(prepared):
         except (ValueError, OSError):
             continue
         games += 1
+        same_board = game.get("map_id") == BOARD_ID and not game.get("fog")
         for turn in game.get("turns") or []:
+            if same_board:
+                moves.turn(corpus_turn(turn.get("actions") or []),
+                           game["terrain"])
             for action in turn.get("actions") or []:
                 if not isinstance(action, dict):
                     continue
@@ -208,7 +379,7 @@ def corpus_mix(prepared):
                 unit = unit.get("global") if isinstance(unit, dict) else None
                 if isinstance(unit, dict) and unit.get("units_name"):
                     builds[unit["units_name"]] += 1
-    return builds, games
+    return builds, games, moves
 
 
 def main() -> int:
@@ -287,10 +458,11 @@ def main() -> int:
                 continue
             tally.add_game(json.loads(log), int(env.agent_seat()[slot]))
 
-    baseline, base_games = (corpus_mix(ROOT / args.prepared)
-                            if args.baseline else (None, 0))
+    baseline, base_games, human_moves = (corpus_mix(ROOT / args.prepared)
+                                         if args.baseline else (None, 0, None))
     against = Path(args.versus).stem if args.versus else args.opponent
-    tally.report(Path(args.checkpoint).stem, against, baseline, base_games)
+    tally.report(Path(args.checkpoint).stem, against, baseline, base_games,
+                 human_moves)
     return 0
 
 

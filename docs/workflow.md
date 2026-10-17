@@ -63,14 +63,15 @@ The rung of record: `--threat-planes --turn-discount --steps 256 --lam 0.99
 (the Tier-4 pool; panels rate as Adder). 32 envs decays from level; 128 climbs.
 Seed groups through `tools/grid.sh`, never single runs.
 
-On a rented box: `tools/rental-setup.sh`, then `GRID=smoke` (three minutes,
-the whole chain), `PLAN=1` (launch order and lanes), then the grid under
-`nohup`. It rates final weights and every arm against `PARENT`, skips arms
-already rated, and resumes an arm from its state file, so a lost or
-interruptible box costs only the games in flight. When results are home,
-stop the box with the REST API: the bundled `vastai` CLI is refused for the
-instance's own key, `PUT /api/v0/instances/$CONTAINER_ID/` with
-`{"state":"stopped"}` and `Authorization: Bearer $CONTAINER_API_KEY` works.
+On a rented box, from here: `GRID=<name> bash tools/rent.sh up` rents an
+on-demand Vast box (interruptible ones were preempted three times of three),
+uploads the tree and the grid's checkpoints, runs `rental-setup.sh` and
+`GRID=smoke`, and launches; `rent.sh watch` pulls the results home and
+destroys the box (needs the `vastai` CLI with an account key). The grid
+rates final weights and every arm against `PARENT`, skips rated arms, and
+resumes an arm from its state file, so a lost box costs the games in
+flight. A grid no one collects stops its own box two hours after finishing;
+stopped still bills its disk until destroyed.
 
 Read `kl` and `clip`, never entropy. Rate at 1.0 (0.3 flatters a clone
 threefold) through `panel.py`, since a ladder's head-to-head only proves it

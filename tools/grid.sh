@@ -299,6 +299,48 @@ case "$GRID" in
       ARMS+=("b128-s$seed|--envs 128 --minibatch 1024 --seed $seed")
     done
     ;;
+  scale)
+    # Lane C item 5's next grid. 128 envs climbs where 32 decays, and every
+    # 128-env arm, trained on JakeMan alone, ends a specialist: 72.6-75.8 a CO
+    # on JakeMan and 33.0-38.5% head to head against its parent
+    # (log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md). Three
+    # questions, one box, all from `mixjm-s43`:
+    #
+    # - lg128, four seeds: league2's league at 128 envs. At 32 it never
+    #   promoted and decayed with its controls, so the league has not had a
+    #   fair test. The batch grid's `b128` arms are its controls -- the same
+    #   parent, rated the same way -- and are not re-run. It works if final
+    #   weights beat the parent head to head, where every b128 arm lost.
+    # - lg256, two seeds: the same at 256 envs. Does more experience still pay
+    #   once the opponents are diverse? The minibatch scales with the rollout,
+    #   so every arm here takes the same 96 gradient steps an iteration.
+    # - b32x800, two seeds: b32's recipe for 800 iterations, about the games
+    #   a b128 arm played. If it climbs like b128, total experience was the
+    #   lever and smaller boxes running longer will do; if it decays, batch is
+    #   a hard requirement. Cost, not direction -- so it is the arm cut when
+    #   the budget is short, and is off unless B32X800=1.
+    #
+    # Memory: the six league arms read ~53 GB on the card, ~8% over mem_of's
+    # estimate. On a 48GB card one or two lg128 arms wait for a lane, which
+    # still ends about when lg256 does; on 80GB they all start together.
+    PARENT="${PARENT:-checkpoints/mixjm-s43.pt}"
+    : "${ANCHOR:=checkpoints/bc-net2-t4.pt}"
+    RATE_OPP=jakeman
+    POOL="checkpoints/bc-net2-t4.pt,checkpoints/mixjm-s202.pt"
+    POOL="$POOL,checkpoints/mixjm-s7.pt,checkpoints/mixjm-noanc-s43.pt"
+    EXTRA=(${POOL//,/ })
+    RECIPE=(--threat-planes --turn-discount --co "$T4"
+            --steps 256 --lam 0.99 --decide-cap --iterations 200
+            --init "$PARENT" --anchor "$ANCHOR" --anchor-kl 0.03)
+    LEAGUE="--selfplay --frozen-init $POOL --pool-bots jakeman --pool-bot-share 0.25 --seat-cap 50"
+    for seed in 7 43 101 202; do
+      ARMS+=("lg128-s$seed|$LEAGUE --envs 128 --minibatch 1024 --seed $seed")
+    done
+    for seed in 7 43; do
+      ARMS+=("lg256-s$seed|$LEAGUE --envs 256 --minibatch 2048 --seed $seed")
+      [ "${B32X800:-}" = 1 ] && ARMS+=("b32x800-s$seed|--opponent jakeman --envs 32 --minibatch 256 --iterations 800 --seed $seed")
+    done
+    ;;
   smoke)
     # The harness, in minutes: two tiny arms through the whole chain --
     # train, resume state, panel, per-CO ratings, markers. Run it first on a
@@ -317,7 +359,7 @@ case "$GRID" in
     ARMS+=("smoke-lg|--selfplay --frozen-init checkpoints/bc-net2-t4.pt --pool-bots jakeman --envs 8 --minibatch 64 --seed 7")
     ;;
   *)
-    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2|batch|smoke)"; exit 1;;
+    echo "unknown GRID '$GRID' (phase1|jakeman|jakeman2|mixed|mixjm|league|league2|batch|scale|smoke)"; exit 1;;
 esac
 
 : "${RATE_GAMES:=200}"
@@ -349,14 +391,18 @@ flag_of() {
   for word in "$@"; do [ "$prev" = "$want" ] && value="$word"; prev="$word"; done
   echo "$value"
 }
-# Orders an arm trains on, and the GPU memory it holds. Memory is fitted to
-# the batch grid's measurement: minibatch 256 peaks at 1.5 GiB allocated and
-# 1024 at 5.9, and nvidia-smi read 2.0 and ~6.3 GB a process with the CUDA
-# context on top.
+# An arm's wall time in arbitrary units, and the GPU memory it holds. Time is
+# not orders: a step costs a fixed batch latency plus its envs, and the batch
+# grid's b32 and b128 arms took 1.9 and 4.7 hours for 200 iterations, 4x the
+# envs for 2.5x the time -- envs + 32. Ranking by orders alone would start an
+# 800-iteration 32-env arm, the longest one, behind 128-env arms that finish
+# hours before it. Memory is fitted to the batch grid's measurement:
+# minibatch 256 peaks at 1.5 GiB allocated and 1024 at 5.9, and nvidia-smi
+# read 2.0 and ~6.3 GB a process with the CUDA context on top.
 cost_of() {
   # shellcheck disable=SC2086
   set -- "${RECIPE[@]}" $1
-  echo $(( $(flag_of --envs 32 "$@") * $(flag_of --steps 64 "$@") \
+  echo $(( ($(flag_of --envs 32 "$@") + 32) * $(flag_of --steps 64 "$@") \
            * $(flag_of --iterations 200 "$@") ))
 }
 mem_of() {
@@ -408,7 +454,7 @@ if [ -n "${PLAN:-}" ]; then
     state=new
     [ -f "logs/trained-$name" ] && state=trained
     [ -f "logs/rated-$name" ] && state=rated
-    printf '  %-14s %9s orders  %5s MB  %s\n' "$name" \
+    printf '  %-14s %9s time  %5s MB  %s\n' "$name" \
       "$(cost_of "$flags")" "$(mem_of "$flags")" "$state"
   done
   exit 0

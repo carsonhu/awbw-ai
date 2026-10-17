@@ -68,26 +68,29 @@ otherwise made specialists that beat their own past. Four prerequisites:
 5. **Experience is the gap.** The Showdown #1 bots share this recipe and train
    on 1e8+ games at 262k rows an update
    (`log/2026-10-15-the-recipe-is-right-and-the-run-is-small.md`).
-   ~~`GRID=batch`~~: it was. 128 envs climbs +15-18 a CO on JakeMan, every
-   seed, where 32 decays -- and every arm's final weights lose to the parent
-   head to head, 33-38.5%: one opponent, optimised well, is a specialist
+   ~~`GRID=batch`~~: it was -- 128 envs climbs where 32 decays, but one
+   opponent makes a specialist that loses to its parent 33-38.5%
    (`log/2026-10-16-the-bigger-batch-climbs-and-can-specialise.md`).
-   `--amp` is +15%, off. Next grid, one box:
-   - **the league at 128 envs**, four arms, rated head to head against the
-     parent; the batch grid's `b128` arms are its controls, reused by name.
-   - **the league at 256 envs**, two seeds: does scaling still pay once the
-     opponents are diverse?
-   - **32 envs for 800 iterations**, two seeds: noise per update, or total
-     experience? (cost, not direction)
-   Then the live learner in half the league's seats (both sides on-policy),
-   and terminal-only reward once self-play leads.
+   ~~`GRID=scale`~~: the league at 128 envs beats the parent on every seed,
+   65.5-77.5%, and 256 envs beats it 81.0% on both, leading on every column
+   (`log/2026-10-17-the-league-beats-its-parent-on-every-seed.md`). `--amp`
+   +15%, off; 32 envs x 800 iterations stays open (cost, not direction).
+6. **Before the next rung, at home:** rate the six arms and the `b128`
+   controls over all 25 CO matchups in counterbalanced quads, not the Adder
+   mirror alone, and pick the parent from that; rate the `-genN` snapshots
+   to date the gain, which sets run length.
+7. **The next rung:** the league from that parent with its `scale` siblings
+   as the pool, at 256 envs if the matchup rating holds the lead. Then the
+   live learner in half the league's seats, and terminal-only reward -- which
+   should also end the COP spam, ~9.7 a game against a human's 1.46
+   (`log/2026-10-16-the-power-moves-half-as-far-and-fires-six-times-as-often.md`).
 
 ## Endpoint, and the two books after
 
 A seed-grouped policy with a winning record against every scripted
 opponent, across the Tier-4 COs, on the training slice -- not
-promising human-looking composition or off-slice transfer. The sweep
-saturates the panel, and hands off to:
+promising human-looking composition or off-slice transfer. Met by
+`scale`'s 256-env pair (Grimm 60.2, 63.5); the sweep hands off to:
 
 **The Elo instrument.** Half exists: `value_diag.py` scores the value
 head against recorded human outcomes by phase and rating band, the
